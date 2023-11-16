@@ -2832,9 +2832,9 @@
     "@types/node" "*"
 
 "@types/react-beautiful-dnd@^13.0.0":
-  version "13.1.5"
-  resolved "https://registry.yarnpkg.com/@types/react-beautiful-dnd/-/react-beautiful-dnd-13.1.5.tgz#04869f2ec4658aa963e56dc3cbb91f261587dedc"
-  integrity sha512-mzohmMtV48b0bXF2dP8188LzUv9HAGHKucOORYsd5Sqq830pJ4gseFyDDAH0TR4TeD1ceG9DxTQ0FOFbtCSy4Q==
+  version "13.1.7"
+  resolved "https://registry.yarnpkg.com/@types/react-beautiful-dnd/-/react-beautiful-dnd-13.1.7.tgz#cc8038896ee7dee99b8bfd0eaed0a02a8617bedc"
+  integrity sha512-jQZLov9OkD0xRQkqz8/lx66bHYAYv+g4+POBqnH5Jtt/xo4MygzM879Q9sxAiosPBdNj1JYTdbPxDn3dNRYgow==
   dependencies:
     "@types/react" "*"
 
@@ -2856,9 +2856,9 @@
     redux "^4.0.0"
 
 "@types/react-transition-group@^4.4.0":
-  version "4.4.7"
-  resolved "https://registry.yarnpkg.com/@types/react-transition-group/-/react-transition-group-4.4.7.tgz#bf69f269d74aa78b99097673ca6dd6824a68ef1c"
-  integrity sha512-ICCyBl5mvyqYp8Qeq9B5G/fyBSRC0zx3XM3sCC6KkcMsNeAHqXBKkmat4GqdJET5jtYUpZXrxI5flve5qhi2Eg==
+  version "4.4.9"
+  resolved "https://registry.yarnpkg.com/@types/react-transition-group/-/react-transition-group-4.4.9.tgz#12a1a1b5b8791067198149867b0823fbace31579"
+  integrity sha512-ZVNmWumUIh5NhH8aMD9CR2hdW0fNuYInlocZHaZ+dgk/1K49j1w/HoAuK1ki+pgscQrOFRTlXeoURtuzEkV3dg==
   dependencies:
     "@types/react" "*"
 
@@ -2884,9 +2884,9 @@
     htmlparser2 "^8.0.0"
 
 "@types/scheduler@*":
-  version "0.16.4"
-  resolved "https://registry.yarnpkg.com/@types/scheduler/-/scheduler-0.16.4.tgz#fedc3e5b15c26dc18faae96bf1317487cb3658cf"
-  integrity sha512-2L9ifAGl7wmXwP4v3pN4p2FLhD0O1qsJpvKmNin5VA8+UvNVb447UDaAEV6UdrkA+m/Xs58U1RFps44x6TFsVQ==
+  version "0.16.6"
+  resolved "https://registry.yarnpkg.com/@types/scheduler/-/scheduler-0.16.6.tgz#eb26db6780c513de59bee0b869ef289ad3068711"
+  integrity sha512-Vlktnchmkylvc9SnwwwozTv04L/e1NykF5vgoQ0XTmI8DD+wxfjQuHuvHS3p0r2jz2x2ghPs2h1FVeDirIteWA==
 
 "@types/sdp-transform@^2.4.6":
   version "2.4.9"
