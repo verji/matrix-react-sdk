@@ -82,6 +82,8 @@ import { SdkContextClass } from "../../../contexts/SDKContext";
 import { asyncSome } from "../../../utils/arrays";
 import UIStore from "../../../stores/UIStore";
 import { SpaceScopeHeader } from "../rooms/SpaceScopeHeader";
+import SettingsStore from "../../../settings/SettingsStore";
+import { UIFeature } from "../../../settings/UIFeature";
 
 export interface IDevice extends Device {
     ambiguous?: boolean;
@@ -226,7 +228,7 @@ export function DeviceItem({
     if (isVerified === undefined) {
         // we're still deciding if the device is verified
         return <div className={classes} title={device.deviceId} />;
-    } else if (isVerified) {
+    } else if (isVerified || !SettingsStore.getValue(UIFeature.UserInfoVerifyDevice)) {
         return (
             <div className={classes} title={device.deviceId}>
                 <div className={iconClasses} />
@@ -529,7 +531,7 @@ export const UserOptionsSection: React.FC<{
             <div>
                 {directMessageButton}
                 {readReceiptButton}
-                {shareUserButton}
+                { SettingsStore.getValue(UIFeature.UserInfoShareLinkToUserButton) && shareUserButton }
                 {insertPillButton}
                 {inviteUserButton}
                 {ignoreButton}
@@ -1043,7 +1045,7 @@ export const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
                 {muteButton}
                 {kickButton}
                 {banButton}
-                {redactButton}
+                { SettingsStore.getValue(UIFeature.UserInfoRedactButton) && redactButton }
                 {children}
             </GenericAdminToolsContainer>
         );

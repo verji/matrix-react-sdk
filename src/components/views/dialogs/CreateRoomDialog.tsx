@@ -34,6 +34,7 @@ import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
 import { privateShouldBeEncrypted } from "../../../utils/rooms";
 import SettingsStore from "../../../settings/SettingsStore";
 import LabelledCheckbox from "../elements/LabelledCheckbox";
+import { UIFeature } from "../../../settings/UIFeature";
 
 interface IProps {
     type?: RoomType;
@@ -412,37 +413,40 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
                             className="mx_CreateRoomDialog_topic"
                         />
 
-                        <JoinRuleDropdown
-                            label={_t("create_room|room_visibility_label")}
-                            labelInvite={_t("create_room|join_rule_invite")}
-                            labelKnock={
-                                this.askToJoinEnabled ? _t("room_settings|security|join_rule_knock") : undefined
-                            }
-                            labelPublic={_t("common|public_room")}
-                            labelRestricted={
-                                this.supportsRestricted ? _t("create_room|join_rule_restricted") : undefined
-                            }
-                            value={this.state.joinRule}
-                            onChange={this.onJoinRuleChange}
-                        />
-
-                        {publicPrivateLabel}
-                        {visibilitySection}
-                        {e2eeSection}
-                        {aliasField}
-                        <details onToggle={this.onDetailsToggled} className="mx_CreateRoomDialog_details">
-                            <summary className="mx_CreateRoomDialog_details_summary">
-                                {this.state.detailsOpen ? _t("action|hide_advanced") : _t("action|show_advanced")}
-                            </summary>
-                            <LabelledToggleSwitch
-                                label={_t("create_room|unfederated", {
-                                    serverName: MatrixClientPeg.getHomeserverName(),
-                                })}
-                                onChange={this.onNoFederateChange}
-                                value={this.state.noFederate}
+                        {SettingsStore.getValue(UIFeature.CreateRoomShowJoinruleDropdown) && <>
+                            <JoinRuleDropdown
+                                label={_t("create_room|room_visibility_label")}
+                                labelInvite={_t("create_room|join_rule_invite")}
+                                labelKnock={
+                                    this.askToJoinEnabled ? _t("room_settings|security|join_rule_knock") : undefined
+                                }
+                                labelPublic={_t("common|public_room")}
+                                labelRestricted={
+                                    this.supportsRestricted ? _t("create_room|join_rule_restricted") : undefined
+                                }
+                                value={this.state.joinRule}
+                                onChange={this.onJoinRuleChange}
                             />
-                            <p>{federateLabel}</p>
-                        </details>
+                        </>}
+
+                        {SettingsStore.getValue(UIFeature.CreateRoomVisibilitySection) && visibilitySection}
+                        {SettingsStore.getValue(UIFeature.CreateRoomE2eeSection) && e2eeSection}
+                        {aliasField}
+                        {SettingsStore.getValue(UIFeature.CreateRoomEnableFederation) && <>
+                            <details onToggle={this.onDetailsToggled} className="mx_CreateRoomDialog_details">
+                                <summary className="mx_CreateRoomDialog_details_summary">
+                                    {this.state.detailsOpen ? _t("action|hide_advanced") : _t("action|show_advanced")}
+                                </summary>
+                                <LabelledToggleSwitch
+                                    label={_t("create_room|unfederated", {
+                                        serverName: MatrixClientPeg.getHomeserverName(),
+                                    })}
+                                    onChange={this.onNoFederateChange}
+                                    value={this.state.noFederate}
+                                />
+                                <p>{federateLabel}</p>
+                            </details>
+                        </>}
                     </div>
                 </form>
                 <DialogButtons

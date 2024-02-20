@@ -32,6 +32,8 @@ import MatrixClientContext, { useMatrixClientContext } from "../../contexts/Matr
 import MiniAvatarUploader, { AVATAR_SIZE } from "../views/elements/MiniAvatarUploader";
 import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";
+import SettingsStore from "../../settings/SettingsStore";
+import { UIFeature } from "../../settings/UIFeature"
 
 const onClickSendDm = (ev: ButtonEvent): void => {
     PosthogTrackers.trackInteraction("WebHomeCreateChatButton", ev);
@@ -94,6 +96,23 @@ const UserWelcomeTop: React.FC = () => {
     );
 };
 
+const ShowButtons = () => {
+    return (
+        <div className="mx_HomePage_default_buttons">
+            <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
+                {_tDom("onboarding|send_dm")}
+            </AccessibleButton>
+            <AccessibleButton onClick={onClickExplore} className="mx_HomePage_button_explore">
+                {_tDom("onboarding|explore_rooms")}
+            </AccessibleButton>
+            <AccessibleButton onClick={onClickNewRoom} className="mx_HomePage_button_createGroup">
+                {_tDom("onboarding|create_room")}
+            </AccessibleButton>
+        </div>
+    )
+}
+
+
 const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
     const cli = useMatrixClientContext();
     const config = SdkConfig.get();
@@ -123,17 +142,7 @@ const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
         <AutoHideScrollbar className="mx_HomePage mx_HomePage_default" element="main">
             <div className="mx_HomePage_default_wrapper">
                 {introSection}
-                <div className="mx_HomePage_default_buttons">
-                    <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
-                        {_tDom("onboarding|send_dm")}
-                    </AccessibleButton>
-                    <AccessibleButton onClick={onClickExplore} className="mx_HomePage_button_explore">
-                        {_tDom("onboarding|explore_rooms")}
-                    </AccessibleButton>
-                    <AccessibleButton onClick={onClickNewRoom} className="mx_HomePage_button_createGroup">
-                        {_tDom("onboarding|create_room")}
-                    </AccessibleButton>
-                </div>
+                {SettingsStore.getValue(UIFeature.HomePageButtons) && <ShowButtons />}
             </div>
         </AutoHideScrollbar>
     );

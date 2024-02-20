@@ -24,7 +24,7 @@ export const enum UIFeature {
     Feedback = "UIFeature.feedback",
     Registration = "UIFeature.registration",
     PasswordReset = "UIFeature.passwordReset",
-    Deactivate = "UIFeature.deactivate",
+    Deactivate = "UIFeature.deactivate",    
     ShareQRCode = "UIFeature.shareQrCode",
     ShareSocial = "UIFeature.shareSocial",
     IdentityServer = "UIFeature.identityServer",
@@ -33,7 +33,17 @@ export const enum UIFeature {
     RoomHistorySettings = "UIFeature.roomHistorySettings",
     TimelineEnableRelativeDates = "UIFeature.timelineEnableRelativeDates",
     BulkUnverifiedSessionsReminder = "UIFeature.BulkUnverifiedSessionsReminder",
+    HomePageButtons = "UIFeature.homePageButtons",
+    UserInfoVerifyDevice = "UIFeature.userInfoVerifyDevice",
+    UserInfoShareLinkToUserButton = "UIFeature.userInfoShareLinkToUserButton",
+    UserInfoRedactButton = "UIFeature.userInfoRedactButton",
+    RoomListExplorePublicRooms = "UIFeature.roomListExplorePublicRooms",
+    CreateRoomE2eeSection = "UIFeature.createRoomE2eeSection",
+    CreateRoomShowJoinruleDropdown = "UIFeature.createRoomShowJoinruleDropdown",
+    CreateRoomVisibilitySection = "UIFeature.createRoomVisibilitySection",
+    CreateRoomEnableFederation = "UIFeature.createRoomEnableFederation"
 }
+
 
 export enum UIComponent {
     /**
