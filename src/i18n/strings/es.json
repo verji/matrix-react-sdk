@@ -239,6 +239,7 @@
             "error_homeserver_lacks_support": "Tu servidor base no es compatible con el inicio de sesión en otro dispositivo.",
             "error_invalid_scanned_code": "El código escaneado no es válido.",
             "error_linking_incomplete": "El proceso de enlace ha tardado demasiado tiempo, por lo que no se ha completado.",
+            "error_rate_limited": "Demasiados intentos en poco tiempo. Espera un poco antes de volverlo a intentar.",
             "error_request_cancelled": "La solicitud ha sido cancelada.",
             "error_request_declined": "El otro dispositivo ha rechazado la solicitud.",
             "error_unexpected": "Ha ocurrido un error inesperado.",
@@ -451,10 +452,6 @@
         "n_members": {
             "one": "%(count)s miembro",
             "other": "%(count)s miembros"
-        },
-        "n_participants": {
-            "one": "1 participante",
-            "other": "%(count)s participantes"
         },
         "n_rooms": {
             "one": "%(count)s sala",
@@ -1309,6 +1306,7 @@
         "group_rooms": "Salas",
         "group_spaces": "Espacios",
         "group_themes": "Temas",
+        "group_threads": "Hilos",
         "group_voip": "Voz y vídeo",
         "group_widgets": "Accesorios",
         "hidebold": "Ocultar el punto indicador de notificaciones (solo mostrar un indicador con número)",
@@ -1329,7 +1327,6 @@
         "report_to_moderators": "Denunciar ante los moderadores",
         "report_to_moderators_description": "En las salas que sean compatible con la moderación, el botón de «Denunciar» avisará a los moderadores de la sala.",
         "rust_crypto": "Implementación de la criptografía en Rust",
-        "rust_crypto_disabled_notice": "Ahora mismo solo se puede activar a través de config.json",
         "sliding_sync": "Modo de sincronización progresiva",
         "sliding_sync_checking": "Comprobando…",
         "sliding_sync_configuration": "Configuración de la sincronización progresiva",
@@ -1478,11 +1475,6 @@
         "all_messages": "Todos los mensajes",
         "all_messages_description": "Recibe notificaciones para todos los mensajes",
         "class_other": "Otros",
-        "colour_bold": "Negrita",
-        "colour_grey": "Gris",
-        "colour_none": "Ninguno",
-        "colour_red": "Rojo",
-        "colour_unsent": "No enviado",
         "default": "Por defecto",
         "enable_prompt_toast_description": "Activar las notificaciones de escritorio",
         "enable_prompt_toast_title": "Notificaciones",
@@ -1490,6 +1482,9 @@
         "error_change_title": "Cambiar los ajustes de notificaciones",
         "keyword": "Palabra clave",
         "keyword_new": "Nueva palabra clave",
+        "level_activity": "Actividad",
+        "level_none": "Ninguno",
+        "level_unsent": "No enviado",
         "mark_all_read": "Marcar todo como leído",
         "mentions_and_keywords": "@menciones y palabras clave",
         "mentions_and_keywords_description": "Recibir notificaciones solo cuando me mencionen o escriban una palabra vigilada configurada en los <a>ajustes</a>",
@@ -2201,10 +2196,8 @@
         "help_about": {
             "access_token_detail": "Tu token de acceso da acceso completo a tu cuenta. No lo compartas con nadie.",
             "brand_version": "Versión de %(brand)s:",
-            "chat_bot": "Hablar con %(brand)s Bot",
             "clear_cache_reload": "Limpiar caché y recargar",
             "help_link": "Si necesitas ayuda usando %(brand)s, haz clic <a>aquí</a>.",
-            "help_link_chat_bot": "Si necesitas ayuda usando %(brand)s, haz clic <a>aquí</a> o abre un chat con nuestro bot usando el botón de abajo.",
             "homeserver": "El servidor base es <code>%(homeserverUrl)s</code>",
             "title": "Ayuda y acerca de",
             "versions": "Versiones"
@@ -2225,9 +2218,6 @@
             "custom_theme_success": "¡Se añadió el tema!",
             "custom_theme_url": "URL de tema personalizado",
             "font_size": "Tamaño del texto",
-            "font_size_limit": "El tamaño de la fuente solo puede estar entre los valores %(min)s y %(max)s",
-            "font_size_nan": "El tamaño debe ser un dígito",
-            "font_size_valid": "Utiliza un valor entre %(min)s y %(max)s",
             "heading": "Personaliza la apariencia",
             "image_size_default": "Por defecto",
             "image_size_large": "Grande",
@@ -3486,7 +3476,6 @@
         "already_in_call_person": "Ya estás en una llamada con esta persona.",
         "answered_elsewhere": "Respondida en otra parte",
         "answered_elsewhere_description": "Esta llamada fue respondida en otro dispositivo.",
-        "audio_devices": "Dispositivos de audio",
         "call_failed": "Llamada fallida",
         "call_failed_description": "No se ha podido establecer la llamada",
         "call_failed_media": "La llamada ha fallado porque no se ha podido acceder a la cámara o al micrófono. Comprueba que:",
@@ -3572,7 +3561,6 @@
         "user_is_presenting": "%(sharerName)s está presentando",
         "video_call": "Llamada de vídeo",
         "video_call_started": "Videollamada iniciada",
-        "video_devices": "Dispositivos de vídeo",
         "voice_call": "Llamada de voz",
         "you_are_presenting": "Estás presentando"
     },

@@ -24,7 +24,7 @@ import type { IConfigOptions } from "../src/IConfigOptions";
 import { Credentials, Homeserver, HomeserverInstance, StartHomeserverOpts } from "./plugins/homeserver";
 import { Synapse } from "./plugins/homeserver/synapse";
 import { Dendrite, Pinecone } from "./plugins/homeserver/dendrite";
-import { Instance } from "./plugins/mailhog";
+import { Instance, MailHogServer } from "./plugins/mailhog";
 import { ElementAppPage } from "./pages/ElementAppPage";
 import { OAuthServer } from "./plugins/oauth_server";
 import { Crypto } from "./pages/crypto";
@@ -73,10 +73,20 @@ export const test = base.extend<
         homeserver: HomeserverInstance;
         oAuthServer: { port: number };
         credentials: CredentialsWithDisplayName;
+
+        /**
+         * The same as {@link https://playwright.dev/docs/api/class-fixtures#fixtures-page|`page`},
+         * but adds an initScript which will populate localStorage with the user's details from
+         * {@link #credentials} and {@link #homeserver}.
+         *
+         * Similar to {@link #user}, but doesn't load the app.
+         */
+        pageWithCredentials: Page;
+
         user: CredentialsWithDisplayName;
         displayName?: string;
         app: ElementAppPage;
-        mailhog?: { api: mailhog.API; instance: Instance };
+        mailhog: { api: mailhog.API; instance: Instance };
         crypto: Crypto;
         room?: { roomId: string };
         toasts: Toasts;
@@ -101,8 +111,9 @@ export const test = base.extend<
                     return obj;
                 }, {}),
             };
-            if (cryptoBackend === "rust") {
-                json.features.feature_rust_crypto = true;
+            // the default is to use rust now, so set to `false` if on legacy backend
+            if (cryptoBackend === "legacy") {
+                json.features.feature_rust_crypto = false;
             }
             await route.fulfill({ json });
         });
@@ -163,7 +174,8 @@ export const test = base.extend<
         });
     },
     labsFlags: [],
-    user: async ({ page, homeserver, credentials }, use) => {
+
+    pageWithCredentials: async ({ page, homeserver, credentials }, use) => {
         await page.addInitScript(
             ({ baseUrl, credentials }) => {
                 // Seed the localStorage with the required credentials
@@ -180,9 +192,12 @@ export const test = base.extend<
             },
             { baseUrl: homeserver.config.baseUrl, credentials },
         );
+        await use(page);
+    },
+
+    user: async ({ pageWithCredentials: page, credentials }, use) => {
         await page.goto("/");
         await page.waitForSelector(".mx_MatrixChat", { timeout: 30000 });
-
         await use(credentials);
     },
 
@@ -217,6 +232,14 @@ export const test = base.extend<
         const bot = new Bot(page, homeserver, botCreateOpts);
         await bot.prepareClient(); // eagerly register the bot
         await use(bot);
+    },
+
+    // eslint-disable-next-line no-empty-pattern
+    mailhog: async ({}, use) => {
+        const mailhog = new MailHogServer();
+        const instance = await mailhog.start();
+        await use(instance);
+        await mailhog.stop();
     },
 
     slidingSyncProxy: async ({ page, user, homeserver }, use) => {

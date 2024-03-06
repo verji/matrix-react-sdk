@@ -459,10 +459,10 @@
         "general": "Általános",
         "go_to_settings": "Irány a Beállítások",
         "guest": "Vendég",
-        "help": "Segítség",
+        "help": "Súgó",
         "historical": "Archív",
         "home": "Kezdőlap",
-        "homeserver": "Matrix kiszolgáló",
+        "homeserver": "Matrix-kiszolgáló",
         "identity_server": "Azonosítási kiszolgáló",
         "image": "Kép",
         "integration_manager": "Integrációkezelő",
@@ -484,10 +484,6 @@
         "n_members": {
             "one": "%(count)s tag",
             "other": "%(count)s tag"
-        },
-        "n_participants": {
-            "one": "1 résztvevő",
-            "other": "%(count)s résztvevő"
         },
         "n_rooms": {
             "one": "%(count)s szoba",
@@ -757,7 +753,6 @@
         "room_notifications_total": "Összesen: ",
         "room_notifications_type": "Típus: ",
         "room_status": "Szoba állapota",
-        "room_unread_status": "Szoba olvasatlan állapota: <strong>%(status)s</strong>",
         "room_unread_status_count": {
             "other": "Szoba olvasatlan állapota: <strong>%(status)s</strong>, darabszám: <strong>%(count)s</strong>"
         },
@@ -1386,7 +1381,7 @@
         "dehydration": "Kapcsolat nélküli titkosított üzenetküldés tartósított eszközökkel",
         "dynamic_room_predecessors": "A dinamikus szoba előfutárai",
         "dynamic_room_predecessors_description": "MSC3946 engedélyezése (a későn érkező szobaarchívumok támogatáshoz)",
-        "element_call_video_rooms": "Element videóhívásos szobák",
+        "element_call_video_rooms": "Element Call videószobák",
         "experimental_description": "Kísérletező kedvében van? Próbálja ki a legújabb fejlesztési ötleteinket. Ezek nincsenek befejezve; lehet, hogy instabilak, megváltozhatnak vagy el is tűnhetnek. <a>Tudjon meg többet</a>.",
         "experimental_section": "Lehetőségek korai megjelenítése",
         "feature_wysiwyg_composer_description": "Szövegszerkesztő használata a Markdown formázás helyett az üzenet írásakor.",
@@ -1421,7 +1416,6 @@
         "report_to_moderators": "Jelentés a moderátoroknak",
         "report_to_moderators_description": "A moderálást támogató szobákban a problémás tartalmat a „Jelentés” gombbal lehet a moderátorok felé jelezni.",
         "rust_crypto": "Rust titkosítási implementáció",
-        "rust_crypto_disabled_notice": "Jelenleg csak a config.json fájlban lehet engedélyezni",
         "sliding_sync": "Csúszó szinkronizációs mód",
         "sliding_sync_checking": "Ellenőrzés…",
         "sliding_sync_configuration": "Csúszó szinkronizáció beállítása",
@@ -1574,11 +1568,6 @@
         "all_messages_description": "Értesítés fogadása az összes üzenetről",
         "class_global": "Globális",
         "class_other": "Egyéb",
-        "colour_bold": "Félkövér",
-        "colour_grey": "Szürke",
-        "colour_none": "Semmi",
-        "colour_red": "Piros",
-        "colour_unsent": "Elküldetlen",
         "default": "Alapértelmezett",
         "enable_prompt_toast_description": "Asztali értesítések engedélyezése",
         "enable_prompt_toast_title": "Értesítések",
@@ -2330,10 +2319,8 @@
         "help_about": {
             "access_token_detail": "A hozzáférési kulcs teljes elérést biztosít a fiókhoz. Soha ne ossza meg mással.",
             "brand_version": "%(brand)s verzió:",
-            "chat_bot": "Csevegés az %(brand)s bottal",
             "clear_cache_reload": "Gyorsítótár ürítése és újratöltés",
             "help_link": "Az %(brand)s használatában való segítséghez kattintson <a>ide</a>.",
-            "help_link_chat_bot": "Az %(brand)s használatában való segítségért kattintson <a>ide</a>, vagy kezdjen beszélgetést a botunkkal az alábbi gombra kattintva.",
             "homeserver": "Matrix-kiszolgáló: <code>%(homeserverUrl)s</code>",
             "identity_server": "Azonosítási kiszolgáló: <code>%(identityServerUrl)s</code>",
             "title": "Súgó és névjegy",
@@ -2355,9 +2342,6 @@
             "custom_theme_success": "Téma hozzáadva!",
             "custom_theme_url": "Egyéni téma webcíme",
             "font_size": "Betűméret",
-            "font_size_limit": "Az egyéni betűméret csak %(min)s pont és %(max)s pont közötti lehet",
-            "font_size_nan": "A méretnek számnak kell lennie",
-            "font_size_valid": "%(min)s pont és %(max)s pont közötti értéket használjon",
             "heading": "A megjelenés testreszabása",
             "image_size_default": "Alapértelmezett",
             "image_size_large": "Nagy",
@@ -3718,7 +3702,6 @@
         "already_in_call_person": "Már hívásban van ezzel a személlyel.",
         "answered_elsewhere": "Máshol lett felvéve",
         "answered_elsewhere_description": "A hívás másik eszközön lett fogadva.",
-        "audio_devices": "Hangeszközök",
         "call_failed": "Sikertelen hívás",
         "call_failed_description": "A hívás felépítése sikertelen",
         "call_failed_media": "A hívás sikertelen, mert a webkamera, vagy a mikrofon nem érhető el. Ellenőrizze a következőket:",
@@ -3805,7 +3788,6 @@
         "user_is_presenting": "%(sharerName)s tartja a bemutatót",
         "video_call": "Videóhívás",
         "video_call_started": "A videóhívás elindult",
-        "video_devices": "Videóeszközök",
         "voice_call": "Hanghívás",
         "you_are_presenting": "Ön tartja a bemutatót"
     },

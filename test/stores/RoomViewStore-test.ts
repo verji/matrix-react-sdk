@@ -84,6 +84,9 @@ jest.mock("../../src/utils/DMRoomMap", () => {
     };
 });
 
+jest.mock("../../src/stores/WidgetStore");
+jest.mock("../../src/stores/widgets/WidgetLayoutStore");
+
 describe("RoomViewStore", function () {
     const userId = "@alice:server";
     const roomId = "!randomcharacters:aser.ver";
@@ -132,6 +135,11 @@ describe("RoomViewStore", function () {
     const dispatchCancelAskToJoin = async (roomId: string) => {
         dis.dispatch<CancelAskToJoinPayload>({ action: Action.CancelAskToJoin, roomId });
         await untilDispatch(Action.CancelAskToJoin, dis);
+    };
+
+    const dispatchRoomLoaded = async () => {
+        dis.dispatch({ action: Action.RoomLoaded });
+        await untilDispatch(Action.RoomLoaded, dis);
     };
 
     let roomViewStore: RoomViewStore;
@@ -420,10 +428,6 @@ describe("RoomViewStore", function () {
             });
         });
 
-        afterEach(() => {
-            jest.spyOn(SettingsStore, "getValue").mockReset();
-        });
-
         it("subscribes to the room", async () => {
             const setRoomVisible = jest
                 .spyOn(slidingSyncManager, "setRoomVisible")
@@ -597,10 +601,7 @@ describe("RoomViewStore", function () {
                     opts.buttons = buttons;
                 }
             });
-
-            dis.dispatch({ action: Action.ViewRoom, room_id: roomId });
-            await untilDispatch(Action.ViewRoom, dis);
-
+            await dispatchRoomLoaded();
             expect(roomViewStore.getViewRoomOpts()).toEqual({ buttons });
         });
     });

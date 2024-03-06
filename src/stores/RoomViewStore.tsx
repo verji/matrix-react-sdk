@@ -119,6 +119,10 @@ interface State {
      * Whether we're viewing a call or call lobby in this room
      */
     viewingCall: boolean;
+    /**
+     * If we want the call to skip the lobby and immediately join
+     */
+    skipLobby?: boolean;
 
     promptAskToJoin: boolean;
 
@@ -378,6 +382,10 @@ export class RoomViewStore extends EventEmitter {
                 this.cancelAskToJoin(payload as CancelAskToJoinPayload);
                 break;
             }
+            case Action.RoomLoaded: {
+                this.setViewRoomOpts();
+                break;
+            }
         }
     }
 
@@ -442,10 +450,6 @@ export class RoomViewStore extends EventEmitter {
                 return;
             }
 
-            const viewRoomOpts: ViewRoomOpts = { buttons: [] };
-            // Allow modules to update the list of buttons for the room by updating `viewRoomOpts`.
-            ModuleRunner.instance.invoke(RoomViewLifecycle.ViewRoom, viewRoomOpts, this.getRoomId());
-
             const newState: Partial<State> = {
                 roomId: payload.room_id,
                 roomAlias: payload.room_alias ?? null,
@@ -462,12 +466,12 @@ export class RoomViewStore extends EventEmitter {
                 replyingToEvent: null,
                 viaServers: payload.via_servers ?? [],
                 wasContextSwitch: payload.context_switch ?? false,
+                skipLobby: payload.skipLobby,
                 viewingCall:
                     payload.view_call ??
                     (payload.room_id === this.state.roomId
                         ? this.state.viewingCall
                         : CallStore.instance.getActiveCall(payload.room_id) !== null),
-                viewRoomOpts,
             };
 
             // Allow being given an event to be replied to when switching rooms but sanity check its for this room
@@ -513,6 +517,7 @@ export class RoomViewStore extends EventEmitter {
                     viaServers: payload.via_servers,
                     wasContextSwitch: payload.context_switch,
                     viewingCall: payload.view_call ?? false,
+                    skipLobby: payload.skipLobby,
                 });
                 try {
                     const result = await MatrixClientPeg.safeGet().getRoomIdForAlias(payload.room_alias);
@@ -775,6 +780,10 @@ export class RoomViewStore extends EventEmitter {
         return this.state.viewingCall;
     }
 
+    public skipCallLobby(): boolean | undefined {
+        return this.state.skipLobby;
+    }
+
     /**
      * Gets the current state of the 'promptForAskToJoin' property.
      *
@@ -826,5 +835,16 @@ export class RoomViewStore extends EventEmitter {
      */
     public getViewRoomOpts(): ViewRoomOpts {
         return this.state.viewRoomOpts;
+    }
+
+    /**
+     * Invokes the view room lifecycle to set the view room options.
+     *
+     * @returns {void}
+     */
+    private setViewRoomOpts(): void {
+        const viewRoomOpts: ViewRoomOpts = { buttons: [] };
+        ModuleRunner.instance.invoke(RoomViewLifecycle.ViewRoom, viewRoomOpts, this.getRoomId());
+        this.setState({ viewRoomOpts });
     }
 }

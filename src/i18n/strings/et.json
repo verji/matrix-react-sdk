@@ -251,6 +251,7 @@
             "error_homeserver_lacks_support": "Koduserver ei toeta muude seadmete võrku logimise võimalust.",
             "error_invalid_scanned_code": "Skaneeritud QR-kood on vigane.",
             "error_linking_incomplete": "Sidumine ei lõppenud etteantud aja jooksul.",
+            "error_rate_limited": "Liiga palju päringuid napis ajavahemikus. Enne uuesti proovimist palun oota veidi.",
             "error_request_cancelled": "Päring katkestati.",
             "error_request_declined": "Teine seade lükkas päringu tagasi.",
             "error_unexpected": "Tekkis teadmata viga.",
@@ -485,10 +486,6 @@
         "n_members": {
             "other": "%(count)s liiget",
             "one": "%(count)s liige"
-        },
-        "n_participants": {
-            "one": "1 osaleja",
-            "other": "%(count)s oselejat"
         },
         "n_rooms": {
             "other": "%(count)s jututuba",
@@ -759,7 +756,6 @@
         "room_notifications_total": "Kokku: ",
         "room_notifications_type": "Tüüp: ",
         "room_status": "Jututoa sõnumite olek",
-        "room_unread_status": "Lugemata sõnumite olek jututoas: <strong>%(status)s</strong>",
         "room_unread_status_count": {
             "other": "Lugemata sõnumite olek jututoas: <strong>%(status)s</strong>, kokku: <strong>%(count)s</strong>"
         },
@@ -1398,6 +1394,7 @@
         "group_rooms": "Jututoad",
         "group_spaces": "Kogukonnakeskused",
         "group_themes": "Teemad",
+        "group_threads": "Jutulõngad",
         "group_voip": "Heli ja video",
         "group_widgets": "Vidinad",
         "hidebold": "Peida teavituse täpp (ja näita loendure)",
@@ -1421,7 +1418,6 @@
         "report_to_moderators": "Teata moderaatoritele",
         "report_to_moderators_description": "Kui jututoas on modereerimine kasutusel, siis nupust „Teata sisust“ avaneva vormi abil saad jututoa reegleid rikkuvast sisust teatada moderaatoritele.",
         "rust_crypto": "Rust'is teostatud krüptolahendus",
-        "rust_crypto_disabled_notice": "Seda võimalust saab hetkel sisse lülitada vaid config.json failist",
         "sliding_sync": "Järkjärgulise sünkroniseerimise režiim",
         "sliding_sync_checking": "Kontrollin…",
         "sliding_sync_configuration": "Sliding Sync konfiguratsioon",
@@ -1574,11 +1570,6 @@
         "all_messages_description": "Soovin teavitusi iga sõnumi puhul",
         "class_global": "Üldised",
         "class_other": "Muud",
-        "colour_bold": "Paks kiri",
-        "colour_grey": "Hall",
-        "colour_none": "Ei ühelgi juhul",
-        "colour_red": "Punane",
-        "colour_unsent": "Saatmata",
         "default": "Tavaline",
         "email_pusher_app_display_name": "E-posti teel saadetavad teavitused",
         "enable_prompt_toast_description": "Võta kasutusele töölauakeskkonna teavitused",
@@ -1587,6 +1578,9 @@
         "error_change_title": "Muuda teavituste seadistusi",
         "keyword": "Märksõnad",
         "keyword_new": "Uus märksõna",
+        "level_activity": "Aktiivsuse alusel",
+        "level_none": "Ei ühelgi juhul",
+        "level_unsent": "Saatmata",
         "mark_all_read": "Märgi kõik loetuks",
         "mentions_and_keywords": "@mainimiste ja võtmesõnade puhul",
         "mentions_and_keywords_description": "Soovin teavitusi sellisena mainimiste ja võtmesõnade puhul, nagu ma neid olen <a>seadistanud</a>",
@@ -2342,10 +2336,8 @@
         "help_about": {
             "access_token_detail": "Sinu pääsuluba annab täismahulise ligipääsu sinu kasutajakontole. Palun ära jaga seda teistega.",
             "brand_version": "%(brand)s'i versioon:",
-            "chat_bot": "Vestle %(brand)s'i robotiga",
             "clear_cache_reload": "Tühjenda puhver ja laadi uuesti",
             "help_link": "Kui otsid lisateavet %(brand)s'i kasutamise kohta, palun vaata <a>siia</a>.",
-            "help_link_chat_bot": "%(brand)s'i kasutamisega seotud abiteabe otsimiseks klõpsi <a>seda viidet</a> või vajutades järgnevat nuppu alusta vestlust meie robotiga.",
             "homeserver": "Koduserveri aadress <code>%(homeserverUrl)s</code>",
             "identity_server": "Isikutuvastusserveri aadress <code>%(identityServerUrl)s</code>",
             "title": "Abiteave ning info meie kohta",
@@ -2367,9 +2359,6 @@
             "custom_theme_success": "Teema sai lisatud!",
             "custom_theme_url": "Kohandatud teema URL",
             "font_size": "Fontide suurus",
-            "font_size_limit": "Kohandatud fondisuurus peab olema vahemikus %(min)s pt ja %(max)s pt",
-            "font_size_nan": "Suurus peab olema number",
-            "font_size_valid": "Kasuta suurust vahemikus %(min)s pt ja %(max)s pt",
             "heading": "Kohenda välimust",
             "image_size_default": "Tavaline",
             "image_size_large": "Suur",
@@ -3717,7 +3706,6 @@
         "already_in_call_person": "Sinul juba kõne käsil selle osapoolega.",
         "answered_elsewhere": "Vastatud mujal",
         "answered_elsewhere_description": "Kõnele vastati teises seadmes.",
-        "audio_devices": "Heliseadmed",
         "call_failed": "Kõne ebaõnnestus",
         "call_failed_description": "Kõnet ei saa korraldada",
         "call_failed_media": "Kuna veebikaamerat või mikrofoni kasutada ei saanud, siis kõne ei õnnestunud. Palun kontrolli, et:",
@@ -3804,7 +3792,6 @@
         "user_is_presenting": "%(sharerName)s esitab",
         "video_call": "Videokõne",
         "video_call_started": "Videokõne algas",
-        "video_devices": "Videoseadmed",
         "voice_call": "Häälkõne",
         "you_are_presenting": "Sina esitad"
     },

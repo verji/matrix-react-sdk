@@ -426,10 +426,6 @@
             "other": "%(count)s personen",
             "one": "%(count)s persoon"
         },
-        "n_participants": {
-            "one": "1 deelnemer",
-            "other": "%(count)s deelnemers"
-        },
         "n_rooms": {
             "one": "%(count)s kamer",
             "other": "%(count)s kamers"
@@ -1350,9 +1346,6 @@
         "all_messages_description": "Ontvang een melding bij elk bericht",
         "class_global": "Overal",
         "class_other": "Overige",
-        "colour_bold": "Vet",
-        "colour_none": "Geen",
-        "colour_unsent": "niet verstuurd",
         "default": "Standaard",
         "enable_prompt_toast_description": "Bureaubladmeldingen inschakelen",
         "enable_prompt_toast_title": "Meldingen",
@@ -1360,6 +1353,9 @@
         "error_change_title": "Meldingsinstellingen wijzigen",
         "keyword": "Trefwoord",
         "keyword_new": "Nieuw trefwoord",
+        "level_activity": "Activiteit",
+        "level_none": "Geen",
+        "level_unsent": "niet verstuurd",
         "mark_all_read": "Alles markeren als gelezen",
         "mentions_and_keywords": "@vermeldingen & trefwoorden",
         "mentions_and_keywords_description": "Krijg alleen meldingen met vermeldingen en trefwoorden zoals ingesteld in je <a>instellingen</a>",
@@ -2031,10 +2027,8 @@
         "help_about": {
             "access_token_detail": "Jouw toegangstoken geeft je toegang tot je account. Deel hem niet met anderen.",
             "brand_version": "%(brand)s-versie:",
-            "chat_bot": "Met %(brand)s-robot chatten",
             "clear_cache_reload": "Cache wissen en herladen",
             "help_link": "Klik <a>hier</a> voor hulp bij het gebruiken van %(brand)s.",
-            "help_link_chat_bot": "Klik <a>hier</a> voor hulp bij het gebruiken van %(brand)s of begin een kamer met onze robot met de knop hieronder.",
             "title": "Hulp & info",
             "versions": "Versies"
         }
@@ -2054,9 +2048,6 @@
             "custom_theme_success": "Thema toegevoegd!",
             "custom_theme_url": "Aangepaste thema-URL",
             "font_size": "Lettergrootte",
-            "font_size_limit": "Aangepaste lettergrootte kan alleen een getal tussen %(min)s pt en %(max)s pt zijn",
-            "font_size_nan": "Grootte moet een getal zijn",
-            "font_size_valid": "Gebruik een getal tussen %(min)s pt en %(max)s pt",
             "heading": "Weergave aanpassen",
             "image_size_default": "Standaard",
             "image_size_large": "Groot",
@@ -3250,7 +3241,6 @@
         "already_in_call_person": "Je bent al in gesprek met deze persoon.",
         "answered_elsewhere": "Ergens anders beantwoord",
         "answered_elsewhere_description": "De oproep werd op een ander toestel beantwoord.",
-        "audio_devices": "Audio-apparaten",
         "call_failed": "Oproep mislukt",
         "call_failed_description": "De oproep kon niet worden volbracht",
         "call_failed_media": "Oproep mislukt omdat er geen toegang is tot de webcam of de microfoon. Kijk na dat:",
@@ -3332,7 +3322,6 @@
         "user_is_presenting": "%(sharerName)s is aan het presenteren",
         "video_call": "Video-oproep",
         "video_call_started": "Videogesprek gestart",
-        "video_devices": "Video-apparaten",
         "voice_call": "Spraakoproep",
         "you_are_presenting": "Je bent aan het presenteren"
     },

@@ -524,6 +524,7 @@ export const UserOptionsSection: React.FC<{
             </AccessibleButton>
     );
 
+
     const directMessageButton = isMe ? null : <MessageButton member={member} />;
     
     return (

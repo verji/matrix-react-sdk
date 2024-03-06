@@ -1168,8 +1168,6 @@
         "all_messages": "Ĉiuj mesaĝoj",
         "class_global": "Ĉie",
         "class_other": "Alia",
-        "colour_bold": "Grase",
-        "colour_none": "Neniu",
         "default": "Ordinara",
         "enable_prompt_toast_description": "Ŝalti labortablajn sciigojn",
         "enable_prompt_toast_title": "Sciigoj",
@@ -1177,6 +1175,8 @@
         "error_change_title": "Ŝanĝi agordojn pri sciigoj",
         "keyword": "Ĉefvorto",
         "keyword_new": "Nova ĉefvorto",
+        "level_activity": "Aktiveco",
+        "level_none": "Neniu",
         "mark_all_read": "Marki ĉion legita",
         "mentions_keywords": "Mencioj kaj ĉefvortoj",
         "message_didnt_send": "Mesaĝo ne sendiĝis. Klaku por akiri informojn."
@@ -1698,10 +1698,8 @@
         "help_about": {
             "access_token_detail": "Via alirpeco donas plenan aliron al via konto. Donu ĝin al neniu.",
             "brand_version": "versio de %(brand)s:",
-            "chat_bot": "Babilu kun la roboto %(brand)s Bot",
             "clear_cache_reload": "Vakigi kaŝmemoron kaj relegi",
             "help_link": "Por helpo pri uzado de %(brand)s, klaku <a>ĉi tien</a>.",
-            "help_link_chat_bot": "Por helpo pri uzado de %(brand)s, klaku <a>ĉi tien</a> aŭ komencu babilon kun nia roboto per la butono sube.",
             "title": "Helpo kaj Prio",
             "versions": "Versioj"
         }
@@ -1721,9 +1719,6 @@
             "custom_theme_success": "Haŭto aldoniĝis!",
             "custom_theme_url": "Propra URL al haŭto",
             "font_size": "Grando de tiparo",
-            "font_size_limit": "Propra grando de tiparo povas interi nur %(min)s punktojn kaj %(max)s punktojn",
-            "font_size_nan": "Grando devas esti nombro",
-            "font_size_valid": "Uzi inter %(min)s punktoj kaj %(max)s punktoj",
             "heading": "Adaptu vian aspekton",
             "image_size_default": "Ordinara",
             "layout_bubbles": "Mesaĝaj vezikoj",

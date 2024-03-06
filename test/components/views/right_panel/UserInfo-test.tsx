@@ -89,6 +89,13 @@ jest.mock("../../../../src/utils/DMRoomMap", () => {
     };
 });
 
+jest.mock("../../../../src/customisations/helpers/UIComponents", () => {
+    const original = jest.requireActual("../../../../src/customisations/helpers/UIComponents");
+    return {
+        shouldShowComponent: jest.fn().mockImplementation(original.shouldShowComponent),
+    };
+});
+
 const defaultRoomId = "!fkfk";
 const defaultUserId = "@user:example.com";
 const defaultUser = new User(defaultUserId);
@@ -325,6 +332,33 @@ describe("<UserInfo />", () => {
             // the verificationRequest has phase of Phase.Ready but .otherPartySupportsMethod
             // will not return true, so we expect to see the noCommonMethod error from VerificationPanel
             expect(screen.getByText(/try with a different client/i)).toBeInTheDocument();
+        });
+
+        it("renders the message button", () => {
+            render(
+                <MatrixClientContext.Provider value={mockClient}>
+                    <UserInfo {...defaultProps} />
+                </MatrixClientContext.Provider>,
+            );
+
+            screen.getByRole("button", { name: "Message" });
+        });
+
+        it("hides the message button if the visibility customisation hides all create room features", () => {
+            mocked(shouldShowComponent).withImplementation(
+                (component) => {
+                    return component !== UIComponent.CreateRooms;
+                },
+                () => {
+                    render(
+                        <MatrixClientContext.Provider value={mockClient}>
+                            <UserInfo {...defaultProps} />
+                        </MatrixClientContext.Provider>,
+                    );
+
+                    expect(screen.queryByRole("button", { name: "Message" })).toBeNull();
+                },
+            );
         });
     });
 
