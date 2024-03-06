@@ -413,7 +413,9 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
                             className="mx_CreateRoomDialog_topic"
                         />
 
-                        {SettingsStore.getValue(UIFeature.CreateRoomShowJoinruleDropdown) && <>
+                        {/* For those who only want to create private room, set the CreateRoomShowJoinRuleDropdown to false in settings.tsx,
+                        for public rooms and knock rooms, set the flag to true */}
+                        {SettingsStore.getValue(UIFeature.CreateRoomShowJoinRuleDropdown) && <>
                             <JoinRuleDropdown
                                 label={_t("create_room|room_visibility_label")}
                                 labelInvite={_t("create_room|join_rule_invite")}
@@ -429,10 +431,13 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
                             />
                         </>}
 
-                        {SettingsStore.getValue(UIFeature.CreateRoomVisibilitySection) && visibilitySection}
+                        {publicPrivateLabel}
+                        {visibilitySection}
+                        {/* To create only encrypted room, the options can be hidden by setting the flag to false in in settings.tsx, */}
                         {SettingsStore.getValue(UIFeature.CreateRoomE2eeSection) && e2eeSection}
                         {aliasField}
-                        {SettingsStore.getValue(UIFeature.CreateRoomEnableFederation) && <>
+                        {/* To limit the usage to only your server, set flag to false in in settings.tsx, */}
+                        {SettingsStore.getValue(UIFeature.CreateRoomShowAdvancedSettings) && <>
                             <details onToggle={this.onDetailsToggled} className="mx_CreateRoomDialog_details">
                                 <summary className="mx_CreateRoomDialog_details_summary">
                                     {this.state.detailsOpen ? _t("action|hide_advanced") : _t("action|show_advanced")}

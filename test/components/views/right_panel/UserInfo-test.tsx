@@ -62,6 +62,7 @@ import { E2EStatus } from "../../../../src/utils/ShieldUtils";
 import { DirectoryMember, startDmOnFirstMessage } from "../../../../src/utils/direct-messages";
 import { clearAllModals, flushPromises } from "../../../test-utils";
 import ErrorDialog from "../../../../src/components/views/dialogs/ErrorDialog";
+import SettingsStore from "../../../../src/settings/SettingsStore";
 
 jest.mock("../../../../src/utils/direct-messages", () => ({
     ...jest.requireActual("../../../../src/utils/direct-messages"),
@@ -625,7 +626,15 @@ describe("<UserOptionsSection />", () => {
         inviteSpy.mockRestore();
     });
 
-    it("always shows share user button", () => {
+    it("does not show share user button when UIFeature is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
+
+        renderComponent();
+        expect(screen.queryByText("share link to user")).not.toBeInTheDocument();
+    });
+    it("shows share user button when UIFeature is true", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
+
         renderComponent();
         expect(screen.getByRole("button", { name: /share link to user/i })).toBeInTheDocument();
     });
@@ -1189,10 +1198,19 @@ describe("<RoomAdminToolsContainer />", () => {
         `);
     });
 
+    it("does not show redact button when UIFeature 'UserInfoRedactButton' is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
+
+        renderComponent();
+        expect(screen.queryByText("remove recent messages")).not.toBeInTheDocument();
+    });
+
     it("returns kick, redact messages, ban buttons if conditions met", () => {
         const mockMeMember = new RoomMember(mockRoom.roomId, "arbitraryId");
         mockMeMember.powerLevel = 51; // defaults to 50
         mockRoom.getMember.mockReturnValueOnce(mockMeMember);
+
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
 
         const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 };
 

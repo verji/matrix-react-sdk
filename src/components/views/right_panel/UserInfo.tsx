@@ -106,6 +106,7 @@ export const disambiguateDevices = (devices: IDevice[]): void => {
     }
 };
 
+
 export const getE2EStatus = async (
     cli: MatrixClient,
     userId: string,
@@ -518,19 +519,20 @@ export const UserOptionsSection: React.FC<{
     }
 
     const shareUserButton = (
-        <AccessibleButton kind="link" onClick={onShareUserClick} className="mx_UserInfo_field">
-            {_t("user_info|share_button")}
-        </AccessibleButton>
+             <AccessibleButton kind="link" onClick={onShareUserClick} className="mx_UserInfo_field">
+              {_t("user_info|share_button")}
+            </AccessibleButton>
     );
 
     const directMessageButton = isMe ? null : <MessageButton member={member} />;
-
+    
     return (
         <div className="mx_UserInfo_container">
             <h3>{_t("common|options")}</h3>
             <div>
                 {directMessageButton}
                 {readReceiptButton}
+                {/* If you donw want users to send a room link, disable flag in settings.tsx */}
                 { SettingsStore.getValue(UIFeature.UserInfoShareLinkToUserButton) && shareUserButton }
                 {insertPillButton}
                 {inviteUserButton}
@@ -1045,6 +1047,7 @@ export const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
                 {muteButton}
                 {kickButton}
                 {banButton}
+                {/* If you dont want users to be able to delete messages, set the flag to false in settings.tsx */}
                 { SettingsStore.getValue(UIFeature.UserInfoRedactButton) && redactButton }
                 {children}
             </GenericAdminToolsContainer>

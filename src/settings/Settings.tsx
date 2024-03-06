@@ -1198,15 +1198,11 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
-    [UIFeature.CreateRoomShowJoinruleDropdown]: {
+    [UIFeature.CreateRoomShowJoinRuleDropdown]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
-    [UIFeature.CreateRoomVisibilitySection]: {
-        supportedLevels: LEVELS_UI_FEATURE,
-        default: true,
-    },
-    [UIFeature.CreateRoomEnableFederation]: {
+    [UIFeature.CreateRoomShowAdvancedSettings]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },

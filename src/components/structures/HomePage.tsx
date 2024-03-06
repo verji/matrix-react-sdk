@@ -34,6 +34,7 @@ import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";
 import SettingsStore from "../../settings/SettingsStore";
 import { UIFeature } from "../../settings/UIFeature"
+import { MatrixClientPeg } from "../../MatrixClientPeg";
 
 const onClickSendDm = (ev: ButtonEvent): void => {
     PosthogTrackers.trackInteraction("WebHomeCreateChatButton", ev);
@@ -65,7 +66,8 @@ const getOwnProfile = (
 });
 
 const UserWelcomeTop: React.FC = () => {
-    const cli = useContext(MatrixClientContext);
+    // const cli = useContext(MatrixClientContext);
+    const cli = MatrixClientPeg.safeGet();
     const userId = cli.getUserId()!;
     const [ownProfile, setOwnProfile] = useState(getOwnProfile(userId));
     useEventEmitter(OwnProfileStore.instance, UPDATE_EVENT, () => {
@@ -96,6 +98,7 @@ const UserWelcomeTop: React.FC = () => {
     );
 };
 
+//Buttons on homepage can be enabled (true), or disabled (false) setting the UIFeature.HomePageButtons in settings.tsx
 const ShowButtons = () => {
     return (
         <div className="mx_HomePage_default_buttons">
@@ -111,7 +114,6 @@ const ShowButtons = () => {
         </div>
     )
 }
-
 
 const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
     const cli = useMatrixClientContext();

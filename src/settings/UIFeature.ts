@@ -39,9 +39,8 @@ export const enum UIFeature {
     UserInfoRedactButton = "UIFeature.userInfoRedactButton",
     RoomListExplorePublicRooms = "UIFeature.roomListExplorePublicRooms",
     CreateRoomE2eeSection = "UIFeature.createRoomE2eeSection",
-    CreateRoomShowJoinruleDropdown = "UIFeature.createRoomShowJoinruleDropdown",
-    CreateRoomVisibilitySection = "UIFeature.createRoomVisibilitySection",
-    CreateRoomEnableFederation = "UIFeature.createRoomEnableFederation"
+    CreateRoomShowJoinRuleDropdown = "UIFeature.createRoomShowJoinRuleDropdown",
+    CreateRoomShowAdvancedSettings = "UIFeature.createRoomShowAdvancedSettings"
 }
 
 
