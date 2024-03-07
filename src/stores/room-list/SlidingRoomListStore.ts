@@ -37,6 +37,9 @@ interface IState {
 
 export const SlidingSyncSortToFilter: Record<SortAlgorithm, string[]> = {
     [SortAlgorithm.Alphabetic]: ["by_name", "by_recency"],
+// VERJI BEGIN    
+    [SortAlgorithm.FixedWidthAlphabetic]: ["by_name", "by_recency"],
+// VERJI END 
     [SortAlgorithm.Recent]: ["by_notification_level", "by_recency"],
     [SortAlgorithm.Manual]: ["by_recency"],
 };

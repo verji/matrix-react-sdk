@@ -564,6 +564,9 @@ export default class RoomSublist extends React.Component<IProps, IState> {
         let contextMenu: JSX.Element | undefined;
         if (this.state.contextMenuPosition) {
             let isAlphabetical = RoomListStore.instance.getTagSorting(this.props.tagId) === SortAlgorithm.Alphabetic;
+            // VERJI BEGIN
+            let isFixedWidthAlphabetical = RoomListStore.instance.getTagSorting(this.props.tagId) === SortAlgorithm.FixedWidthAlphabetic;
+            // VERJI END
             let isUnreadFirst = RoomListStore.instance.getListOrder(this.props.tagId) === ListAlgorithm.Importance;
             if (this.slidingSyncMode) {
                 const slidingList = SlidingSyncManager.instance.slidingSync?.getListParams(this.props.tagId);
@@ -611,7 +614,7 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                             <StyledMenuItemRadio
                                 onClose={this.onCloseMenu}
                                 onChange={() => this.onTagSortChanged(SortAlgorithm.Recent)}
-                                checked={!isAlphabetical}
+                                checked={!isAlphabetical && !isFixedWidthAlphabetical}
                                 name={`mx_${this.props.tagId}_sortBy`}
                             >
                                 {_t("room_list|sort_by_activity")}
@@ -624,6 +627,17 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                             >
                                 {_t("room_list|sort_by_alphabet")}
                             </StyledMenuItemRadio>
+
+{/* VERJI BEGIN */}
+                            <StyledMenuItemRadio
+                                onClose={this.onCloseMenu}
+                                onChange={() => this.onTagSortChanged(SortAlgorithm.FixedWidthAlphabetic)}
+                                checked={isFixedWidthAlphabetical}
+                                name={`mx_${this.props.tagId}_sortBy`}
+                            >
+                                {"A-Z (Fixed Width)"}
+                            </StyledMenuItemRadio>
+{/* VERJI END                              */}
                         </fieldset>
                         {otherSections}
                     </div>

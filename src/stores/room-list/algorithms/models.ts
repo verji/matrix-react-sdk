@@ -21,7 +21,10 @@ import { OrderingAlgorithm } from "./list-ordering/OrderingAlgorithm";
 
 export enum SortAlgorithm {
     Manual = "MANUAL",
-    Alphabetic = "ALPHABETIC",
+    Alphabetic = "ALPHABETIC",    
+// VERJI  BEGIN
+    FixedWidthAlphabetic = "FIXEDWIDTHALPHABETIC",
+// VERJI END
     Recent = "RECENT",
 }
 

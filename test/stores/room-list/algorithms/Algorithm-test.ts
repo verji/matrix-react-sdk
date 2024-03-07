@@ -35,6 +35,9 @@ import "../../../../src/stores/room-list/RoomListStore"; // must be imported bef
 import { Algorithm } from "../../../../src/stores/room-list/algorithms/Algorithm";
 import { CallStore } from "../../../../src/stores/CallStore";
 import { WidgetMessagingStore } from "../../../../src/stores/widgets/WidgetMessagingStore";
+// VERJI BEGIN
+import { FixedWidthAlphabeticAlgorithm } from "../../../../src/stores/room-list/algorithms/tag-sorting/FixedWidthAlphabeticAlgorithm";
+// VERJI END
 
 describe("Algorithm", () => {
     useMockedCalls();
@@ -105,4 +108,28 @@ describe("Algorithm", () => {
         await call.disconnect();
         expect(algorithm.getOrderedRooms()[DefaultTagID.Untagged]).toEqual([room, roomWithCall]);
     });
+
+    // VERJI BEGIN    
+    it("orders room correctly with fixed width alphabetic algorithm", async () => {
+        let rooms = [];
+
+        var room = new Room("!1:example.org", client, "@alice:example.org", {pendingEventOrdering: PendingEventOrdering.Detached });
+        room.name = "Room 1000";
+        rooms.push(room);
+
+        room = new Room("!2:example.org", client, "@alice:example.org", {pendingEventOrdering: PendingEventOrdering.Detached });
+        room.name = "Room 1";
+        rooms.push(room);
+
+        room = new Room("!3:example.org", client, "@alice:example.org", {pendingEventOrdering: PendingEventOrdering.Detached });
+        room.name = "Room 900";
+        rooms.push(room);
+
+        var algorithm = new FixedWidthAlphabeticAlgorithm();
+
+        var sortedNames = algorithm.sortRooms(rooms, "").map(r=>r.name) as string[];
+        expect(sortedNames).toEqual(["Room 1", "Room 900", "Room 1000"]);
+    });
+    // VERJI END
+
 });

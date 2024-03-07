@@ -22,11 +22,16 @@ import { IAlgorithm } from "./IAlgorithm";
 import { TagID } from "../../models";
 import { RecentAlgorithm } from "./RecentAlgorithm";
 import { AlphabeticAlgorithm } from "./AlphabeticAlgorithm";
-
+// VERJI BEGIN
+import { FixedWidthAlphabeticAlgorithm } from "./FixedWidthAlphabeticAlgorithm";
+// VERJI END
 const ALGORITHM_INSTANCES: { [algorithm in SortAlgorithm]: IAlgorithm } = {
     [SortAlgorithm.Recent]: new RecentAlgorithm(),
     [SortAlgorithm.Alphabetic]: new AlphabeticAlgorithm(),
-    [SortAlgorithm.Manual]: new ManualAlgorithm(),
+// VERJI BEGIN
+    [SortAlgorithm.FixedWidthAlphabetic]: new FixedWidthAlphabeticAlgorithm(),
+// VERJI END
+[SortAlgorithm.Manual]: new ManualAlgorithm(),
 };
 
 /**
