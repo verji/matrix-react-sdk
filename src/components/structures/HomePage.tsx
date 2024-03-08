@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import * as React from "react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 
 import AutoHideScrollbar from "./AutoHideScrollbar";
 import { getHomePageUrl } from "../../utils/pages";
@@ -28,7 +28,7 @@ import { OwnProfileStore } from "../../stores/OwnProfileStore";
 import AccessibleButton, { ButtonEvent } from "../views/elements/AccessibleButton";
 import { UPDATE_EVENT } from "../../stores/AsyncStore";
 import { useEventEmitter } from "../../hooks/useEventEmitter";
-import MatrixClientContext, { useMatrixClientContext } from "../../contexts/MatrixClientContext";
+import { useMatrixClientContext } from "../../contexts/MatrixClientContext";
 import MiniAvatarUploader, { AVATAR_SIZE } from "../views/elements/MiniAvatarUploader";
 import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";

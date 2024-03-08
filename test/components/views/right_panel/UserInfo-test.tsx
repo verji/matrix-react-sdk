@@ -62,6 +62,8 @@ import { E2EStatus } from "../../../../src/utils/ShieldUtils";
 import { DirectoryMember, startDmOnFirstMessage } from "../../../../src/utils/direct-messages";
 import { clearAllModals, flushPromises } from "../../../test-utils";
 import ErrorDialog from "../../../../src/components/views/dialogs/ErrorDialog";
+import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
+import { UIComponent } from "../../../../src/settings/UIFeature";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 
 jest.mock("../../../../src/utils/direct-messages", () => ({
@@ -378,6 +380,7 @@ describe("<UserInfo />", () => {
             const devicesMap = new Map<string, Device>([[device.deviceId, device]]);
             const userDeviceMap = new Map<string, Map<string, Device>>([[defaultUserId, devicesMap]]);
             mockCrypto.getUserDeviceInfo.mockResolvedValue(userDeviceMap);
+
         });
 
         it("renders a device list which can be expanded", async () => {
@@ -1232,19 +1235,34 @@ describe("<RoomAdminToolsContainer />", () => {
         `);
     });
 
-    it("does not show redact button when UIFeature 'UserInfoRedactButton' is false", () => {
+    it("does not show redact button when UIFeature.UserInfoRedactButton is false", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
 
         renderComponent();
         expect(screen.queryByText("remove recent messages")).not.toBeInTheDocument();
     });
+    it("does not show verify button when UIFeature.UserInfoVerifyDevice is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
+
+        renderComponent();
+        expect(screen.queryByRole("button", { name: /Manually verify by text/i })).not.toBeInTheDocument();
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
+    });
+    it("does not show verify button when UIFeature.UserInfoVerifyDevice is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
+
+        renderComponent();
+        // text fetched from UntrustedDeviceDialog
+        expect(screen.queryByRole("button", { name: /Manually verify by text/i }));
+    });
 
     it("returns kick, redact messages, ban buttons if conditions met", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
+
         const mockMeMember = new RoomMember(mockRoom.roomId, "arbitraryId");
         mockMeMember.powerLevel = 51; // defaults to 50
         mockRoom.getMember.mockReturnValueOnce(mockMeMember);
 
-        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
 
         const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 };
 

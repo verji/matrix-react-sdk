@@ -211,7 +211,7 @@ export function DeviceItem({
 
     const onDeviceClick = (): void => {
         const user = cli.getUser(userId);
-        if (user) {
+        if (user && SettingsStore.getValue(UIFeature.UserInfoVerifyDevice)) {
             verifyDevice(cli, user, device);
         }
     };
@@ -229,7 +229,7 @@ export function DeviceItem({
     if (isVerified === undefined) {
         // we're still deciding if the device is verified
         return <div className={classes} title={device.deviceId} />;
-    } else if (isVerified || !SettingsStore.getValue(UIFeature.UserInfoVerifyDevice)) {
+    } else if (isVerified) {
         return (
             <div className={classes} title={device.deviceId}>
                 <div className={iconClasses} />
@@ -524,8 +524,9 @@ export const UserOptionsSection: React.FC<{
             </AccessibleButton>
     );
 
+    const directMessageButton =
+        isMe || !shouldShowComponent(UIComponent.CreateRooms) ? null : <MessageButton member={member} />;
 
-    const directMessageButton = isMe ? null : <MessageButton member={member} />;
     
     return (
         <div className="mx_UserInfo_container">
