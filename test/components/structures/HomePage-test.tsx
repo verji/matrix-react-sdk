@@ -20,7 +20,6 @@ import { render, screen } from "@testing-library/react";
 
 import HomePage from "../../../src/components/structures/HomePage";
 import SettingsStore from "../../../src/settings/SettingsStore";
-import { _tDom } from "../../../src/languageHandler";
 import {
     getMockClientWithEventEmitter,
     mockClientMethodsEvents,
@@ -56,7 +55,7 @@ describe("HomePage", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
 
         client.getUserId.mockReturnValue('123');
-        render(<HomePage justRegistered={ false } />);
+        render(<HomePage justRegistered={false} />);
 
         expect(screen.queryByText("Explore Public Rooms"));
     });
@@ -65,7 +64,7 @@ describe("HomePage", () => {
 
         client.getUserId.mockReturnValue('123');
 
-        render(<HomePage justRegistered={ false } />);
+        render(<HomePage justRegistered={false}/>);
 
         expect(screen.queryByText("Explore Public Rooms")).not.toBeInTheDocument();
     });

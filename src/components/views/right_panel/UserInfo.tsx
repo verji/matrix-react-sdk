@@ -70,7 +70,7 @@ import { ComposerInsertPayload } from "../../../dispatcher/payloads/ComposerInse
 import ConfirmSpaceUserActionDialog from "../dialogs/ConfirmSpaceUserActionDialog";
 import { bulkSpaceBehaviour } from "../../../utils/space";
 import { shouldShowComponent } from "../../../customisations/helpers/UIComponents";
-import { UIComponent } from "../../../settings/UIFeature";
+import { UIComponent, UIFeature } from "../../../settings/UIFeature";
 import { TimelineRenderingType } from "../../../contexts/RoomContext";
 import RightPanelStore from "../../../stores/right-panel/RightPanelStore";
 import { IRightPanelCardState } from "../../../stores/right-panel/RightPanelStoreIPanelState";
@@ -83,7 +83,6 @@ import { asyncSome } from "../../../utils/arrays";
 import UIStore from "../../../stores/UIStore";
 import { SpaceScopeHeader } from "../rooms/SpaceScopeHeader";
 import SettingsStore from "../../../settings/SettingsStore";
-import { UIFeature } from "../../../settings/UIFeature";
 
 export interface IDevice extends Device {
     ambiguous?: boolean;

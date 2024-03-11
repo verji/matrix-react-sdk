@@ -1248,7 +1248,7 @@ describe("<RoomAdminToolsContainer />", () => {
         expect(screen.queryByRole("button", { name: /Manually verify by text/i })).not.toBeInTheDocument();
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
     });
-    it("does not show verify button when UIFeature.UserInfoVerifyDevice is false", () => {
+    it("show verify button when UIFeature.UserInfoVerifyDevice is true", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
 
         renderComponent();
