@@ -57,15 +57,18 @@ describe("HomePage", () => {
         client.getUserId.mockReturnValue('123');
         render(<HomePage justRegistered={false} />);
 
-        expect(screen.queryByText("Explore Public Rooms"));
+        expect(screen.findAllByText("onboarding")).toBeTruthy();
+        expect(screen.queryAllByRole("button", { name: /onboarding/i })).toBeTruthy();
+        
     });
     it("does not show the Welcome screen buttons when feature is false", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
 
         client.getUserId.mockReturnValue('123');
 
-        render(<HomePage justRegistered={false}/>);
+        render(<HomePage justRegistered={false} />);
 
-        expect(screen.queryByText("Explore Public Rooms")).not.toBeInTheDocument();
+        expect(screen.queryByText("onboarding")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /onboarding/i })).not.toBeInTheDocument();
     });
 });

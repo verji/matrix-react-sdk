@@ -98,9 +98,25 @@ const UserWelcomeTop: React.FC = () => {
     );
 };
 
+// //Buttons on homepage can be enabled (true), or disabled (false) setting the UIFeature.HomePageButtons in settings.tsx
+// const ShowButtons = () => {
+//     return (
+//         <div className="mx_HomePage_default_buttons">
+//             <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
+//                 {_tDom("onboarding|send_dm")}
+//             </AccessibleButton>
+//             <AccessibleButton onClick={onClickExplore} className="mx_HomePage_button_explore">
+//                 {_tDom("onboarding|explore_rooms")}
+//             </AccessibleButton>
+//             <AccessibleButton onClick={onClickNewRoom} className="mx_HomePage_button_createGroup">
+//                 {_tDom("onboarding|create_room")}
+//             </AccessibleButton>
+//         </div>
+//     )
+// }
+
 //Buttons on homepage can be enabled (true), or disabled (false) setting the UIFeature.HomePageButtons in settings.tsx
-const ShowButtons = () => {
-    return (
+const showButtons = (
         <div className="mx_HomePage_default_buttons">
             <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
                 {_tDom("onboarding|send_dm")}
@@ -112,8 +128,7 @@ const ShowButtons = () => {
                 {_tDom("onboarding|create_room")}
             </AccessibleButton>
         </div>
-    )
-}
+)
 
 const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
     const cli = useMatrixClientContext();
@@ -144,8 +159,9 @@ const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
         <AutoHideScrollbar className="mx_HomePage mx_HomePage_default" element="main">
             <div className="mx_HomePage_default_wrapper">
                 {introSection}
-                {SettingsStore.getValue(UIFeature.HomePageButtons) && <ShowButtons />}
-            </div>
+                {/* {SettingsStore.getValue(UIFeature.HomePageButtons) && <ShowButtons>} */}
+                {SettingsStore.getValue(UIFeature.HomePageButtons) && showButtons }
+                </div>
         </AutoHideScrollbar>
     );
 };
