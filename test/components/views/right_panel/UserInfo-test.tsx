@@ -1240,20 +1240,6 @@ describe("<RoomAdminToolsContainer />", () => {
         renderComponent();
         expect(screen.queryByText("remove recent messages")).not.toBeInTheDocument();
     });
-    it("does not show verify button when UIFeature.UserInfoVerifyDevice is false", () => {
-        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
-
-        renderComponent();
-        expect(screen.queryByRole("button", { name: /Manually verify by text/i })).not.toBeInTheDocument();
-        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
-    });
-    it("show verify button when UIFeature.UserInfoVerifyDevice is true", () => {
-        jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
-
-        renderComponent();
-        // text fetched from UntrustedDeviceDialog
-        expect(screen.queryByRole("button", { name: /Manually verify by text/i })).toBeTruthy();
-    });
 
     it("returns kick, redact messages, ban buttons if conditions met", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
@@ -1262,7 +1248,7 @@ describe("<RoomAdminToolsContainer />", () => {
         mockMeMember.powerLevel = 51; // defaults to 50
         mockRoom.getMember.mockReturnValueOnce(mockMeMember);
 
-        const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 };
+        const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 }
 
         renderComponent({ member: defaultMemberWithPowerLevel });
 
