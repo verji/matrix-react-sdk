@@ -1248,7 +1248,7 @@ describe("<RoomAdminToolsContainer />", () => {
         mockMeMember.powerLevel = 51; // defaults to 50
         mockRoom.getMember.mockReturnValueOnce(mockMeMember);
 
-        const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 }
+        const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 };
 
         renderComponent({ member: defaultMemberWithPowerLevel });
 
