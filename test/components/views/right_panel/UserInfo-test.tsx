@@ -380,7 +380,6 @@ describe("<UserInfo />", () => {
             const devicesMap = new Map<string, Device>([[device.deviceId, device]]);
             const userDeviceMap = new Map<string, Map<string, Device>>([[defaultUserId, devicesMap]]);
             mockCrypto.getUserDeviceInfo.mockResolvedValue(userDeviceMap);
-
         });
 
         it("renders a device list which can be expanded", async () => {
@@ -1262,7 +1261,6 @@ describe("<RoomAdminToolsContainer />", () => {
         const mockMeMember = new RoomMember(mockRoom.roomId, "arbitraryId");
         mockMeMember.powerLevel = 51; // defaults to 50
         mockRoom.getMember.mockReturnValueOnce(mockMeMember);
-
 
         const defaultMemberWithPowerLevel = { ...defaultMember, powerLevel: 0 };
 

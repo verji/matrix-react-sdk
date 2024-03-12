@@ -15,25 +15,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React  from "react";
+import React from "react";
 import { render, screen } from "@testing-library/react";
 
 import HomePage from "../../../src/components/structures/HomePage";
 import SettingsStore from "../../../src/settings/SettingsStore";
-import {
-    getMockClientWithEventEmitter,
-    mockClientMethodsEvents,
-    mockClientMethodsUser,
-} from "../../test-utils";
+import { getMockClientWithEventEmitter, mockClientMethodsEvents, mockClientMethodsUser } from "../../test-utils";
 import { MatrixClientPeg } from "../../../src/MatrixClientPeg";
-
 
 jest.mock("../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
 }));
 
 describe("HomePage", () => {
-
     const userId = "@me:here";
     const client = getMockClientWithEventEmitter({
         ...mockClientMethodsUser(userId),
@@ -49,22 +43,21 @@ describe("HomePage", () => {
 
     jest.spyOn(MatrixClientPeg, "safeGet").mockReturnValue(client);
 
-    client.getUserId.mockReturnValue('123');
+    client.getUserId.mockReturnValue("123");
 
     it("shows the Welcome screen buttons when feature is true", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(true);
 
-        client.getUserId.mockReturnValue('123');
+        client.getUserId.mockReturnValue("123");
         render(<HomePage justRegistered={false} />);
 
         expect(screen.findAllByText("onboarding")).toBeTruthy();
         expect(screen.queryAllByRole("button", { name: /onboarding/i })).toBeTruthy();
-        
     });
     it("does not show the Welcome screen buttons when feature is false", () => {
         jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
 
-        client.getUserId.mockReturnValue('123');
+        client.getUserId.mockReturnValue("123");
 
         render(<HomePage justRegistered={false} />);
 

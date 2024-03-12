@@ -499,5 +499,4 @@ describe("InviteDialog", () => {
         render(<HomePage justRegistered={true} />);
         expect(screen.queryByText("Explore")).not.toBeInTheDocument();
     });
-
 });
