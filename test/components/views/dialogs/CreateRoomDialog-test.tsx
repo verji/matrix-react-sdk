@@ -209,7 +209,7 @@ describe("<CreateRoomDialog />", () => {
             });
         });
         //Eik
-        it("it should not show rule dropdown, when UIFeature.CreateRoomShowJoinRuleDropdown is set to false", async () => {
+        it("should not show rule dropdown, when UIFeature.CreateRoomShowJoinRuleDropdown is set to false", async () => {
             jest.spyOn(SettingsStore, "getValue").mockImplementation(
                 (setting) => 
                 {
@@ -223,7 +223,7 @@ describe("<CreateRoomDialog />", () => {
             expect(screen.queryByRole("LabelledCheckbox", { name: "Make this room visible in the public room directory." })).not.toBeInTheDocument();
             expect(screen.queryByRole("option", { name: "Ask to join" })).not.toBeInTheDocument();
         });
-        it("it should not show end-to-end encryption option, when UIFeature.CreateRoomE2eeSection is set to false", async () => {
+        it("should not show end-to-end encryption option, when UIFeature.CreateRoomE2eeSection is set to false", async () => {
             jest.spyOn(SettingsStore, "getValue").mockImplementation(
                 (setting) => 
                 {
