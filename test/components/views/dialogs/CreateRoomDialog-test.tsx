@@ -236,7 +236,7 @@ describe("<CreateRoomDialog />", () => {
 
             expect(screen.queryByRole("LabelledToggleSwitch", { name: "Enable end-to-end encryption" })).not.toBeInTheDocument();
         });
-        it("it should not display 'Show Advanced', when UIFeature.CreateRoomShowAdvancedSettings is set to false", async () => {
+        it("should not display 'Show Advanced', when UIFeature.CreateRoomShowAdvancedSettings is set to false", async () => {
             jest.spyOn(SettingsStore, "getValue").mockImplementation(
                 (setting) => 
                 {

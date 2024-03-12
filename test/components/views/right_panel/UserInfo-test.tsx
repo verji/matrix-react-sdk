@@ -1253,7 +1253,7 @@ describe("<RoomAdminToolsContainer />", () => {
 
         renderComponent();
         // text fetched from UntrustedDeviceDialog
-        expect(screen.queryByRole("button", { name: /Manually verify by text/i }));
+        expect(screen.queryByRole("button", { name: /Manually verify by text/i })).toBeTruthy();
     });
 
     it("returns kick, redact messages, ban buttons if conditions met", () => {
