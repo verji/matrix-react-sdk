@@ -33,7 +33,7 @@ import MiniAvatarUploader, { AVATAR_SIZE } from "../views/elements/MiniAvatarUpl
 import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";
 import SettingsStore from "../../settings/SettingsStore";
-import { UIFeature } from "../../settings/UIFeature"
+import { UIFeature } from "../../settings/UIFeature";
 import { MatrixClientPeg } from "../../MatrixClientPeg";
 
 const onClickSendDm = (ev: ButtonEvent): void => {
@@ -117,18 +117,18 @@ const UserWelcomeTop: React.FC = () => {
 
 //Buttons on homepage can be enabled (true), or disabled (false) setting the UIFeature.HomePageButtons in settings.tsx
 const showButtons = (
-        <div className="mx_HomePage_default_buttons">
-            <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
-                {_tDom("onboarding|send_dm")}
-            </AccessibleButton>
-            <AccessibleButton onClick={onClickExplore} className="mx_HomePage_button_explore">
-                {_tDom("onboarding|explore_rooms")}
-            </AccessibleButton>
-            <AccessibleButton onClick={onClickNewRoom} className="mx_HomePage_button_createGroup">
-                {_tDom("onboarding|create_room")}
-            </AccessibleButton>
-        </div>
-)
+    <div className="mx_HomePage_default_buttons">
+        <AccessibleButton onClick={onClickSendDm} className="mx_HomePage_button_sendDm">
+            {_tDom("onboarding|send_dm")}
+        </AccessibleButton>
+        <AccessibleButton onClick={onClickExplore} className="mx_HomePage_button_explore">
+            {_tDom("onboarding|explore_rooms")}
+        </AccessibleButton>
+        <AccessibleButton onClick={onClickNewRoom} className="mx_HomePage_button_createGroup">
+            {_tDom("onboarding|create_room")}
+        </AccessibleButton>
+    </div>
+);
 
 const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
     const cli = useMatrixClientContext();
@@ -160,8 +160,8 @@ const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
             <div className="mx_HomePage_default_wrapper">
                 {introSection}
                 {/* {SettingsStore.getValue(UIFeature.HomePageButtons) && <ShowButtons>} */}
-                {SettingsStore.getValue(UIFeature.HomePageButtons) && showButtons }
-                </div>
+                {SettingsStore.getValue(UIFeature.HomePageButtons) && showButtons}
+            </div>
         </AutoHideScrollbar>
     );
 };

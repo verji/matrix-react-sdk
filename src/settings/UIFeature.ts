@@ -24,7 +24,7 @@ export const enum UIFeature {
     Feedback = "UIFeature.feedback",
     Registration = "UIFeature.registration",
     PasswordReset = "UIFeature.passwordReset",
-    Deactivate = "UIFeature.deactivate",    
+    Deactivate = "UIFeature.deactivate",
     ShareQRCode = "UIFeature.shareQrCode",
     ShareSocial = "UIFeature.shareSocial",
     IdentityServer = "UIFeature.identityServer",
@@ -40,9 +40,8 @@ export const enum UIFeature {
     RoomListExplorePublicRooms = "UIFeature.roomListExplorePublicRooms",
     CreateRoomE2eeSection = "UIFeature.createRoomE2eeSection",
     CreateRoomShowJoinRuleDropdown = "UIFeature.createRoomShowJoinRuleDropdown",
-    CreateRoomShowAdvancedSettings = "UIFeature.createRoomShowAdvancedSettings"
+    CreateRoomShowAdvancedSettings = "UIFeature.createRoomShowAdvancedSettings",
 }
-
 
 export enum UIComponent {
     /**
