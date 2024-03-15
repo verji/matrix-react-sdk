@@ -14,15 +14,15 @@ interface WordHighlight {
     highlight: boolean;
 }
 
-interface SearchTerm {
+export interface SearchTerm {
     searchTypeAdvanced: boolean;
     searchTypeNormal: boolean;
-    searchExpression: RegExp | null;
-    regExpHighlightMap: { [key: string]: boolean };
+    searchExpression?: RegExp | null;
+    regExpHighlightMap?: { [key: string]: boolean };
     fullText: string;
     words: WordHighlight[];
     regExpHighlights: any[];
-    isEmptySearch: boolean;
+    isEmptySearch?: boolean;
 }
 
 interface Member {
