@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2024 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ActionPayload } from "../payloads";
-import { Action } from "../actions";
+import { BLURHASH_FIELD } from "../utils/image-media";
 
-export interface UpdateFontSizePayload extends ActionPayload {
-    action: Action.UpdateFontSize;
-
-    /**
-     * The font size to set the root to
-     */
-    size: number;
+// Matrix JS SDK extensions
+declare module "matrix-js-sdk" {
+    export interface FileInfo {
+        /**
+         * @see https://github.com/matrix-org/matrix-spec-proposals/pull/2448
+         */
+        [BLURHASH_FIELD]?: string;
+    }
 }
