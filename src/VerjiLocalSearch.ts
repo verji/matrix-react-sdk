@@ -7,7 +7,6 @@
 import { EventTimeline, MatrixClient, MatrixEvent, Room, RoomMember, SearchResult } from "matrix-js-sdk/src/matrix";
 import { EventContext } from "matrix-js-sdk/src/models/event-context";
 import { MatrixClientPeg } from "./MatrixClientPeg";
-// import { SearchResult } from "matrix-js-sdk/src/models/search-result";
 
 interface WordHighlight {
     word: string;
@@ -47,53 +46,46 @@ interface SearchResultItem {
  * @throws {Error} If the Matrix client is not initialized or the room is not found.
  */
 export default async function searchAllEventsLocally(term: string, roomId: string | undefined): Promise<SearchResult> {
-    return new Promise<SearchResult>(async (resolve, reject) => {
-        try {
-            const searchResult: SearchResult = {
-                _query: term,
-                results: [],
-                highlights: [],
-                count: 0
-            };
-            const client: MatrixClient | null = MatrixClientPeg.get();
-            if (!client) {
-				reject(new Error("Matrix client is not initialized"));
-				return;
-			}
-            const room: Room | null = client.getRoom(roomId);
-			if (!room) {
-				reject(new Error("Room not found"));
-				return;
-			}
-            // const members = room.currentState.getMembers();
-            const members = room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getMembers();
-            const termObj: SearchTerm = makeSearchTermObject(term.trim());
-            if (termObj.isEmptySearch) {
-                resolve(searchResult);
-                return;
-            }
+    const searchResult: SearchResult = {
+        _query: term,
+        results: [],
+        highlights: [],
+        count: 0
+    };
 
-            let matchingMembers: Member[] = [];
-            if (members && Array(members).length) {
-                matchingMembers = members.filter((member: RoomMember) => isMemberMatch(member, termObj));
-            }
-            const memberObj: MemberObj = {};
-            for (let i = 0; i < matchingMembers.length; i++) {
-                memberObj[matchingMembers[i].userId] = matchingMembers[i];
-            }
-            // Get keys?
-            // First, make sure the entire history is loaded
-            await loadFullHistory(client, room);
-            // Now find all elements
-            const matches = await findAllMatches(termObj, room, memberObj);
+    const client: MatrixClient | null = MatrixClientPeg.get();
+    if (!client) {
+        throw new Error("Matrix client is not initialized");
+    }
 
-            processSearchResults(searchResult, matches, termObj);
-            resolve(searchResult);
-        }
-        catch (e) {
-            reject(e);
-        }
-    });
+    const room: Room | null = client.getRoom(roomId);
+    if (!room) {
+        throw new Error("Room not found");
+    }
+
+    const members = room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getMembers();
+    const termObj: SearchTerm = makeSearchTermObject(term.trim());
+
+    if (termObj.isEmptySearch) {
+        return searchResult;
+    }
+
+    let matchingMembers: Member[] = [];
+    if (members && Array(members).length) {
+        matchingMembers = members.filter((member: RoomMember) => isMemberMatch(member, termObj));
+    }
+
+    const memberObj: MemberObj = {};
+    for (let i = 0; i < matchingMembers.length; i++) {
+        memberObj[matchingMembers[i].userId] = matchingMembers[i];
+    }
+
+    await loadFullHistory(client, room);
+    const matches = await findAllMatches(termObj, room, memberObj);
+
+    processSearchResults(searchResult, matches, termObj);
+
+    return searchResult;
 }
 
 /**
