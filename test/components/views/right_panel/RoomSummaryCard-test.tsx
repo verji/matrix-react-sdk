@@ -103,13 +103,12 @@ describe("<RoomSummaryCard />", () => {
         mockClient.getRoom.mockReturnValue(room);
         jest.spyOn(room, "isElementVideoRoom").mockRestore();
         jest.spyOn(room, "isCallRoom").mockRestore();
-        
+
         mocked(shouldShowComponent).mockReturnValue(true);
-        
+
         jest.spyOn(SettingsStore, "getValue").mockImplementation((setting) => {
             return true;
         });
-
     });
 
     afterEach(() => {
@@ -230,7 +229,7 @@ describe("<RoomSummaryCard />", () => {
         getComponent();
 
         expect(screen.queryByText("Files")).toBeFalsy();
-        expect(screen.queryByText(_t("right_panel|files_button"))).toBeFalsy()
+        expect(screen.queryByText(_t("right_panel|files_button"))).toBeFalsy();
     });
     it("does not render 'Copy link' option when UIFeature is false", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((setting) => {
@@ -240,7 +239,7 @@ describe("<RoomSummaryCard />", () => {
         getComponent();
 
         expect(screen.queryByText("Copy link")).toBeFalsy();
-        expect(screen.queryByText(_t("action|copy_link"))).toBeFalsy()
+        expect(screen.queryByText(_t("action|copy_link"))).toBeFalsy();
     });
     it("does not render 'Copy link' option when UIFeature is true", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((setting) => {

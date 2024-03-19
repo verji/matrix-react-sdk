@@ -209,18 +209,19 @@ const NewRoomIntro: React.FC = () => {
         } else if (room.canInvite(cli.getSafeUserId()) && shouldShowComponent(UIComponent.InviteUsers)) {
             buttons = (
                 <div className="mx_NewRoomIntro_buttons">
-                    {SettingsStore.getValue(UIFeature.NewRoomIntroInviteThisRoom) && 
-                    <>
-                        <AccessibleButton
-                            className="mx_NewRoomIntro_inviteButton"
-                            kind="primary"
-                            onClick={() => {
-                                defaultDispatcher.dispatch({ action: "view_invite", roomId });
-                            }}
-                        >
-                            {_t("room|invite_this_room")}
-                        </AccessibleButton>
-                    </>}
+                    {SettingsStore.getValue(UIFeature.NewRoomIntroInviteThisRoom) && (
+                        <>
+                            <AccessibleButton
+                                className="mx_NewRoomIntro_inviteButton"
+                                kind="primary"
+                                onClick={() => {
+                                    defaultDispatcher.dispatch({ action: "view_invite", roomId });
+                                }}
+                            >
+                                {_t("room|invite_this_room")}
+                            </AccessibleButton>
+                        </>
+                    )}
                 </div>
             );
         }

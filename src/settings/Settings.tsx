@@ -1260,7 +1260,6 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         default: true,
     },
 
-
     // Electron-specific settings, they are stored by Electron and set/read over an IPC.
     // We store them over there are they are necessary to know before the renderer process launches.
     "Electron.autoLaunch": {

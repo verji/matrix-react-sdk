@@ -442,11 +442,11 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, permalinkCreator, onClose, on
                 disabled={!canInviteTo(room)}
                 onSelect={() => inviteToRoom(room)}
             />
-            {SettingsStore.getValue(UIFeature.RoomSummaryCopyLink) && 
+            {SettingsStore.getValue(UIFeature.RoomSummaryCopyLink) && (
                 <>
-                <MenuItem Icon={LinkIcon} label={_t("action|copy_link")} onSelect={onShareRoomClick} />
+                    <MenuItem Icon={LinkIcon} label={_t("action|copy_link")} onSelect={onShareRoomClick} />
                 </>
-            }
+            )}
             <MenuItem Icon={SettingsIcon} label={_t("common|settings")} onSelect={onRoomSettingsClick} />
 
             <Separator />
@@ -459,11 +459,15 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, permalinkCreator, onClose, on
             />
             {!isVideoRoom && (
                 <>
-                    {SettingsStore.getValue(UIFeature.RoomSummaryFilesOption) && 
+                    {SettingsStore.getValue(UIFeature.RoomSummaryFilesOption) && (
                         <>
-                            <MenuItem Icon={FilesIcon} label={_t("right_panel|files_button")} onSelect={onRoomFilesClick} />
+                            <MenuItem
+                                Icon={FilesIcon}
+                                label={_t("right_panel|files_button")}
+                                onSelect={onRoomFilesClick}
+                            />
                         </>
-                    }
+                    )}
                     <MenuItem
                         Icon={PollsIcon}
                         label={_t("right_panel|polls_button")}

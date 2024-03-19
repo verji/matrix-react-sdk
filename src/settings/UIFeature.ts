@@ -43,7 +43,7 @@ export const enum UIFeature {
     CreateRoomShowAdvancedSettings = "UIFeature.createRoomShowAdvancedSettings",
     RoomSummaryFilesOption = "UIFeature.roomSummaryFilesOption",
     RoomSummaryCopyLink = "UIFeature.roomSummaryCopyLink",
-    NewRoomIntroInviteThisRoom = "UIFeature.newRoomIntroInviteThisRoom"
+    NewRoomIntroInviteThisRoom = "UIFeature.newRoomIntroInviteThisRoom",
 }
 
 export enum UIComponent {
