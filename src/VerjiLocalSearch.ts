@@ -18,7 +18,7 @@ export interface SearchTerm {
     searchTypeNormal: boolean;
     searchExpression?: RegExp | null;
     regExpHighlightMap?: { [key: string]: boolean };
-    fullText: string;
+    fullText?: string;
     words: WordHighlight[];
     regExpHighlights: any[];
     isEmptySearch?: boolean;
@@ -221,8 +221,8 @@ export function isMemberMatch(member: RoomMember, termObj: SearchTerm): boolean 
 	if (termObj.searchTypeAdvanced === true) {
 		const expResults = termObj.searchExpression && memberName.match(termObj.searchExpression);
 		if (expResults && expResults.length > 0) {
-			for (const i = 0; i < expResults.length; i++) {
-				if (!termObj.regExpHighlightMap[expResults[i]]) {
+			for (let i = 0; i < expResults.length; i++) {
+				if (termObj.regExpHighlightMap && !termObj.regExpHighlightMap[expResults[i]]) {
 					termObj.regExpHighlightMap[expResults[i]] = true;
 					termObj.regExpHighlights.push(expResults[i]);
 				}
@@ -232,7 +232,7 @@ export function isMemberMatch(member: RoomMember, termObj: SearchTerm): boolean 
 		return false;
 	}
 
-	if (memberName.indexOf(termObj.fullText) > -1) {
+	if (termObj.fullText && memberName.indexOf(termObj.fullText) > -1) {
 		return true;
 	}
 
@@ -272,7 +272,7 @@ export function eventMatchesSearchTerms(searchTermObj: SearchTerm, evt: MatrixEv
 		const expressionResults = loweredEventContent.match(searchTermObj.searchExpression);
 		if (expressionResults && expressionResults.length > 0) {
 			for (let i = 0; i < expressionResults.length; i++) {
-				if (!searchTermObj.regExpHighlightMap[expressionResults[i]]) {
+				if (searchTermObj.regExpHighlightMap && !searchTermObj.regExpHighlightMap[expressionResults[i]]) {
 					searchTermObj.regExpHighlightMap[expressionResults[i]] = true;
 					searchTermObj.regExpHighlights.push(expressionResults[i]);
 				}
@@ -298,7 +298,8 @@ export function eventMatchesSearchTerms(searchTermObj: SearchTerm, evt: MatrixEv
 		return true;
 	}
 
-	if (dateIso && dateIso.indexOf(searchTermObj.fullText) > -1 || dateLocale &&  dateLocale.indexOf(searchTermObj.fullText) > -1) {
+	if (dateIso && searchTermObj.fullText && dateIso.indexOf(searchTermObj.fullText) > -1
+    || dateLocale && searchTermObj.fullText && dateLocale.indexOf(searchTermObj.fullText) > -1) {
 		return true;
 	}
 
