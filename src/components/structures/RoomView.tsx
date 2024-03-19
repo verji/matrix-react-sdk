@@ -120,7 +120,6 @@ import { SDKContext } from "../../contexts/SDKContext";
 import { CallStore, CallStoreEvent } from "../../stores/CallStore";
 import { Call } from "../../models/Call";
 import { RoomSearchView } from "./RoomSearchView";
-import eventSearch from "../../Searching";
 import VoipUserMapper from "../../VoipUserMapper";
 import { isCallEvent } from "./LegacyCallEventGrouper";
 import { WidgetType } from "../../widgets/WidgetType";
@@ -132,6 +131,7 @@ import { CancelAskToJoinPayload } from "../../dispatcher/payloads/CancelAskToJoi
 import { SubmitAskToJoinPayload } from "../../dispatcher/payloads/SubmitAskToJoinPayload";
 import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { onView3pidInvite } from "../../stores/right-panel/action-handlers";
+// import eventSearch from "../../Searching";
 import searchAllEventsLocally from '../../VerjiLocalSearch'; // ROSBERG
 
 const DEBUG = false;
