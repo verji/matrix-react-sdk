@@ -123,7 +123,7 @@ export class ModuleRunner {
         }
 
         if (experimentalExtensions.length == 1) {
-            this.extensions.experimental = cryptoSetupExtensions[0].extensions?.experimental;
+            this.extensions.experimental = experimentalExtensions[0].extensions?.experimental;
         }
     }
 

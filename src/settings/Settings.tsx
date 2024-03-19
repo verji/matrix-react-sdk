@@ -47,6 +47,7 @@ import ServerSupportUnstableFeatureController from "./controllers/ServerSupportU
 import { WatchManager } from "./WatchManager";
 import { CustomTheme } from "../theme";
 import SettingsStore from "./SettingsStore";
+import DelegateToExtensionController from "./controllers/DelegateToExtensionController";
 
 export const defaultWatchManager = new WatchManager();
 
@@ -1144,7 +1145,7 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         description: () => _t("labs|threads_activity_centre_description", { brand: SdkConfig.get().brand }),
         default: false,
         isFeature: true,
-    },
+    },    
     [UIFeature.RoomHistorySettings]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
@@ -1184,6 +1185,7 @@ export const SETTINGS: { [setting: string]: ISetting } = {
     [UIFeature.Deactivate]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
+        controller: new OrderedMultiController([new DelegateToExtensionController(UIFeature.ExperimentalFeature)])        
     },
     [UIFeature.ShareQRCode]: {
         supportedLevels: LEVELS_UI_FEATURE,
@@ -1242,5 +1244,10 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: [SettingLevel.PLATFORM],
         displayName: _td("settings|preferences|enable_hardware_acceleration"),
         default: true,
+    },
+    [UIFeature.ExperimentalFeature]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+        controller: new OrderedMultiController([new DelegateToExtensionController(UIFeature.ExperimentalFeature)])
     },
 };
