@@ -4,7 +4,7 @@
 */
 
 
-import { EventTimeline, MatrixClient, MatrixEvent, Room, RoomMember, SearchResult } from "matrix-js-sdk/src/matrix";
+import { EventTimeline, MatrixClient, MatrixEvent, Room, RoomMember, SearchResult as ElementSearchResult } from "matrix-js-sdk/src/matrix";
 import { EventContext } from "matrix-js-sdk/src/models/event-context";
 import { MatrixClientPeg } from "./MatrixClientPeg";
 
@@ -36,6 +36,13 @@ interface SearchResultItem {
     result: MatrixEvent;
     context: EventContext;
 }
+
+interface SearchResult {
+    _query: string;
+    results: any[];
+    highlights: any[];
+    count: number;
+  }
 
 /**
  * Searches all events locally based on the provided search term and room ID.
@@ -104,6 +111,9 @@ async function loadFullHistory(client: MatrixClient | null, room: Room): Promise
 			// as each time we paginate, two timelines could have overlapped and connected, and the new
 			// pagination token ends up on the first one.
 			const timeline: EventTimeline | null = getFirstLiveTimelineNeighbour(room);
+			if (!timeline) {
+				throw new Error("Timeline not found");
+			}
             if (client && timeline) {
 			    hasMoreEvents = await client.paginateEventTimeline(timeline, {limit: 100, backwards: true});
             } else {
@@ -149,7 +159,7 @@ function getFirstLiveTimelineNeighbour(room: Room): EventTimeline | null {
  * @param callback - The callback function to invoke for each event.
  */
 function iterateAllEvents(room: Room, callback: (event: MatrixEvent) => void): void {
-	let timeline = room.getLiveTimeline();
+	let timeline: EventTimeline | null = room.getLiveTimeline();
 	while (timeline) {
 		const events = timeline.getEvents();
 		for (let i = events.length - 1; i >= 0; i--) {
@@ -347,8 +357,8 @@ export function makeSearchTermObject(searchTerm: string): SearchTerm {
  */
 function processSearchResults(searchResults: SearchResult, matches: any[], termObj: SearchTerm): SearchResult {
 	for (let i = 0; i < matches.length; i++) {
-		const sr = new SearchResult(1, matches[i].context);
-        sr.context.timeline = sr.context.timeline.reverse();
+		const sr = new ElementSearchResult(1, matches[i].context);
+        // sr.context.timeline = sr.context.timeline.reverse();
 		searchResults.results.push(sr);
 	}
 
