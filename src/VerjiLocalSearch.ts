@@ -5,7 +5,7 @@
 
 
 import { EventTimeline, MatrixClient, MatrixEvent, Room, RoomMember, SearchResult as ElementSearchResult } from "matrix-js-sdk/src/matrix";
-import { EventContext } from "matrix-js-sdk/src/models/event-context";
+import { EventContext } from "matrix-js-sdk/src/models/event-context"; // eslint-disable-line
 import { MatrixClientPeg } from "./MatrixClientPeg";
 
 interface WordHighlight {
@@ -91,6 +91,16 @@ export default async function searchAllEventsLocally(term: string, roomId: strin
     const matches = await findAllMatches(termObj, room, memberObj);
 
     processSearchResults(searchResult, matches, termObj);
+
+    // console.log("Search results 1: ", searchResult);
+
+    // const results = searchResult.results;
+
+    // results.forEach(result => {
+    //     result.context.timeline = result.context.timeline.reverse();
+    // });
+
+    // console.log("Search results 2: ", searchResult);
 
     return searchResult;
 }
