@@ -51,8 +51,8 @@ export default class DelegateToExtensionController extends SettingController {
             calculatedValue: calculatedValue,
             calculatedAtLevel: calculatedAtLevel
         });
-
-        return result.value; // no override
+        
+        return result; // no override
     }
 
     public get settingDisabled(): boolean {
