@@ -31,8 +31,11 @@ export class ModuleRunner {
 
     private modules: AppModule[] = [];
 
+    private ext: any = [];
+
     private constructor() {
         // we only want one instance
+        console.log("Ext = ", this.ext);
     }
 
     /**
