@@ -1215,6 +1215,50 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
+    [UIFeature.HomePageButtons]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.UserInfoVerifyDevice]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.UserInfoShareLinkToUserButton]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.UserInfoRedactButton]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.RoomListExplorePublicRooms]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.CreateRoomE2eeSection]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.CreateRoomShowJoinRuleDropdown]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.CreateRoomShowAdvancedSettings]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.RoomSummaryFilesOption]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.RoomSummaryCopyLink]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.NewRoomIntroInviteThisRoom]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
     [UIFeature.EmailAddressShowRemoveButton]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
