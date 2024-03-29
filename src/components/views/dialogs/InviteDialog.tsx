@@ -702,8 +702,24 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
     };
 
     private updateSuggestions = async (term: string): Promise<void> => {
-        MatrixClientPeg.safeGet()
-            .searchUserDirectory({ term })
+        var client =  MatrixClientPeg.safeGet();
+
+        const spaceRoomId = SdkContextClass.instance.spaceStore.activeSpaceRoom?.roomId as string;
+        const roomId =  SdkContextClass.instance.roomViewStore.getRoomId() as string;
+
+        const finalRoomId = spaceRoomId ?? roomId;
+
+        const room = client.getRoom(finalRoomId as string);
+        const event = room?.getAccountData("app.verji.tenantId");
+        const tenantId = event?.event.content?.TenantId
+
+        console.log("event", event);
+        client
+            .searchUserDirectory({ term }, {
+                spaceId: spaceRoomId,
+                roomId: roomId as string, 
+                tenantId: tenantId
+            })
             .then(async (r): Promise<void> => {
                 if (term !== this.state.filterText) {
                     // Discard the results - we were probably too slow on the server-side to make
