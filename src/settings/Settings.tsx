@@ -1165,7 +1165,7 @@ export const SETTINGS: { [setting: string]: ISetting } = {
     [UIFeature.LocationSharing]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
-        controller: new DelegateToExtensionController(UIFeature.LocationSharing)
+        controller: new DelegateToExtensionController(UIFeature.LocationSharing),
     },
     [UIFeature.Voip]: {
         supportedLevels: LEVELS_UI_FEATURE,
