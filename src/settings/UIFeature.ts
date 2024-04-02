@@ -35,6 +35,7 @@ export const enum UIFeature {
     BulkUnverifiedSessionsReminder = "UIFeature.BulkUnverifiedSessionsReminder",
     Test_PR1 = "UIFeature.BulkUnverifiedSessionsReminder1",
     Test_PR2 = "UIFeature.BulkUnverifiedSessionsReminder2",
+    Test_PR3 = "UIFeature.BulkUnverifiedSessionsReminder3",
 }
 
 export enum UIComponent {
