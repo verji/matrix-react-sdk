@@ -707,18 +707,17 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         const spaceRoomId = SdkContextClass.instance.spaceStore.activeSpaceRoom?.roomId as string;
         const roomId =  SdkContextClass.instance.roomViewStore.getRoomId() as string;
 
-        const finalRoomId = spaceRoomId ?? roomId;
+        const finalRoomId = roomId ?? spaceRoomId;
 
         const room = client.getRoom(finalRoomId as string);
-        const event = room?.getAccountData("app.verji.tenantId");
+        const event = room?.getAccountData("app.verji.tenant_info");
         const tenantId = event?.event.content?.TenantId
 
-        console.log("event", event);
         client
             .searchUserDirectory({ term }, {
-                spaceId: spaceRoomId,
-                roomId: roomId as string, 
-                tenantId: tenantId
+                space_id: spaceRoomId,
+                room_id: roomId as string, 
+                tenant_id: tenantId
             })
             .then(async (r): Promise<void> => {
                 if (term !== this.state.filterText) {
