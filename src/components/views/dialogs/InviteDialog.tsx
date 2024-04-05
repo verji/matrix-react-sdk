@@ -73,6 +73,7 @@ import { UNKNOWN_PROFILE_ERRORS } from "../../../utils/MultiInviter";
 import AskInviteAnywayDialog, { UnknownProfiles } from "./AskInviteAnywayDialog";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import { UserProfilesStore } from "../../../stores/UserProfilesStore";
+import { ModuleRunner } from "../../../modules/ModuleRunner";
 
 // we have a number of types defined from the Matrix spec which can't reasonably be altered here.
 /* eslint-disable camelcase */
@@ -701,17 +702,23 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         this.props.onFinished(false);
     };
 
+
+
+    
+
+
     private updateSuggestions = async (term: string): Promise<void> => {
         var client =  MatrixClientPeg.safeGet();
+
 
         const spaceRoomId = SdkContextClass.instance.spaceStore.activeSpaceRoom?.roomId as string;
         const roomId =  SdkContextClass.instance.roomViewStore.getRoomId() as string;
 
         const finalRoomId = roomId ?? spaceRoomId;
 
-        const room = client.getRoom(finalRoomId as string);
-        const event = room?.getAccountData("app.verji.tenant_info");
-        const tenantId = event?.event.content?.TenantId
+//        const room = client.getRoom(finalRoomId as string);
+        const event = await client.getStateEvent(finalRoomId as string, "app.verji.tenant_info", "");
+        const tenantId = event["TenantId"];
 
         client
             .searchUserDirectory({ term }, {
