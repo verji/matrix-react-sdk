@@ -17,9 +17,13 @@ limitations under the License.
 import React, { createRef, ReactNode, SyntheticEvent } from "react";
 import classNames from "classnames";
 import { RoomMember, Room, MatrixError, EventType } from "matrix-js-sdk/src/matrix";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { MatrixCall } from "matrix-js-sdk/src/webrtc/call";
 import { logger } from "matrix-js-sdk/src/logger";
 import { uniqBy } from "lodash";
+
+import { Optional } from "matrix-events-sdk";
+
 
 import { Icon as InfoIcon } from "../../../../res/img/element-icons/info.svg";
 import { Icon as EmailPillAvatarIcon } from "../../../../res/img/icon-email-pill-avatar.svg";
@@ -74,6 +78,12 @@ import AskInviteAnywayDialog, { UnknownProfiles } from "./AskInviteAnywayDialog"
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import { UserProfilesStore } from "../../../stores/UserProfilesStore";
 
+//import { ModuleRunner } from "../../../modules/ModuleRunner";
+import * as Matrix from "matrix-js-sdk/src/matrix";
+import SdkConfig from "../../../SdkConfig";
+
+
+
 // we have a number of types defined from the Matrix spec which can't reasonably be altered here.
 /* eslint-disable camelcase */
 
@@ -114,6 +124,22 @@ enum TabId {
     UserDirectory = "users",
     DialPad = "dialpad",
 }
+
+
+interface RoomViewState {
+
+    // The room ID of the room currently being viewed
+    getRoomId: () => Optional<string>
+
+    getThreadId: () => Optional<string>;
+
+    // The event to scroll to when the room is first viewed
+    getInitialEventId: () => Optional<string>;
+
+    // The room alias of the room (or null if not originally specified in view_room)
+    getRoomAlias: () => Optional<string>
+}
+
 
 class DMUserTile extends React.PureComponent<IDMUserTileProps> {
     private onRemove = (e: ButtonEvent): void => {
@@ -701,9 +727,45 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         this.props.onFinished(false);
     };
 
+
+
+    private async getBody(
+        client: MatrixClient,
+        selectedSpaceGetter: () => string,
+        roomViewState: RoomViewState
+        ): Promise<{[key:string]: string}|null> {
+
+        const spaceRoomId = selectedSpaceGetter();
+        const roomId =  roomViewState.getRoomId() as string;
+
+        const finalRoomId = roomId ?? spaceRoomId;
+        const event = await client.getStateEvent(finalRoomId as string, "app.verji.tenant_info", "");
+        const tenantId = event["TenantId"];
+
+        return {
+            space_id: spaceRoomId,
+            room_id: roomId, 
+            tenant_id: tenantId
+        };
+    }
+
+
+
     private updateSuggestions = async (term: string): Promise<void> => {
-        MatrixClientPeg.safeGet()
-            .searchUserDirectory({ term })
+        var client =  MatrixClientPeg.safeGet();
+
+
+//        const extraBodyArgs: {[key:string]: string}|null = ModuleRunner.instance.extensions.experimental?.experimentalMethod()
+
+        const extraBodyArgs: {[key:string]: string}|null = await this.getBody(
+//            client,
+            () => SdkContextClass.instance.spaceStore.activeSpaceRoom?.roomId as string,
+            SdkContextClass.instance.roomViewStore
+        );
+
+
+        client
+            .searchUserDirectory({ term }, extraBodyArgs)
             .then(async (r): Promise<void> => {
                 if (term !== this.state.filterText) {
                     // Discard the results - we were probably too slow on the server-side to make
