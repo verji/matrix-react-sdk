@@ -20,7 +20,7 @@ import type { Config } from "jest";
 
 const config: Config = {
     testEnvironment: "jsdom",
-    testMatch: ["<rootDir>/test/**/*-test.[jt]s?(x)"],
+    testMatch: ["<rootDir>/test/**/*-test.[jt]s?(x)", "<rootDir>/test/**/**/*-test.[jt]s?(x)"],
     globalSetup: "<rootDir>/test/globalSetup.ts",
     setupFiles: ["jest-canvas-mock"],
     setupFilesAfterEnv: ["<rootDir>/test/setupTests.ts"],
