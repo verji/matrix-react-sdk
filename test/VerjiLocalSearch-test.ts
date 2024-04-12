@@ -3,32 +3,30 @@
     Unauthorized copying or distribution of this file, via any medium, is strictly prohibited.
 */
 
-import { MatrixEvent } from 'matrix-js-sdk'; // eslint-disable-line
+import { MatrixEvent } from "matrix-js-sdk"; // eslint-disable-line
 import {
     findAllMatches,
     eventMatchesSearchTerms,
     makeSearchTermObject,
     isMemberMatch,
-    SearchTerm
-} from '../src/VerjiLocalSearch';
+    SearchTerm,
+} from "../src/VerjiLocalSearch";
 
 describe("LocalSearch", () => {
     it("should return true for matches", async () => {
-
         const testEvent = {} as MatrixEvent;
         testEvent.getType = () => "m.room.message";
         testEvent.isRedacted = () => false;
-        testEvent.getContent = () => ({ body: "bodytext" } as any);
-        testEvent.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent.getContent = () => ({ body: "bodytext" }) as any;
+        testEvent.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent.getDate = () => new Date();
-
 
         const termObj: SearchTerm = {
             searchTypeAdvanced: false,
             searchTypeNormal: true,
             fullText: "bodytext",
             words: [{ word: "bodytext", highlight: false }],
-            regExpHighlights: []
+            regExpHighlights: [],
         };
 
         const isMatch = eventMatchesSearchTerms(termObj, testEvent as MatrixEvent, [] as any);
@@ -39,22 +37,22 @@ describe("LocalSearch", () => {
         const testEvent = {} as MatrixEvent;
         testEvent.getType = () => "m.room.message";
         testEvent.isRedacted = () => false;
-        testEvent.getContent = () => ({ body: "bodytext" } as any);
-        testEvent.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent.getContent = () => ({ body: "bodytext" }) as any;
+        testEvent.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent.getDate = () => new Date();
 
         const testEvent2 = {} as MatrixEvent;
         testEvent2.getType = () => "m.room.message";
         testEvent2.isRedacted = () => false;
-        testEvent2.getContent = () => ({ body: "not that text at all" } as any);
-        testEvent2.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent2.getContent = () => ({ body: "not that text at all" }) as any;
+        testEvent2.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent2.getDate = () => new Date();
 
         const testEvent3 = {} as MatrixEvent;
         testEvent3.getType = () => "m.room.message";
         testEvent3.isRedacted = () => false;
-        testEvent3.getContent = () => ({ body: "some different text that doesn't match" } as any);
-        testEvent3.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent3.getContent = () => ({ body: "some different text that doesn't match" }) as any;
+        testEvent3.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent3.getDate = () => new Date();
 
         const room = {
@@ -65,8 +63,8 @@ describe("LocalSearch", () => {
                 return timeline;
             },
             currentState: {
-                getMembers: () => [{ name: "Name Namesson", userId: "testtestsson" }]
-            }
+                getMembers: () => [{ name: "Name Namesson", userId: "testtestsson" }],
+            },
         };
 
         const termObj = {
@@ -74,7 +72,7 @@ describe("LocalSearch", () => {
             searchTypeNormal: true,
             fullText: "bodytext",
             words: [{ word: "bodytext", highlight: false }],
-            regExpHighlights: []
+            regExpHighlights: [],
         };
 
         const matches = await findAllMatches(termObj, room as any, [] as any);
@@ -85,29 +83,29 @@ describe("LocalSearch", () => {
         const testEvent = {} as MatrixEvent;
         testEvent.getType = () => "m.room.message";
         testEvent.isRedacted = () => false;
-        testEvent.getContent = () => ({ body: "body text" } as any);
-        testEvent.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent.getContent = () => ({ body: "body text" }) as any;
+        testEvent.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent.getDate = () => new Date();
 
         const testEvent2 = {} as MatrixEvent;
         testEvent2.getType = () => "m.room.message";
         testEvent2.isRedacted = () => false;
-        testEvent2.getContent = () => ({ body: "not that text at all" } as any);
-        testEvent2.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent2.getContent = () => ({ body: "not that text at all" }) as any;
+        testEvent2.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent2.getDate = () => new Date();
 
         const testEvent3 = {} as MatrixEvent;
         testEvent3.getType = () => "m.room.message";
         testEvent3.isRedacted = () => false;
-        testEvent3.getContent = () => ({ body: "some different text that doesn't match" } as any);
-        testEvent3.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent3.getContent = () => ({ body: "some different text that doesn't match" }) as any;
+        testEvent3.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent3.getDate = () => new Date();
 
         const testEvent4 = {} as MatrixEvent;
         testEvent4.getType = () => "m.room.message";
         testEvent4.isRedacted = () => false;
-        testEvent4.getContent = () => ({ body: "a text that isn't found" } as any);
-        testEvent4.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent4.getContent = () => ({ body: "a text that isn't found" }) as any;
+        testEvent4.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent4.getDate = () => new Date();
 
         const room = {
@@ -116,7 +114,7 @@ describe("LocalSearch", () => {
                 timeline.getEvents = () => [testEvent, testEvent2, testEvent3, testEvent4];
                 timeline.getNeighbouringTimeline = () => null;
                 return timeline;
-            }
+            },
         };
 
         const termObj = makeSearchTermObject("rx:(body|all|some)");
@@ -130,29 +128,29 @@ describe("LocalSearch", () => {
         const testEvent = {} as MatrixEvent;
         testEvent.getType = () => "m.room.message";
         testEvent.isRedacted = () => false;
-        testEvent.getContent = () => ({ body: "body text Testsson" } as any);
-        testEvent.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent.getContent = () => ({ body: "body text Testsson" }) as any;
+        testEvent.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent.getDate = () => new Date();
 
         const testEvent2 = {} as MatrixEvent;
         testEvent2.getType = () => "m.room.message";
         testEvent2.isRedacted = () => false;
-        testEvent2.getContent = () => ({ body: "not that text at all" } as any);
-        testEvent2.getSender = () => ({ userId: "namersson" } as any);
+        testEvent2.getContent = () => ({ body: "not that text at all" }) as any;
+        testEvent2.getSender = () => ({ userId: "namersson" }) as any;
         testEvent2.getDate = () => new Date();
 
         const testEvent3 = {} as MatrixEvent;
         testEvent3.getType = () => "m.room.message";
         testEvent3.isRedacted = () => false;
-        testEvent3.getContent = () => ({ body: "some different text, but not the one Testsson" } as any);
-        testEvent3.getSender = () => ({ userId: "namersson" } as any);
+        testEvent3.getContent = () => ({ body: "some different text, but not the one Testsson" }) as any;
+        testEvent3.getSender = () => ({ userId: "namersson" }) as any;
         testEvent3.getDate = () => new Date();
 
         const testEvent4 = {} as MatrixEvent;
         testEvent4.getType = () => "m.room.message";
         testEvent4.isRedacted = () => false;
-        testEvent4.getContent = () => ({ body: "a text" } as any);
-        testEvent4.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent4.getContent = () => ({ body: "a text" }) as any;
+        testEvent4.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent4.getDate = () => new Date();
 
         const room = {
@@ -161,7 +159,7 @@ describe("LocalSearch", () => {
                 timeline.getEvents = () => [testEvent, testEvent2, testEvent3, testEvent4];
                 timeline.getNeighbouringTimeline = () => null;
                 return timeline;
-            }
+            },
         };
 
         const foundUsers = {
@@ -170,7 +168,7 @@ describe("LocalSearch", () => {
 
         const termObj = makeSearchTermObject("Testsson");
         const matches = await findAllMatches(termObj, room as any, foundUsers);
-        console.log(matches.length)
+        console.log(matches.length);
 
         expect(matches.length).toBe(2);
         expect(matches[0].result.getSender().userId).toBe("namersson");
@@ -181,25 +179,25 @@ describe("LocalSearch", () => {
         const testEvent = {} as MatrixEvent;
         testEvent.getType = () => "m.room.message";
         testEvent.isRedacted = () => false;
-        testEvent.getContent = () => ({ body: "body text" } as any);
-        testEvent.getSender = () => ({ userId: "testtestsson" } as any);
+        testEvent.getContent = () => ({ body: "body text" }) as any;
+        testEvent.getSender = () => ({ userId: "testtestsson" }) as any;
         testEvent.getDate = () => new Date(2020, 10, 2, 13, 30, 0);
 
         const testEvent2 = {} as MatrixEvent;
         testEvent2.getType = () => "m.room.message";
         testEvent2.isRedacted = () => false;
-        testEvent2.getContent = () => ({ body: "not that text at all" } as any);
-        testEvent2.getSender = () => ({ userId: "namersson" } as any);
+        testEvent2.getContent = () => ({ body: "not that text at all" }) as any;
+        testEvent2.getSender = () => ({ userId: "namersson" }) as any;
         testEvent2.getDate = () => new Date(2020, 9, 28, 14, 0, 0);
 
         const room = {
             getLiveTimeline: () => {
                 const timeline = {
                     getEvents: () => [testEvent, testEvent2],
-                    getNeighbouringTimeline: () => null
+                    getNeighbouringTimeline: () => null,
                 };
                 return timeline;
-            }
+            },
         };
 
         const foundUsers = {};
@@ -214,4 +212,4 @@ describe("LocalSearch", () => {
         const isMatch = isMemberMatch({ name: "Name Namesson", userId: "namenamesson" } as any, termObj);
         expect(isMatch).toBe(true);
     });
-})
+});
