@@ -1745,7 +1745,10 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
                 roomId,
                 term,
                 scope,
-                promise,
+                // ROSBERG START
+                // promise,
+                promise: promise as any,
+                // ROSBERG END
                 abortController,
             },
         });
