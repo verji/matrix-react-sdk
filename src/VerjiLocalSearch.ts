@@ -3,8 +3,14 @@
     Unauthorized copying or distribution of this file, via any medium, is strictly prohibited.
 */
 
-
-import { EventTimeline, MatrixClient, MatrixEvent, Room, RoomMember, SearchResult as ElementSearchResult } from "matrix-js-sdk/src/matrix";
+import {
+    EventTimeline,
+    MatrixClient,
+    MatrixEvent,
+    Room,
+    RoomMember,
+    SearchResult as ElementSearchResult,
+} from "matrix-js-sdk/src/matrix";
 import { EventContext } from "matrix-js-sdk/src/models/event-context"; // eslint-disable-line
 import { MatrixClientPeg } from "./MatrixClientPeg";
 
@@ -42,7 +48,7 @@ interface SearchResult {
     results: any[];
     highlights: any[];
     count: number;
-  }
+}
 
 /**
  * Searches all events locally based on the provided search term and room ID.
@@ -57,7 +63,7 @@ export default async function searchAllEventsLocally(term: string, roomId: strin
         _query: term,
         results: [],
         highlights: [],
-        count: 0
+        count: 0,
     };
 
     const client: MatrixClient | null = MatrixClientPeg.get();
@@ -114,31 +120,31 @@ export default async function searchAllEventsLocally(term: string, roomId: strin
  * @throws {Error} If the Matrix client is not initialized.
  */
 async function loadFullHistory(client: MatrixClient | null, room: Room): Promise<void> {
-	let hasMoreEvents = true;
-	do {
-		try {
-			// get the first neighbour of the live timeline on every iteration
-			// as each time we paginate, two timelines could have overlapped and connected, and the new
-			// pagination token ends up on the first one.
-			const timeline: EventTimeline | null = getFirstLiveTimelineNeighbour(room);
-			if (!timeline) {
-				throw new Error("Timeline not found");
-			}
+    let hasMoreEvents = true;
+    do {
+        try {
+            // get the first neighbour of the live timeline on every iteration
+            // as each time we paginate, two timelines could have overlapped and connected, and the new
+            // pagination token ends up on the first one.
+            const timeline: EventTimeline | null = getFirstLiveTimelineNeighbour(room);
+            if (!timeline) {
+                throw new Error("Timeline not found");
+            }
             if (client && timeline) {
-			    hasMoreEvents = await client.paginateEventTimeline(timeline, {limit: 100, backwards: true});
+                hasMoreEvents = await client.paginateEventTimeline(timeline, { limit: 100, backwards: true });
             } else {
                 throw new Error("Matrix client is not initialized");
             }
-		} catch (err: any) {
-			// deal with rate-limit error
-			if (err.name === "M_LIMIT_EXCEEDED") {
-        		const waitTime = err.data.retry_after_ms;
-				await new Promise(r => setTimeout(r, waitTime));
-			} else {
-				throw err;
-			}
-		}
-	} while (hasMoreEvents);
+        } catch (err: any) {
+            // deal with rate-limit error
+            if (err.name === "M_LIMIT_EXCEEDED") {
+                const waitTime = err.data.retry_after_ms;
+                await new Promise((r) => setTimeout(r, waitTime));
+            } else {
+                throw err;
+            }
+        }
+    } while (hasMoreEvents);
 }
 
 /**
@@ -149,15 +155,15 @@ async function loadFullHistory(client: MatrixClient | null, room: Room): Promise
  * @returns The first live timeline neighbour if found, otherwise null.
  */
 function getFirstLiveTimelineNeighbour(room: Room): EventTimeline | null {
-	const liveTimeline = room.getLiveTimeline();
-	let timeline = liveTimeline;
-	while (timeline) {
-		const neighbour = timeline.getNeighbouringTimeline(EventTimeline.BACKWARDS);
-		if (!neighbour) {
-			return timeline;
-		}
-		timeline = neighbour;
-	}
+    const liveTimeline = room.getLiveTimeline();
+    let timeline = liveTimeline;
+    while (timeline) {
+        const neighbour = timeline.getNeighbouringTimeline(EventTimeline.BACKWARDS);
+        if (!neighbour) {
+            return timeline;
+        }
+        timeline = neighbour;
+    }
     return null;
 }
 
@@ -169,14 +175,14 @@ function getFirstLiveTimelineNeighbour(room: Room): EventTimeline | null {
  * @param callback - The callback function to invoke for each event.
  */
 function iterateAllEvents(room: Room, callback: (event: MatrixEvent) => void): void {
-	let timeline: EventTimeline | null = room.getLiveTimeline();
-	while (timeline) {
-		const events = timeline.getEvents();
-		for (let i = events.length - 1; i >= 0; i--) {
-			callback(events[i]);
-		}
-		timeline = timeline.getNeighbouringTimeline(EventTimeline.BACKWARDS);
-	}
+    let timeline: EventTimeline | null = room.getLiveTimeline();
+    while (timeline) {
+        const events = timeline.getEvents();
+        for (let i = events.length - 1; i >= 0; i--) {
+            callback(events[i]);
+        }
+        timeline = timeline.getNeighbouringTimeline(EventTimeline.BACKWARDS);
+    }
 }
 
 /**
@@ -188,36 +194,36 @@ function iterateAllEvents(room: Room, callback: (event: MatrixEvent) => void): v
  * @returns A promise that resolves to an array of search result items.
  */
 export async function findAllMatches(termObj: SearchTerm, room: Room, matchingMembers: MemberObj): Promise<any[]> {
-	return new Promise((resolve) => {
-		const matches: SearchResultItem[] = [];
+    return new Promise((resolve) => {
+        const matches: SearchResultItem[] = [];
         let searchHit: SearchResultItem | null = null;
-		let mostRecentEvent: MatrixEvent | null = null;
-		const iterationCallback = (roomEvent: MatrixEvent): void => {
-			if (searchHit !== null) {
-				searchHit.context.addEvents([roomEvent], false);
-			}
-			searchHit = null;
+        let mostRecentEvent: MatrixEvent | null = null;
+        const iterationCallback = (roomEvent: MatrixEvent): void => {
+            if (searchHit !== null) {
+                searchHit.context.addEvents([roomEvent], false);
+            }
+            searchHit = null;
 
-			if (roomEvent.getType() === 'm.room.message' && !roomEvent.isRedacted()) {
-				if (eventMatchesSearchTerms(termObj, roomEvent, matchingMembers)) {
-					const evCtx = new EventContext(roomEvent);
-					if (mostRecentEvent !== null) {
-						evCtx.addEvents([mostRecentEvent], true);
-					}
+            if (roomEvent.getType() === "m.room.message" && !roomEvent.isRedacted()) {
+                if (eventMatchesSearchTerms(termObj, roomEvent, matchingMembers)) {
+                    const evCtx = new EventContext(roomEvent);
+                    if (mostRecentEvent !== null) {
+                        evCtx.addEvents([mostRecentEvent], true);
+                    }
 
                     const resObj: SearchResultItem = { result: roomEvent, context: evCtx };
 
-					matches.push(resObj);
-					searchHit = resObj;
-					return;
-				}
-			}
-			mostRecentEvent = roomEvent;
-		};
+                    matches.push(resObj);
+                    searchHit = resObj;
+                    return;
+                }
+            }
+            mostRecentEvent = roomEvent;
+        };
 
-		iterateAllEvents(room, iterationCallback);
-		resolve(matches);
-	});
+        iterateAllEvents(room, iterationCallback);
+        resolve(matches);
+    });
 }
 
 /**
@@ -227,33 +233,33 @@ export async function findAllMatches(termObj: SearchTerm, room: Room, matchingMe
  * @returns True if the member matches the search term, false otherwise.
  */
 export function isMemberMatch(member: RoomMember, termObj: SearchTerm): boolean {
-	const memberName = member.name.toLowerCase();
-	if (termObj.searchTypeAdvanced === true) {
-		const expResults = termObj.searchExpression && memberName.match(termObj.searchExpression);
-		if (expResults && expResults.length > 0) {
-			for (let i = 0; i < expResults.length; i++) {
-				if (termObj.regExpHighlightMap && !termObj.regExpHighlightMap[expResults[i]]) {
-					termObj.regExpHighlightMap[expResults[i]] = true;
-					termObj.regExpHighlights.push(expResults[i]);
-				}
-			}
-			return true;
-		}
-		return false;
-	}
+    const memberName = member.name.toLowerCase();
+    if (termObj.searchTypeAdvanced === true) {
+        const expResults = termObj.searchExpression && memberName.match(termObj.searchExpression);
+        if (expResults && expResults.length > 0) {
+            for (let i = 0; i < expResults.length; i++) {
+                if (termObj.regExpHighlightMap && !termObj.regExpHighlightMap[expResults[i]]) {
+                    termObj.regExpHighlightMap[expResults[i]] = true;
+                    termObj.regExpHighlights.push(expResults[i]);
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 
-	if (termObj.fullText && memberName.indexOf(termObj.fullText) > -1) {
-		return true;
-	}
+    if (termObj.fullText && memberName.indexOf(termObj.fullText) > -1) {
+        return true;
+    }
 
-	for (let i = 0; i < termObj.words.length; i++) {
-		const word = termObj.words[i].word;
-		if (memberName.indexOf(word) === -1) {
-			return false;
-		}
-	}
+    for (let i = 0; i < termObj.words.length; i++) {
+        const word = termObj.words[i].word;
+        if (memberName.indexOf(word) === -1) {
+            return false;
+        }
+    }
 
-	return true;
+    return true;
 }
 
 /**
@@ -263,32 +269,35 @@ export function isMemberMatch(member: RoomMember, termObj: SearchTerm): boolean 
  * @param matchingMembers - The object containing matching members.
  * @returns True if the event matches the search terms, false otherwise.
  */
-export function eventMatchesSearchTerms(searchTermObj: SearchTerm, evt: MatrixEvent, matchingMembers: MemberObj): boolean {
-	const content = evt.getContent();
-	const sender = evt.getSender();
-	const loweredEventContent = content.body.toLowerCase();
+export function eventMatchesSearchTerms(
+    searchTermObj: SearchTerm,
+    evt: MatrixEvent,
+    matchingMembers: MemberObj,
+): boolean {
+    const content = evt.getContent();
+    const sender = evt.getSender();
+    const loweredEventContent = content.body.toLowerCase();
 
-	const evtDate = evt.getDate();
-	const dateIso = evtDate && evtDate.toISOString();
-	const dateLocale = evtDate && evtDate.toLocaleString();
+    const evtDate = evt.getDate();
+    const dateIso = evtDate && evtDate.toISOString();
+    const dateLocale = evtDate && evtDate.toLocaleString();
 
-
-	// if (matchingMembers[sender?.userId] !== undefined) {
+    // if (matchingMembers[sender?.userId] !== undefined) {
     if (sender && matchingMembers[sender] !== undefined) {
-		return true;
-	}
+        return true;
+    }
 
-	if (searchTermObj.searchTypeAdvanced === true) {
-		const expressionResults = loweredEventContent.match(searchTermObj.searchExpression);
-		if (expressionResults && expressionResults.length > 0) {
-			for (let i = 0; i < expressionResults.length; i++) {
-				if (searchTermObj.regExpHighlightMap && !searchTermObj.regExpHighlightMap[expressionResults[i]]) {
-					searchTermObj.regExpHighlightMap[expressionResults[i]] = true;
-					searchTermObj.regExpHighlights.push(expressionResults[i]);
-				}
-			}
-			return true;
-		}
+    if (searchTermObj.searchTypeAdvanced === true) {
+        const expressionResults = loweredEventContent.match(searchTermObj.searchExpression);
+        if (expressionResults && expressionResults.length > 0) {
+            for (let i = 0; i < expressionResults.length; i++) {
+                if (searchTermObj.regExpHighlightMap && !searchTermObj.regExpHighlightMap[expressionResults[i]]) {
+                    searchTermObj.regExpHighlightMap[expressionResults[i]] = true;
+                    searchTermObj.regExpHighlights.push(expressionResults[i]);
+                }
+            }
+            return true;
+        }
 
         let dateIsoExprResults;
         let dateLocaleExprResults;
@@ -297,33 +306,38 @@ export function eventMatchesSearchTerms(searchTermObj: SearchTerm, evt: MatrixEv
             dateLocaleExprResults = dateLocale.match(searchTermObj.searchExpression);
         }
 
-		if ((dateIsoExprResults && dateIsoExprResults.length > 0) || (dateLocaleExprResults && dateLocaleExprResults.length > 0)) {
-			return true;
-		}
+        if (
+            (dateIsoExprResults && dateIsoExprResults.length > 0) ||
+            (dateLocaleExprResults && dateLocaleExprResults.length > 0)
+        ) {
+            return true;
+        }
 
-		return false;
-	}
+        return false;
+    }
 
-	if (loweredEventContent.indexOf(searchTermObj.fullText) > -1) {
-		return true;
-	}
+    if (loweredEventContent.indexOf(searchTermObj.fullText) > -1) {
+        return true;
+    }
 
-	if (dateIso && searchTermObj.fullText && dateIso.indexOf(searchTermObj.fullText) > -1
-    || dateLocale && searchTermObj.fullText && dateLocale.indexOf(searchTermObj.fullText) > -1) {
-		return true;
-	}
+    if (
+        (dateIso && searchTermObj.fullText && dateIso.indexOf(searchTermObj.fullText) > -1) ||
+        (dateLocale && searchTermObj.fullText && dateLocale.indexOf(searchTermObj.fullText) > -1)
+    ) {
+        return true;
+    }
 
-	if (searchTermObj.words.length > 0) {
-		for (let i = 0; i < searchTermObj.words.length; i++) {
-			const word = searchTermObj.words[i];
-			if (loweredEventContent.indexOf(word) === -1) {
-				return false;
-			}
-		}
-		return true;
-	}
+    if (searchTermObj.words.length > 0) {
+        for (let i = 0; i < searchTermObj.words.length; i++) {
+            const word = searchTermObj.words[i];
+            if (loweredEventContent.indexOf(word) === -1) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-	return false;
+    return false;
 }
 
 /**
@@ -332,30 +346,35 @@ export function eventMatchesSearchTerms(searchTermObj: SearchTerm, evt: MatrixEv
  * @returns The created search term object.
  */
 export function makeSearchTermObject(searchTerm: string): SearchTerm {
-	let term = searchTerm.toLowerCase();
-	if (term.indexOf('rx:') === 0) {
-		term = searchTerm.substring(3).trim();
-		return {
-			searchTypeAdvanced: true,
-			searchTypeNormal: false,
-			searchExpression: new RegExp(term),
-			words: [],
-			regExpHighlights: [],
-			regExpHighlightMap: {},
-			isEmptySearch: term.length === 0
-		};
-	}
+    let term = searchTerm.toLowerCase();
+    if (term.indexOf("rx:") === 0) {
+        term = searchTerm.substring(3).trim();
+        return {
+            searchTypeAdvanced: true,
+            searchTypeNormal: false,
+            searchExpression: new RegExp(term),
+            words: [],
+            regExpHighlights: [],
+            regExpHighlightMap: {},
+            isEmptySearch: term.length === 0,
+        };
+    }
 
-	const words = term.split(' ').filter(w => w).map(function(w) { return { word: w, highlight: false }; });
+    const words = term
+        .split(" ")
+        .filter((w) => w)
+        .map(function (w) {
+            return { word: w, highlight: false };
+        });
 
-	return {
-		searchTypeAdvanced: false,
-		searchTypeNormal: true,
-		fullText: term,
-		words: words,
-		regExpHighlights: [],
-		isEmptySearch: term.length === 0
-	};
+    return {
+        searchTypeAdvanced: false,
+        searchTypeNormal: true,
+        fullText: term,
+        words: words,
+        regExpHighlights: [],
+        isEmptySearch: term.length === 0,
+    };
 }
 
 /**
@@ -367,17 +386,17 @@ export function makeSearchTermObject(searchTerm: string): SearchTerm {
  * @returns The updated searchResults object.
  */
 function processSearchResults(searchResults: SearchResult, matches: any[], termObj: SearchTerm): SearchResult {
-	for (let i = 0; i < matches.length; i++) {
-		const sr = new ElementSearchResult(1, matches[i].context);
+    for (let i = 0; i < matches.length; i++) {
+        const sr = new ElementSearchResult(1, matches[i].context);
         // sr.context.timeline = sr.context.timeline.reverse();
-		searchResults.results.push(sr);
-	}
+        searchResults.results.push(sr);
+    }
 
-	const highlights = termObj.words.filter(w => w.highlight).map(w => w.word);
-	searchResults.highlights = highlights;
-	for (let i = 0; i < termObj.regExpHighlights.length; i++) {
-		searchResults.highlights.push(termObj.regExpHighlights[i]);
-	}
-	searchResults.count = matches.length;
-	return searchResults;
+    const highlights = termObj.words.filter((w) => w.highlight).map((w) => w.word);
+    searchResults.highlights = highlights;
+    for (let i = 0; i < termObj.regExpHighlights.length; i++) {
+        searchResults.highlights.push(termObj.regExpHighlights[i]);
+    }
+    searchResults.count = matches.length;
+    return searchResults;
 }
