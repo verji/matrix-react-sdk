@@ -133,7 +133,7 @@ import { SubmitAskToJoinPayload } from "../../dispatcher/payloads/SubmitAskToJoi
 import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { onView3pidInvite } from "../../stores/right-panel/action-handlers";
 // import eventSearch from "../../Searching";
-import searchAllEventsLocally from '../../VerjiLocalSearch'; // ROSBERG
+import searchAllEventsLocally from "../../VerjiLocalSearch"; // ROSBERG
 
 const DEBUG = false;
 const PREVENT_MULTIPLE_JITSI_WITHIN = 30_000;
@@ -1733,9 +1733,9 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
         const abortController = new AbortController();
 
         // ROSBERG START
-	    // const promise = eventSearch(this.context.client!, term, roomId, abortController.signal);
-	    const promise = searchAllEventsLocally(term, roomId);
-	    // ROSBERG END
+        // const promise = eventSearch(this.context.client!, term, roomId, abortController.signal);
+        const promise = searchAllEventsLocally(term, roomId);
+        // ROSBERG END
 
         this.setState({
             search: {
