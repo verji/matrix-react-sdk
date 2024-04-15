@@ -4,7 +4,7 @@
 */
 
 // import { MatrixEvent } from "matrix-js-sdk";
-import { MatrixEvent } from 'matrix-js-sdk/src/matrix';
+import { MatrixEvent } from "matrix-js-sdk/src/matrix";
 
 import {
     findAllMatches,
