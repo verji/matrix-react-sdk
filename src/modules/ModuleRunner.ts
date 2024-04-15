@@ -43,7 +43,7 @@ export class ModuleRunner {
     public reset(): void {
         this.modules = [];
 
-        var a = "sanity-check-1";
+        const a = "sanity-check-1";
         console.log(a);
     }
 
