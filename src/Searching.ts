@@ -667,7 +667,10 @@ export function searchPagination(client: MatrixClient, searchResult: ISearchResu
     else return eventIndexSearchPagination(client, searchResult);
 }
 
-export default function eventSearch(
+// ROSBERG START
+/* this function, originally used in src\components\structures\RoomView.tsx:1736,
+is replaced with our own custom search src\VerjiLocalSearch.ts, and will be commented out here. */
+/* export default function eventSearch(
     client: MatrixClient,
     term: string,
     roomId?: string,
@@ -680,4 +683,5 @@ export default function eventSearch(
     } else {
         return eventIndexSearch(client, term, roomId, abortSignal);
     }
-}
+} */
+// ROSBERG END
