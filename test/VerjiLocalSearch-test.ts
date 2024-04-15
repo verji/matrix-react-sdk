@@ -3,7 +3,9 @@
     Unauthorized copying or distribution of this file, via any medium, is strictly prohibited.
 */
 
-import { MatrixEvent } from "matrix-js-sdk"; // eslint-disable-line
+// import { MatrixEvent } from "matrix-js-sdk";
+import { MatrixEvent } from 'matrix-js-sdk/src/matrix';
+
 import {
     findAllMatches,
     eventMatchesSearchTerms,

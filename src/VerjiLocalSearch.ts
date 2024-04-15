@@ -12,6 +12,7 @@ import {
     SearchResult as ElementSearchResult,
 } from "matrix-js-sdk/src/matrix";
 import { EventContext } from "matrix-js-sdk/src/models/event-context"; // eslint-disable-line
+
 import { MatrixClientPeg } from "./MatrixClientPeg";
 
 interface WordHighlight {
