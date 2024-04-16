@@ -420,9 +420,9 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
                     data-testid="accountSection"
                 >
                     {console.log('Eik : extacc : ' + SettingsStore.getValue(UIFeature.UserSettingsExternalAccount))}
-                    {console.log('Eik : passwordchange : ' + SettingsStore.getValue(UIFeature.UserSettingsPasswordChange))}
+                    {console.log('Eik : changepassword : ' + SettingsStore.getValue(UIFeature.UserSettingsChangePassword))}
                     {SettingsStore.getValue(UIFeature.UserSettingsExternalAccount) && externalAccountManagement}
-                    {SettingsStore.getValue(UIFeature.UserSettingsPasswordChange) && passwordChangeSection}
+                    {SettingsStore.getValue(UIFeature.UserSettingsChangePassword) && passwordChangeSection}
                 </SettingsSubsection>
                 {threepidSection}
             </>

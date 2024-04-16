@@ -35,7 +35,7 @@ export const enum UIFeature {
     BulkUnverifiedSessionsReminder = "UIFeature.BulkUnverifiedSessionsReminder",
     RoomSettingsAlias = "UIFeature.roomSettingsAlias",
     UserSettingsExternalAccount = "UIFeature.userSettingsExternalAccount",
-    UserSettingsPasswordChange = "UIFeature.userSettingsPasswordChange",
+    UserSettingsChangePassword = "UIFeature.userSettingsChangePassword",
     UserSettingsSetIdServer = "UIFeature.userSettingsSetIdServer",
     UserSettingsDiscovery = "UIFeature.userSettingsDiscovery",
     UserSettingsIntegrationManager = "UIFeature.userSettingsIntegrationManager",
