@@ -54,6 +54,9 @@ export class ModuleRunner {
     public reset(): void {
         this.modules = [];
 
+        const a = "sanity-check-1";
+        console.log(a);
+      
         this.extensions = {
             cryptoSetup: new DefaultCryptoSetupExtensions(),
             experimental: new DefaultExperimentalExtensions(),
