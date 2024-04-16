@@ -34,6 +34,11 @@ export const enum UIFeature {
     TimelineEnableRelativeDates = "UIFeature.timelineEnableRelativeDates",
     BulkUnverifiedSessionsReminder = "UIFeature.BulkUnverifiedSessionsReminder",
     RoomSettingsAlias = "UIFeature.roomSettingsAlias",
+    UserSettingsExternalAccount = "UIFeature.userSettingsExternalAccount",
+    UserSettingsPasswordChange = "UIFeature.userSettingsPasswordChange",
+    UserSettingsSetIdServer = "UIFeature.userSettingsSetIdServer",
+    UserSettingsDiscovery = "UIFeature.userSettingsDiscovery",
+    UserSettingsIntegrationManager = "UIFeature.userSettingsIntegrationManager",
 }
 
 export enum UIComponent {

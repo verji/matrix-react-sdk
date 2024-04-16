@@ -326,6 +326,8 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
     private renderAccountSection(): JSX.Element {
         let threepidSection: ReactNode = null;
 
+        console.log('Eik : start renderAccountSection');
+
         if (SettingsStore.getValue(UIFeature.ThirdPartyID)) {
             const emails = this.state.loading3pids ? (
                 <InlineSpinner />
@@ -383,6 +385,7 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
         }
 
         let externalAccountManagement: JSX.Element | undefined;
+        console.log('State : ' + this.state.externalAccountManagementUrl);
         if (this.state.externalAccountManagementUrl) {
             const { hostname } = new URL(this.state.externalAccountManagementUrl);
 
@@ -416,8 +419,10 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
                     stretchContent
                     data-testid="accountSection"
                 >
-                    {externalAccountManagement}
-                    {passwordChangeSection}
+                    {console.log('Eik : extacc : ' + SettingsStore.getValue(UIFeature.UserSettingsExternalAccount))}
+                    {console.log('Eik : passwordchange : ' + SettingsStore.getValue(UIFeature.UserSettingsPasswordChange))}
+                    {SettingsStore.getValue(UIFeature.UserSettingsExternalAccount) && externalAccountManagement}
+                    {SettingsStore.getValue(UIFeature.UserSettingsPasswordChange) && passwordChangeSection}
                 </SettingsSubsection>
                 {threepidSection}
             </>
@@ -426,6 +431,8 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
 
     private renderLanguageSection(): JSX.Element {
         // TODO: Convert to new-styled Field
+        console.log('Eik : start renderLanguageSection');
+
         return (
             <SettingsSubsection heading={_t("settings|general|language_section")} stretchContent>
                 <LanguageDropdown
@@ -495,7 +502,7 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
             <>
                 {threepidSection}
                 {/* has its own heading as it includes the current identity server */}
-                <SetIdServer missingTerms={false} />
+                {SettingsStore.getValue(UIFeature.UserSettingsSetIdServer) && <> <SetIdServer missingTerms={false} /> </>}
             </>
         );
     }
@@ -566,8 +573,8 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
                     {this.renderLanguageSection()}
                     {supportsMultiLanguageSpellCheck ? this.renderSpellCheckSection() : null}
                 </SettingsSection>
-                {discoverySection}
-                {this.renderIntegrationManagerSection()}
+                {SettingsStore.getValue(UIFeature.UserSettingsDiscovery) && <> {discoverySection} </>}
+                {SettingsStore.getValue(UIFeature.UserSettingsIntegrationManager) && this.renderIntegrationManagerSection()}
                 {accountManagementSection}
             </SettingsTab>
         );

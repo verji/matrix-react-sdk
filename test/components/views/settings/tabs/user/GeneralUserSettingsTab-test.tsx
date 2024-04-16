@@ -11,8 +11,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import React from "react";
+import { fireEvent, queryByText, render, screen, within } from "@testing-library/react";
+import React, { Component } from "react";
 import { ThreepidMedium } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -29,6 +29,7 @@ import {
 import { UIFeature } from "../../../../../../src/settings/UIFeature";
 import { SettingLevel } from "../../../../../../src/settings/SettingLevel";
 import { OidcClientStore } from "../../../../../../src/stores/oidc/OidcClientStore";
+import SetIdServer from "../../../../../../src/components/views/settings/SetIdServer";
 
 describe("<GeneralUserSettingsTab />", () => {
     const defaultProps = {
@@ -97,6 +98,80 @@ describe("<GeneralUserSettingsTab />", () => {
         expect(getByTestId("external-account-management-outer").textContent).toMatch(/.*id\.server\.org/);
         expect(getByTestId("external-account-management-link").getAttribute("href")).toMatch(accountManagementLink);
     });
+//Eik
+    it("does not show account management when feature is off", async () => {
+        const accountManagementLink = "https://id.server.org/my-account";
+        const mockOidcClientStore = {
+            accountManagementEndpoint: accountManagementLink,
+        } as unknown as OidcClientStore;
+        jest.spyOn(stores, "oidcClientStore", "get").mockReturnValue(mockOidcClientStore);
+
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+            if (name = UIFeature.UserSettingsExternalAccount) return false;
+            return true;
+        });
+
+        const { getByTestId } = render(getComponent());
+
+        expect(getByTestId("external-account-management-outer")).toBeFalsy();
+        expect(getByTestId("external-account-management-link")).toBeFalsy();
+    });
+    it("does show account management when feature is on", async () => {
+        const accountManagementLink = "https://id.server.org/my-account";
+        const mockOidcClientStore = {
+            accountManagementEndpoint: accountManagementLink,
+        } as unknown as OidcClientStore;
+        jest.spyOn(stores, "oidcClientStore", "get").mockReturnValue(mockOidcClientStore);
+
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+            if (name = UIFeature.UserSettingsExternalAccount) return true;
+            return true;
+        });
+
+        const { getByTestId } = render(getComponent());
+        expect(getByTestId("external-account-management-outer").textContent).toMatch(/.*id\.server\.org/);
+    });
+    it("does not show SetIdServer when feature is off", () => {
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+            if (name = UIFeature.UserSettingsSetIdServer) return false;
+            return true;
+        });
+        // jest.mock("../../../../../../src/components/views/settings/SetIdServer", () => () =>{
+        //     return <SetIdServer data-testid="SetIdServer"/>;
+        // })
+        jest.mock("../../../../../../src/components/views/settings/SetIdServer", () => ({SetIdServer :  () =>{
+            return "<mock-modal data-testid='IdServer'/>;" }
+        }));
+        
+        const { queryByTestId } = render(getComponent());
+
+        // expect(getByTestId("external-account-management-outer").textContent).toMatch(/.*id\.server\.org/);
+        // expect(queryByTestId("IdServer")).toBe(true)
+        expect(queryByTestId("Identity server")).toBe(true)
+    });
+    it("does show SetIdServer when feature is on", () => {
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+            if (name = UIFeature.UserSettingsSetIdServer) return true;
+            return true;
+        });
+        
+        const { queryByText } = render(getComponent());
+
+        expect(queryByText("Identity server")).toBeTruthy();
+    });
+    it("does not show SetIdServer when feature is off", () => {
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+            if (name = UIFeature.UserSettingsSetIdServer) return false;
+            return true;
+        });
+        
+        const { queryByText } = render(getComponent());
+
+        expect(queryByText("Identity server")).toBeFalsy();
+    });
+
+    
+//Eik end
 
     describe("Manage integrations", () => {
         it("should not render manage integrations section when widgets feature is disabled", () => {
