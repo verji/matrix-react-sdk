@@ -326,8 +326,6 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
     private renderAccountSection(): JSX.Element {
         let threepidSection: ReactNode = null;
 
-        console.log('Eik : start renderAccountSection');
-
         if (SettingsStore.getValue(UIFeature.ThirdPartyID)) {
             const emails = this.state.loading3pids ? (
                 <InlineSpinner />
@@ -419,8 +417,6 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
                     stretchContent
                     data-testid="accountSection"
                 >
-                    {console.log('Eik : extacc : ' + SettingsStore.getValue(UIFeature.UserSettingsExternalAccount))}
-                    {console.log('Eik : changepassword : ' + SettingsStore.getValue(UIFeature.UserSettingsChangePassword))}
                     {SettingsStore.getValue(UIFeature.UserSettingsExternalAccount) && externalAccountManagement}
                     {SettingsStore.getValue(UIFeature.UserSettingsChangePassword) && passwordChangeSection}
                 </SettingsSubsection>
@@ -431,8 +427,6 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
 
     private renderLanguageSection(): JSX.Element {
         // TODO: Convert to new-styled Field
-        console.log('Eik : start renderLanguageSection');
-
         return (
             <SettingsSubsection heading={_t("settings|general|language_section")} stretchContent>
                 <LanguageDropdown
