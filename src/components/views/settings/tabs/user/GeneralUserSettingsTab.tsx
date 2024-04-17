@@ -383,7 +383,6 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
         }
 
         let externalAccountManagement: JSX.Element | undefined;
-        console.log('State : ' + this.state.externalAccountManagementUrl);
         if (this.state.externalAccountManagementUrl) {
             const { hostname } = new URL(this.state.externalAccountManagementUrl);
 
@@ -413,7 +412,10 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
         return (
             <>
                 <SettingsSubsection
-                    heading={_t("settings|general|account_section")}
+                    heading={
+                        SettingsStore.getValue(UIFeature.UserSettingsExternalAccount) &&
+                        _t("settings|general|account_section")
+                    }
                     stretchContent
                     data-testid="accountSection"
                 >
@@ -496,7 +498,12 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
             <>
                 {threepidSection}
                 {/* has its own heading as it includes the current identity server */}
-                {SettingsStore.getValue(UIFeature.UserSettingsSetIdServer) && <> <SetIdServer missingTerms={false} /> </>}
+                {SettingsStore.getValue(UIFeature.UserSettingsSetIdServer) && (
+                    <>
+                        {" "}
+                        <SetIdServer missingTerms={false} />{" "}
+                    </>
+                )}
             </>
         );
     }
@@ -568,7 +575,8 @@ export default class GeneralUserSettingsTab extends React.Component<IProps, ISta
                     {supportsMultiLanguageSpellCheck ? this.renderSpellCheckSection() : null}
                 </SettingsSection>
                 {SettingsStore.getValue(UIFeature.UserSettingsDiscovery) && <> {discoverySection} </>}
-                {SettingsStore.getValue(UIFeature.UserSettingsIntegrationManager) && this.renderIntegrationManagerSection()}
+                {SettingsStore.getValue(UIFeature.UserSettingsIntegrationManager) &&
+                    this.renderIntegrationManagerSection()}
                 {accountManagementSection}
             </SettingsTab>
         );
