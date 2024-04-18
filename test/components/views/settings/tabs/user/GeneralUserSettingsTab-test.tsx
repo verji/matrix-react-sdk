@@ -11,8 +11,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { fireEvent, queryByText, render, screen, within } from "@testing-library/react";
-import React, { Component } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import React from "react";
 import { ThreepidMedium } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -29,7 +29,6 @@ import {
 import { UIFeature } from "../../../../../../src/settings/UIFeature";
 import { SettingLevel } from "../../../../../../src/settings/SettingLevel";
 import { OidcClientStore } from "../../../../../../src/stores/oidc/OidcClientStore";
-import SetIdServer from "../../../../../../src/components/views/settings/SetIdServer";
 
 describe("<GeneralUserSettingsTab />", () => {
     const defaultProps = {
