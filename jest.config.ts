@@ -24,6 +24,7 @@ const config: Config = {
     globalSetup: "<rootDir>/test/globalSetup.ts",
     setupFiles: ["jest-canvas-mock"],
     setupFilesAfterEnv: ["<rootDir>/test/setupTests.ts"],
+    moduleFileExtensions: ["js", "jsx", "json", "ts", "tsx"],
     moduleNameMapper: {
         "\\.(gif|png|ttf|woff2)$": "<rootDir>/__mocks__/imageMock.js",
         "\\.svg$": "<rootDir>/__mocks__/svg.js",
