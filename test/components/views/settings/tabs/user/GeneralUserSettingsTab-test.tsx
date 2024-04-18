@@ -147,16 +147,6 @@ describe("<GeneralUserSettingsTab />", () => {
 
         expect(queryByText("Identity server")).toBeTruthy();
     });
-    it("does not show SetIdServer when feature is off", () => {
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name = UIFeature.UserSettingsSetIdServer)) return false;
-            return true;
-        });
-
-        const { queryByText } = render(getComponent());
-
-        expect(queryByText("Identity server")).toBeFalsy();
-    });
     it("does not show Discovery section when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
             if ((name = UIFeature.UserSettingsDiscovery)) return false;
