@@ -240,20 +240,4 @@ describe("<SecureBackupPanel />", () => {
 
         expect(screen.queryByText("Reset")).toBeNull();
     });
-    it("does not display reset backup when feature is off", async () => {
-        mocked(client.secretStorage.hasKey).mockClear().mockResolvedValue(true);
-        mocked(client.getCrypto()!).getActiveSessionBackupVersion.mockResolvedValue("1");
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if (name == UIFeature.UserSettingsResetBackup) {
-                return false;}
-            return true;
-        });
-
-        getComponent();
-        // flush checkKeyBackup promise
-        await flushPromises();
-
-        expect(screen.queryByText("Reset")).toBeNull();
-    });
-
 });

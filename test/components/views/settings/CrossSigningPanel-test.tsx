@@ -66,7 +66,7 @@ describe("<CrossSigningPanel />", () => {
         expect(screen.getByText("Your homeserver does not support cross-signing.")).toBeInTheDocument();
     });
     //eik
-    it("should not render when feature is off ", async () => {
+    it("should not render when feature is off", async () => {
         mockClient.doesServerSupportUnstableFeature.mockResolvedValue(true);
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
             if ((name == UIFeature.UserSettingsResetCrossSigning)) return false;
@@ -78,7 +78,7 @@ describe("<CrossSigningPanel />", () => {
 
         expect(screen.queryByText("Reset")).toBeNull();
     });
-    it("should render when feature is on ", async () => {
+    it("should render when feature is on", async () => {
         mockClient.doesServerSupportUnstableFeature.mockResolvedValue(true);
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
             if ((name == UIFeature.UserSettingsResetCrossSigning)) return true;
