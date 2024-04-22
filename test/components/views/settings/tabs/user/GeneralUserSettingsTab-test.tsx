@@ -143,9 +143,9 @@ describe("<GeneralUserSettingsTab />", () => {
             return true;
         });
 
-        const { queryByText } = render(getComponent());
+        render(getComponent());
 
-        expect(screen.queryByText("Identity server")).toBeFalsy();
+        expect(screen.queryByText("Identity server")).not.toBeNull();
     });
     it("does not show Discovery section when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
@@ -155,7 +155,7 @@ describe("<GeneralUserSettingsTab />", () => {
 
         const { queryByText } = render(getComponent());
 
-        expect(queryByText("Identity server")).toBeTruthy();
+        expect(queryByText("Identity server")).toBeNull();
     });
     it("do show Discovery section when feature is on", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
@@ -165,7 +165,7 @@ describe("<GeneralUserSettingsTab />", () => {
 
         const { queryByText } = render(getComponent());
 
-        expect(queryByText("Discovery")).toBeFalsy();
+        expect(queryByText("Discovery")).not.toBeNull();
     });
     it("does not show Integrations section when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
