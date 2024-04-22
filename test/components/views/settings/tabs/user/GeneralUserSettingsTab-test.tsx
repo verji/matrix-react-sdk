@@ -120,7 +120,7 @@ describe("<GeneralUserSettingsTab />", () => {
         jest.spyOn(stores, "oidcClientStore", "get").mockReturnValue(mockOidcClientStore);
 
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsExternalAccount)) return true;
+            if (name == UIFeature.UserSettingsExternalAccount) return true;
             return true;
         });
 
@@ -129,7 +129,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("does not show SetIdServer when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsSetIdServer)) return false;
+            if (name == UIFeature.UserSettingsSetIdServer) return false;
             return true;
         });
 
@@ -139,7 +139,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("does show SetIdServer when feature is on", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsSetIdServer)) return true;
+            if (name == UIFeature.UserSettingsSetIdServer) return true;
             return true;
         });
 
@@ -149,7 +149,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("does not show Discovery section when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsDiscovery)) return false;
+            if (name == UIFeature.UserSettingsDiscovery) return false;
             return true;
         });
 
@@ -159,7 +159,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("do show Discovery section when feature is on", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsDiscovery)) return true;
+            if (name == UIFeature.UserSettingsDiscovery) return true;
             return true;
         });
 
@@ -169,7 +169,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("does not show Integrations section when feature is off", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsIntegrationManager)) return false;
+            if (name == UIFeature.UserSettingsIntegrationManager) return false;
             return true;
         });
 
@@ -179,7 +179,7 @@ describe("<GeneralUserSettingsTab />", () => {
     });
     it("do show Integrations section when feature is on", () => {
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsIntegrationManager)) return true;
+            if (name == UIFeature.UserSettingsIntegrationManager) return true;
             return true;
         });
 

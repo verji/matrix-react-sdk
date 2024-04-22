@@ -57,7 +57,7 @@ export const enum UIFeature {
     UserSettingsResetCrossSigning = "UIFeature.userSettingsResetCrossSigning",
     UserSettingsDeleteBackup = "UIFeature.userSettingsDeleteBackup",
     UserSettingsResetBackup = "UIFeature.userSettingsResetBackup",
-    SetupEncryptionResetButton ="UIFeature.setupEncryptionResetButton"
+    SetupEncryptionResetButton = "UIFeature.setupEncryptionResetButton",
 }
 
 export enum UIComponent {

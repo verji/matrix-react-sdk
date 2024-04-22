@@ -69,7 +69,7 @@ describe("<CrossSigningPanel />", () => {
     it("should not render when feature is off", async () => {
         mockClient.doesServerSupportUnstableFeature.mockResolvedValue(true);
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsResetCrossSigning)) return false;
+            if (name == UIFeature.UserSettingsResetCrossSigning) return false;
             return true;
         });
 
@@ -81,7 +81,7 @@ describe("<CrossSigningPanel />", () => {
     it("should render when feature is on", async () => {
         mockClient.doesServerSupportUnstableFeature.mockResolvedValue(true);
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsResetCrossSigning)) return true;
+            if (name == UIFeature.UserSettingsResetCrossSigning) return true;
             return true;
         });
 

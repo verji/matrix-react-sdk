@@ -184,11 +184,10 @@ describe("<SecureBackupPanel />", () => {
     });
 
     it("does not display delete backup when feature is off", async () => {
-
         mocked(client.getCrypto()!).getActiveSessionBackupVersion.mockResolvedValue("1");
 
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsDeleteBackup)) return false;
+            if (name == UIFeature.UserSettingsDeleteBackup) return false;
             return true;
         });
 
@@ -216,7 +215,7 @@ describe("<SecureBackupPanel />", () => {
         mocked(client.secretStorage.hasKey).mockClear().mockResolvedValue(true);
 
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if ((name == UIFeature.UserSettingsResetBackup)) return true;
+            if (name == UIFeature.UserSettingsResetBackup) return true;
             return true;
         });
 
@@ -230,7 +229,7 @@ describe("<SecureBackupPanel />", () => {
         mocked(client.secretStorage.hasKey).mockClear().mockResolvedValue(true);
         mocked(client.getCrypto()!).getActiveSessionBackupVersion.mockResolvedValue("1");
         jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if (name == UIFeature.UserSettingsResetBackup)  return false;
+            if (name == UIFeature.UserSettingsResetBackup) return false;
             return true;
         });
 
