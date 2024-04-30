@@ -98,10 +98,10 @@ export default async function searchAllEventsLocally(client: MatrixClient, term:
     //matches.forEach(m => m.context = reverseEventContext(m.context)); 
 
     // Process the matches to produce the equivalent result from a client.search() call 
-    let searchResponse = getClientSearchResponse(searchResults, matches, termObj, roomId)
+    getClientSearchResponse(searchResults, matches, termObj, roomId)
 
     // mimic the original code
-    client.processRoomEventsSearch(searchResults, searchResponse);
+   // var final = client.processRoomEventsSearch(searchResults, searchResponse);
 
     return searchResults;
 }
@@ -376,6 +376,7 @@ export function makeSearchTermObject(searchTerm: string): SearchTerm {
 }
 
 
+// TODO: add error handling?
 function reverseEventContext(eventContext: EventContext): EventContext{
     var contextTimeline = eventContext.getTimeline();    
     var reversedContexted = new EventContext(contextTimeline[1]);
