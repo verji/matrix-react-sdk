@@ -34,10 +34,8 @@ describe("ErrorBoundary", () => {
     describe("wrap the ErrorBoundary with a React.Fragment", () => {
         it("should wrap the ErrorBoundary with a React.Fragment", () => {
             jest.spyOn(ModuleRunner.instance, "invoke").mockImplementation((lifecycleEvent, opts) => {
-                console.log("lifecycleEvent", lifecycleEvent, "opts", opts);
                 if (lifecycleEvent === CustomComponentLifecycle.ErrorBoundary) {
                     (opts as CustomComponentOpts).CustomComponent = ({ children }) => {
-                        console.log("children", React.Children.toArray(children)[0]);
                         return (
                             <>
                                 <div data-testid="wrapper-header">Header</div>
