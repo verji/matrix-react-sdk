@@ -59,7 +59,6 @@ describe("ReactionsRowButtonTooltip", () => {
 
     it("should render", () => {
         const { asFragment } = getComp();
-        screen.debug();
         expect(asFragment()).toMatchSnapshot();
     });
 
