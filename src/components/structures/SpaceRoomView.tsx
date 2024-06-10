@@ -34,7 +34,7 @@ import { useStateArray } from "../../hooks/useStateArray";
 import { _t } from "../../languageHandler";
 import PosthogTrackers from "../../PosthogTrackers";
 import { inviteMultipleToRoom, showRoomInviteDialog } from "../../RoomInvite";
-import { UIComponent , UIFeature } from "../../settings/UIFeature";
+import { UIComponent, UIFeature } from "../../settings/UIFeature";
 import { UPDATE_EVENT } from "../../stores/AsyncStore";
 import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { RightPanelPhases } from "../../stores/right-panel/RightPanelStorePhases";
