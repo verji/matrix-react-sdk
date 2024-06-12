@@ -31,7 +31,8 @@ import {
 } from "../../../../src/utils/space";
 import { leaveSpace } from "../../../../src/utils/leave-behaviour";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
-import { UIComponent } from "../../../../src/settings/UIFeature";
+import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
+import SettingsStore from "../../../../src/settings/SettingsStore";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -162,6 +163,9 @@ describe("<SpaceContextMenu />", () => {
             // set space to allow adding children to space
             mocked(space.currentState.maySendStateEvent).mockReturnValue(true);
             mocked(shouldShowComponent).mockReturnValue(true);
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((setting: string) => {
+                if (setting === UIFeature.ShowCreateSpaceButton) return true;
+            });
         });
 
         it("does not render section when user does not have permission to add children", () => {
@@ -184,6 +188,26 @@ describe("<SpaceContextMenu />", () => {
             expect(screen.queryByTestId("new-room-option")).not.toBeInTheDocument();
             expect(screen.queryByTestId("new-subspace-option")).not.toBeInTheDocument();
         });
+        //eik
+        it("does not render section when feature is false", () => {
+            mocked(shouldShowComponent).mockReturnValue(true);
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((setting: string) => {
+                if (setting === UIFeature.ShowCreateSpaceButton) return false;
+            });
+
+            renderComponent({ space });
+
+            expect(screen.queryByTestId("new-subspace-option")).not.toBeInTheDocument();
+        });
+        it("renders section when feature is true", () => {
+            mocked(shouldShowComponent).mockReturnValue(true);
+
+            renderComponent({ space });
+
+            expect(screen.queryByTestId("new-subspace-option")).toBeInTheDocument();
+        });
+
+        //eik end
 
         it("renders section with add room button when UIComponent customisation allows CreateRoom", () => {
             // only allow CreateRoom
