@@ -345,4 +345,30 @@ describe("RoomListHeader", () => {
             checkIsDisabled(items[3]);
         });
     });
+
+    describe("UIFeature.AddSpace", () => {
+        it("UIFeature.AddSpace = true: renders Add Space when user has permission to add spaces", async () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.AddSpace) return true;
+                else return "default";
+            });
+
+            const testSpace = setupSpace(client);
+            await setupPlusMenu(client, testSpace);
+
+            expect(screen.getByText("Add space")).toBeInTheDocument();
+        });
+
+        it("UIFeature.AddSpace = false: does not render Add Space when user has permission to add spaces", async () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.AddSpace) return false;
+                else return "default";
+            });
+
+            const testSpace = setupSpace(client);
+            await setupPlusMenu(client, testSpace);
+
+            expect(screen.queryByText("Add space")).not.toBeInTheDocument();
+        });
+    });
 });
