@@ -59,7 +59,7 @@ import IconizedContextMenu, {
 import SpaceContextMenu from "../context_menus/SpaceContextMenu";
 import InlineSpinner from "../elements/InlineSpinner";
 import { HomeButtonContextMenu } from "../spaces/SpacePanel";
-import SettingsStore from "../../../../src/settings/SettingsStore";
+import SettingsStore from "../../../settings/SettingsStore";
 
 const contextMenuBelow = (elementRect: DOMRect): MenuProps => {
     // align the context menu's icons with the icon which opened the context menu
@@ -270,7 +270,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                         disabled={!canAddSubRooms}
                         title={!canAddSubRooms ? _t("spaces|error_no_permission_add_room") : undefined}
                     />
-                    {canCreateSpaces && SettingsStore.getValue(UIFeature.ShowCreateSpaceButton) && (
+                    {SettingsStore.getValue(UIFeature.AddSpace) && canCreateSpaces && (
                         <IconizedContextMenuOption
                             label={_t("room_list|add_space_label")}
                             iconClassName="mx_RoomListHeader_iconPlus"
