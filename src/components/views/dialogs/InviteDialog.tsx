@@ -751,6 +751,7 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
             const targets = await this.convertFilter(); // Verji: convert now async, await response
             await startDmOnFirstMessage(cli, targets);
             this.props.onFinished(true);
+            
         } catch (err) {
             logger.error(err);
             this.setState({
