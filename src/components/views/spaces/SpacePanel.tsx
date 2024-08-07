@@ -68,7 +68,7 @@ import { ActionPayload } from "../../../dispatcher/payloads";
 import { Action } from "../../../dispatcher/actions";
 import { NotificationState } from "../../../stores/notifications/NotificationState";
 import { shouldShowComponent } from "../../../customisations/helpers/UIComponents";
-import { UIComponent, UIFeature } from "../../../settings/UIFeature";
+import { UIComponent } from "../../../settings/UIFeature";
 import { ThreadsActivityCentre } from "./threads-activity-centre/";
 import AccessibleButton from "../elements/AccessibleButton";
 import { KeyboardShortcut } from "../settings/KeyboardShortcut";
@@ -344,15 +344,8 @@ const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(
                     </Draggable>
                 ))}
                 {children}
-                {SettingsStore.getValue(UIFeature.ShowCreateSpaceButton) && (
-                    <>
-                        {shouldShowComponent(UIComponent.CreateSpaces) && (
-                            <CreateSpaceButton
-                                isPanelCollapsed={isPanelCollapsed}
-                                setPanelCollapsed={setPanelCollapsed}
-                            />
-                        )}
-                    </>
+                {shouldShowComponent(UIComponent.CreateSpaces) && (
+                    <CreateSpaceButton isPanelCollapsed={isPanelCollapsed} setPanelCollapsed={setPanelCollapsed} />
                 )}
             </IndicatorScrollbar>
         );

@@ -34,7 +34,7 @@ import { useStateArray } from "../../hooks/useStateArray";
 import { _t } from "../../languageHandler";
 import PosthogTrackers from "../../PosthogTrackers";
 import { inviteMultipleToRoom, showRoomInviteDialog } from "../../RoomInvite";
-import { UIComponent, UIFeature } from "../../settings/UIFeature";
+import { UIComponent } from "../../settings/UIFeature";
 import { UPDATE_EVENT } from "../../stores/AsyncStore";
 import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { RightPanelPhases } from "../../stores/right-panel/RightPanelStorePhases";
@@ -74,7 +74,6 @@ import MainSplit from "./MainSplit";
 import RightPanel from "./RightPanel";
 import SpaceHierarchy, { showRoom } from "./SpaceHierarchy";
 import { RoomPermalinkCreator } from "../../utils/permalinks/Permalinks";
-import SettingsStore from "../../settings/SettingsStore";
 
 interface IProps {
     space: Room;
@@ -174,7 +173,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                             showAddExistingRooms(space);
                         }}
                     />
-                    {canCreateSpace && SettingsStore.getValue(UIFeature.ShowCreateSpaceButton) && (
+                    {canCreateSpace && (
                         <IconizedContextMenuOption
                             label={_t("room_list|add_space_label")}
                             iconClassName="mx_RoomList_iconPlus"
