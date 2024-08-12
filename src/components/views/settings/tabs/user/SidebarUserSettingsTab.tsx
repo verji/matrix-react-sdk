@@ -79,8 +79,6 @@ const SidebarUserSettingsTab: React.FC = () => {
         PosthogTrackers.trackInteraction("WebSettingsSidebarTabSpacesCheckbox", event, 1);
     };
 
-    if (!SettingsStore.getValue(UIFeature.SpacesEnabled)) return <></>;
-
     return (
         <SettingsTab>
             <SettingsSection>

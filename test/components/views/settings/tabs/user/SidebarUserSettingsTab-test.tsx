@@ -64,7 +64,7 @@ describe("<SidebarUserSettingsTab />", () => {
                     [MetaSpace.Orphans]: true,
                 };
             }
-            if (settingName == UIFeature.SpacesEnabled) return true;
+
             return false;
         });
         render(<SidebarUserSettingsTab />);
@@ -92,7 +92,7 @@ describe("<SidebarUserSettingsTab />", () => {
                     [MetaSpace.Orphans]: true,
                 };
             }
-            if (settingName == UIFeature.SpacesEnabled) return true;
+
             return false;
         });
         render(<SidebarUserSettingsTab />);
@@ -100,39 +100,4 @@ describe("<SidebarUserSettingsTab />", () => {
         expect(screen.getByTestId("mx_SidebarUserSettingsTab_homeAllRoomsCheckbox")).toBeDisabled();
     });
 
-    //eik
-    it("render sidebar when feature is on", async () => {
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((settingName) => {
-            if (settingName === "Spaces.enabledMetaSpaces") {
-                return {
-                    [MetaSpace.Home]: true,
-                    [MetaSpace.Favourites]: true,
-                    [MetaSpace.People]: true,
-                    [MetaSpace.Orphans]: true,
-                };
-            }
-            if (settingName == UIFeature.SpacesEnabled) return true;
-            return false;
-        });
-        render(<SidebarUserSettingsTab />);
-
-        expect(screen.getByTestId("mx_SidebarUserSettingsTab_homeAllRoomsCheckbox")).toBeInTheDocument();
-    });
-    it("does not render sidebar when feature is off", async () => {
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((settingName) => {
-            if (settingName === "Spaces.enabledMetaSpaces") {
-                return {
-                    [MetaSpace.Home]: true,
-                    [MetaSpace.Favourites]: true,
-                    [MetaSpace.People]: true,
-                    [MetaSpace.Orphans]: true,
-                };
-            }
-            if (settingName == UIFeature.SpacesEnabled) return false;
-            return false;
-        });
-        render(<SidebarUserSettingsTab />);
-
-        expect(screen.queryByText("In conferences you can invite people outside of matrix.")).toBeNull();
-    });
 });
