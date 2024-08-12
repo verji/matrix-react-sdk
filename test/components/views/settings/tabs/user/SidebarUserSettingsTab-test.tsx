@@ -24,7 +24,6 @@ import { MetaSpace } from "../../../../../../src/stores/spaces";
 import { SettingLevel } from "../../../../../../src/settings/SettingLevel";
 import { flushPromises } from "../../../../../test-utils";
 import SdkConfig from "../../../../../../src/SdkConfig";
-import { UIFeature } from "../../../../../../src/settings/UIFeature";
 
 describe("<SidebarUserSettingsTab />", () => {
     beforeEach(() => {
@@ -99,5 +98,4 @@ describe("<SidebarUserSettingsTab />", () => {
 
         expect(screen.getByTestId("mx_SidebarUserSettingsTab_homeAllRoomsCheckbox")).toBeDisabled();
     });
-
 });
