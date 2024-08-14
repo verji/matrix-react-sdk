@@ -443,13 +443,11 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
                             <>
                                 <details onToggle={this.onDetailsToggled} className="mx_CreateRoomDialog_details">
                                     <summary className="mx_CreateRoomDialog_details_summary">
-                                        {this.state.detailsOpen
-                                            ? _t("action|hide_advanced")
-                                            : _t("action|show_advanced")}
+                                        {this.state.detailsOpen ? _t("action|hide_advanced") : _t("action|show_advanced")}
                                     </summary>
                                     <LabelledToggleSwitch
                                         label={_t("create_room|unfederated", {
-                                            serverName: MatrixClientPeg.getHomeserverName(),
+                                            serverName: MatrixClientPeg.safeGet().getDomain(),
                                         })}
                                         onChange={this.onNoFederateChange}
                                         value={this.state.noFederate}
