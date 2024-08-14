@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { PropsWithChildren } from "react";
 import { MatrixEvent } from "matrix-js-sdk/src/matrix";
 import {
     CustomComponentLifecycle,
@@ -35,20 +35,18 @@ interface IProps {
     content: string;
     // A list of Matrix reaction events for this key
     reactionEvents: MatrixEvent[];
-    visible: boolean;
     // Whether to render custom image reactions
     customReactionImagesEnabled?: boolean;
 }
 
-export default class ReactionsRowButtonTooltip extends React.PureComponent<IProps> {
+export default class ReactionsRowButtonTooltip extends React.PureComponent<PropsWithChildren<IProps>> {
     public static contextType = MatrixClientContext;
     public context!: React.ContextType<typeof MatrixClientContext>;
 
     public render(): React.ReactNode {
-        const { content, reactionEvents, mxEvent, visible } = this.props;
+        const { content, reactionEvents, mxEvent, children } = this.props;
 
         const room = this.context.getRoom(mxEvent.getRoomId());
-        let tooltipLabel: JSX.Element | undefined;
         if (room) {
             const senders: string[] = [];
             let customReactionName: string | undefined;
@@ -101,6 +99,6 @@ export default class ReactionsRowButtonTooltip extends React.PureComponent<IProp
             tooltip = <Tooltip visible={visible} label={tooltipLabel} />;
         }
 
-        return tooltip;
+        return children;
     }
 }
