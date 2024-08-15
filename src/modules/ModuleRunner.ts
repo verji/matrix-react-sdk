@@ -25,6 +25,10 @@ import {
     DefaultExperimentalExtensions,
     ProvideExperimentalExtensions,
 } from "@matrix-org/react-sdk-module-api/lib/lifecycles/ExperimentalExtensions";
+import {
+    DefaultUserSearchExtensions,
+    ProvideUserSearchExtensions,
+} from "@matrix-org/react-sdk-module-api/lib/lifecycles/UserSearchExtensions";
 
 import { AppModule } from "./AppModule";
 import { ModuleFactory } from "./ModuleFactory";
@@ -38,12 +42,17 @@ class ExtensionsManager {
     // Private backing fields for extensions
     private cryptoSetupExtension: ProvideCryptoSetupExtensions;
     private experimentalExtension: ProvideExperimentalExtensions;
+    private userSearchExtension: ProvideUserSearchExtensions;
 
     /** `true` if `cryptoSetupExtension` is the default implementation; `false` if it is implemented by a module. */
     private hasDefaultCryptoSetupExtension = true;
 
+    /** `true` if `userSearchExtension` is the default implementation; `false` if it is implemented by a module. */
+    private hasDefaultUserSearchExtension = true;
+
     /** `true` if `experimentalExtension` is the default implementation; `false` if it is implemented by a module. */
     private hasDefaultExperimentalExtension = true;
+
 
     /**
      * Create a new instance.
@@ -52,6 +61,7 @@ class ExtensionsManager {
         // Set up defaults
         this.cryptoSetupExtension = new DefaultCryptoSetupExtensions();
         this.experimentalExtension = new DefaultExperimentalExtensions();
+        this.userSearchExtension  = new DefaultUserSearchExtensions();
     }
 
     /**
@@ -62,6 +72,16 @@ class ExtensionsManager {
     public get cryptoSetup(): ProvideCryptoSetupExtensions {
         return this.cryptoSetupExtension;
     }
+
+    /**
+     * Provides a user search extension.
+     *
+     * @returns The registered extension. If no module provides this extension, a default implementation is returned.
+     */
+    public get userSearch(): ProvideUserSearchExtensions {
+        return this.userSearchExtension;
+    }
+
 
     /**
      * Provides an experimental extension.
@@ -93,6 +113,18 @@ class ExtensionsManager {
             } else {
                 throw new Error(
                     `adding cryptoSetup extension implementation from module ${runtimeModule.moduleName} but an implementation was already provided.`,
+                );
+            }
+        }
+
+        /* Add the userSearch extension if any */
+        if (runtimeModule.extensions?.userSearch) {
+            if (this.hasDefaultUserSearchExtension) {
+                this.userSearchExtension = runtimeModule.extensions?.userSearch;
+                this.hasDefaultCryptoSetupExtension = false;
+            } else {
+                throw new Error(
+                    `adding userSearch extension implementation from module ${runtimeModule.moduleName} but an implementation was already provided.`,
                 );
             }
         }

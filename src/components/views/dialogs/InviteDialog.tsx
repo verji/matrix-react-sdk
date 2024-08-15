@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { ModuleRunner } from "../../../modules/ModuleRunner"
+
 import React, { createRef, ReactNode, SyntheticEvent } from "react";
 import classNames from "classnames";
 import { RoomMember, Room, EventType } from "matrix-js-sdk/src/matrix"; //VERJI remove: MatrixError, EventType
@@ -925,8 +927,19 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
     };
 
     private updateSuggestions = async (term: string): Promise<void> => {
-        MatrixClientPeg.safeGet()
-            .searchUserDirectory({ term })
+
+
+        var client =  MatrixClientPeg.safeGet();
+        
+        var searchContext = await ModuleRunner.instance.extensions.userSearch.resolveSearchContext(client, SdkContextClass.instance);
+
+        client
+            // .searchUserDirectory({ term }, {
+            //     space_id: spaceRoomId,
+            //     room_id: roomId as string, 
+            //     tenant_id: tenantId
+            // })
+            .searchUserDirectory({ term }, searchContext)
             .then(async (r): Promise<void> => {
                 if (term !== this.state.filterText) {
                     // Discard the results - we were probably too slow on the server-side to make
