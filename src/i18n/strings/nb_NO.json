@@ -1733,7 +1733,7 @@
     "failed_title": "Klarte ikke invitere",
     "invalid_address": "Adressen ble ikke gjenkjent",
     "key_share_warning": "Invited people will be able to read old messages.",
-    "name_email_mxid_share_room": "Inviter noen ved å bruke navn, e-postadresse, brukernavn (lik <userId/>) eller <a> del dette rommet</a>.",
+    "name_email_mxid_share_room": "Inviter noen ved å bruke navn, e-postadresse eller inviter nye gjester med e-postadressen deres.",
     "name_email_mxid_share_space": "Inviter noen ved å bruke navn, e-postadresse, brukernavn (lik <userId/>) eller <a> del dette området</a>.",
     "name_mxid_share_room": "Inviter noen ved å bruke navnet sitt, brukernavnet (lik <userId/>) eller <a> dele dette rommet</a>.",
     "name_mxid_share_space": "Inviter noen ved å bruke navnet sitt, brukernavnet (lik <userId/>) eller <a> dele dette området</a>.",
