@@ -208,7 +208,7 @@ export type ISetting = IBaseSetting | IFeature;
 
 export const SETTINGS: { [setting: string]: ISetting } = {
     "feature_video_rooms": {
-        isFeature: false,
+        isFeature: false, //Verji
         labsGroup: LabGroup.VoiceAndVideo,
         displayName: _td("labs|video_rooms"),
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,

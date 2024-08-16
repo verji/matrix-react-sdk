@@ -1742,7 +1742,7 @@
     "room_failed_partial_title": "Noen invitasjoner kunne ikke sendes",
     "room_failed_title": "Kan ikke invitere brukere til %(roomName)s",
     "send_link_prompt": "Eller send invitasjonslenke",
-    "start_conversation_name_email_mxid_prompt": "Start en samtale med noen ved å bruke navn, e-postadresse eller brukernavn (som<userId/>).",
+    "start_conversation_name_email_mxid_prompt": "Start en samtale med noen ved å bruke navn eller inviter nye gjester med e-postadressen deres.",
     "start_conversation_name_mxid_prompt": "Start en samtale med noen som bruker navnet eller brukernavnet deres (som<userId/>).",
     "suggestions_disclaimer": "Noen forslag kan være skjult for personvern.",
     "suggestions_disclaimer_prompt": "Hvis du ikke kan se hvem du leter etter, send dem invitasjonslenken din nedenfor.",
