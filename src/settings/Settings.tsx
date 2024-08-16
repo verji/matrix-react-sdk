@@ -208,7 +208,7 @@ export type ISetting = IBaseSetting | IFeature;
 
 export const SETTINGS: { [setting: string]: ISetting } = {
     "feature_video_rooms": {
-        isFeature: true,
+        isFeature: false,
         labsGroup: LabGroup.VoiceAndVideo,
         displayName: _td("labs|video_rooms"),
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
@@ -1492,6 +1492,10 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         default: true,
     },
     [UIFeature.ShowSendMessageToUserLink]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
+    [UIFeature.SendInviteLinkPrompt]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
