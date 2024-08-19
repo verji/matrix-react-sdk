@@ -30,6 +30,8 @@ import { SettingsSection } from "../../shared/SettingsSection";
 import SettingsSubsection, { SettingsSubsectionText } from "../../shared/SettingsSubsection";
 import ExternalLink from "../../../elements/ExternalLink";
 import MatrixClientContext from "../../../../../contexts/MatrixClientContext";
+import SettingsStore from "../../../../../settings/SettingsStore";
+import { UIFeature } from "../../../../../settings/UIFeature";
 
 interface IProps {}
 
@@ -243,19 +245,27 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
                     <AccessibleButton onClick={this.onBugReport} kind="primary_outline">
                         {_t("bug_reporting|submit_debug_logs")}
                     </AccessibleButton>
-                    <SettingsSubsectionText>
-                        {_t(
-                            "bug_reporting|matrix_security_issue",
-                            {},
-                            {
-                                a: (sub) => (
-                                    <ExternalLink href="https://matrix.org/security-disclosure-policy/">
-                                        {sub}
-                                    </ExternalLink>
-                                ),
-                            },
-                        )}
-                    </SettingsSubsectionText>
+                    {console.log(
+                        "Eik hjelp: HelpShowMatrixDisclosurePolicyAndLinks " +
+                            SettingsStore.getValue(UIFeature.HelpShowMatrixDisclosurePolicyAndLinks),
+                    )}
+                    {SettingsStore.getValue(UIFeature.HelpShowMatrixDisclosurePolicyAndLinks) && (
+                        <>
+                            <SettingsSubsectionText>
+                                {_t(
+                                    "bug_reporting|matrix_security_issue",
+                                    {},
+                                    {
+                                        a: (sub) => (
+                                            <ExternalLink href="https://matrix.org/security-disclosure-policy/">
+                                                {sub}
+                                            </ExternalLink>
+                                        ),
+                                    },
+                                )}
+                            </SettingsSubsectionText>
+                        </>
+                    )}
                 </SettingsSubsection>
             );
         }
