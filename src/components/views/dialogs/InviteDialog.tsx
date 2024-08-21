@@ -76,6 +76,7 @@ import { SdkContextClass } from "../../../contexts/SDKContext";
 import { UserProfilesStore } from "../../../stores/UserProfilesStore";
 import { Key } from "../../../Keyboard";
 import SpaceStore from "../../../stores/spaces/SpaceStore";
+import { ModuleRunner } from "../../../modules/ModuleRunner";
 
 // we have a number of types defined from the Matrix spec which can't reasonably be altered here.
 /* eslint-disable camelcase */
@@ -641,8 +642,12 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
 
         let foundUser = false;
         try {
-            await MatrixClientPeg.get()
-                ?.searchUserDirectory({ term: this.state.filterText.trim().split(":")[0] ?? this.state.filterText })
+            var client = await MatrixClientPeg.get();
+
+            const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+
+            client
+                ?.searchUserDirectory({ term: this.state.filterText.trim().split(":")[0] ?? this.state.filterText }, searchContext.extraBodyArgs, searchContext.extraRequestOptions,)
                 .then(async (r) => {
                     this.setState({ busy: false });
 
@@ -946,9 +951,16 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         this.props.onFinished(false);
     };
 
+
+
+
     private updateSuggestions = async (term: string): Promise<void> => {
-        MatrixClientPeg.safeGet()
-            .searchUserDirectory({ term })
+
+        var client =  MatrixClientPeg.safeGet();
+        var searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+    
+        client
+            .searchUserDirectory({ term }, searchContext.extraBodyArgs, searchContext.extraRequestOptions)
             .then(async (r): Promise<void> => {
                 if (term !== this.state.filterText) {
                     // Discard the results - we were probably too slow on the server-side to make
@@ -1157,8 +1169,11 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         this.setState({ busy: true });
 
         let directoryUsers: any[] = [];
-        await MatrixClientPeg.get()
-            ?.searchUserDirectory({ term: text })
+
+        let client = await MatrixClientPeg.get();
+        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+        client
+            ?.searchUserDirectory({ term: text }, searchContext.extraBodyArgs, searchContext.extraRequestOptions)
             .then(async (r) => {
                 this.setState({ busy: false });
 
