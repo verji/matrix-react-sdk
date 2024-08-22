@@ -16,6 +16,10 @@ limitations under the License.
 
 import React, { ReactNode } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
+import {
+    CustomComponentLifecycle,
+    CustomComponentOpts,
+} from "@matrix-org/react-sdk-module-api/lib/lifecycles/CustomComponentLifecycle";
 
 import AccessibleButton from "../../../elements/AccessibleButton";
 import { _t } from "../../../../../languageHandler";
@@ -30,6 +34,7 @@ import { SettingsSection } from "../../shared/SettingsSection";
 import SettingsSubsection, { SettingsSubsectionText } from "../../shared/SettingsSubsection";
 import ExternalLink from "../../../elements/ExternalLink";
 import MatrixClientContext from "../../../../../contexts/MatrixClientContext";
+import { ModuleRunner } from "../../../../../modules/ModuleRunner";
 import SettingsStore from "../../../../../settings/SettingsStore";
 import { UIFeature } from "../../../../../settings/UIFeature";
 
@@ -279,9 +284,16 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
 
         const { appVersion, cryptoVersion } = this.getVersionInfo();
 
+        const CustomHelpUserSettingsTab = { CustomComponent: React.Fragment };
+        ModuleRunner.instance.invoke(
+            CustomComponentLifecycle.HelpUserSettingsTab,
+            CustomHelpUserSettingsTab as CustomComponentOpts,
+        );
+
         return (
+<CustomHelpUserSettingsTab.CustomComponent>
             <SettingsTab>
-                <SettingsSection>
+               <SettingsSection>
                     {bugReportingSection}
                     <SettingsSubsection heading={_t("common|faq")} />
                     <div className="mx_SettingsTab_subsectionText">
@@ -336,10 +348,23 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
                         </SettingsSubsectionText>
                         {this.context.getIdentityServerUrl() && (
                             <SettingsSubsectionText>
+                                <CopyableText getTextToCopy={this.getVersionTextToCopy}>
+                                    {appVersion}
+                                    <br />
+                                    {cryptoVersion}
+                                    <br />
+                                </CopyableText>
+                                {updateButton}
+                            </SettingsSubsectionText>
+                        </SettingsSubsection>
+                        {this.renderLegal()}
+                        {this.renderCredits()}
+                        <SettingsSubsection heading={_t("common|advanced")}>
+                            <SettingsSubsectionText>
                                 {_t(
-                                    "setting|help_about|identity_server",
+                                    "setting|help_about|homeserver",
                                     {
-                                        identityServerUrl: this.context.getIdentityServerUrl(),
+                                        homeserverUrl: this.context.getHomeserverUrl(),
                                     },
                                     {
                                         code: (sub) => <code>{sub}</code>,

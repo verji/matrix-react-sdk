@@ -41,6 +41,7 @@ import { IProfileInfo } from "../../../../src/hooks/useProfileInfo";
 import { DirectoryMember, startDmOnFirstMessage } from "../../../../src/utils/direct-messages";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import Modal from "../../../../src/Modal";
+import HomePage from "../../../../src/components/structures/HomePage";
 import { UIFeature } from "../../../../src/settings/UIFeature";
 
 const mockGetAccessToken = jest.fn().mockResolvedValue("getAccessToken");
@@ -493,6 +494,12 @@ describe("InviteDialog", () => {
         );
         await flushPromises();
         expect(screen.queryByText("@localpart:server.tld")).not.toBeInTheDocument();
+    });
+    it("does not show buttons on HomePage when UIFeature is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
+
+        render(<HomePage justRegistered={true} />);
+        expect(screen.queryByText("Explore")).not.toBeInTheDocument();
     });
     it("shows 'Send invite link' in invitedialog when UIFeature is true", () => {
         room.currentState.setStateEvents([mkRoomCreateEvent(bobId, roomId, { "m.federate": false })]);
