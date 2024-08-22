@@ -4083,5 +4083,24 @@
             "userInputs": "There should not be any personal or page related data.",
             "wordByItself": "A word by itself is easy to guess"
         }
-    }
+    },
+    "verji": {
+        "auto_logout": "Automatic signout",
+        "turned_off": "Turned off",
+        "30_seconds": "30 Seconds",        
+        "power_levels": {
+          "customer_admin": "Customer",
+          "rosberg_admin": "Rosberg",
+          "system_admin": "System",
+          "standard": "Standard"
+        },
+        "user_settings_help_about": {
+            "bug_report" : "Bugreporting",
+            "experience_errors": "Dersom du opplever feil i Verji, kan du kontakte Verji Support",
+            "mailto_support": "mailto:support@verji.com",
+            "monday_friday": "Monday - Friday",
+            "opening_hours": "08.00 - 16.00",
+            "support_phone": "Telefon +4790532454"
+          }
+        }
 }

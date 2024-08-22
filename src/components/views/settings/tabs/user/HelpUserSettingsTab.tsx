@@ -212,18 +212,25 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
         return `${appVersion}\n${cryptoVersion}`;
     };
 
-    public render(): React.ReactNode {
-        const brand = SdkConfig.get().brand;
+    // Verji start
+    private verjiHelp(): void {
+        const newWindow = window.open("https://rosberg.no/hjelp", "_blank", "noopener,noreferrer");
+        if (newWindow) newWindow.opener = null;
+    }
+    // Verji end
 
-        const faqText = _t(
-            "setting|help_about|help_link",
-            {
-                brand,
-            },
-            {
-                a: (sub) => <ExternalLink href={SdkConfig.get("help_url")}>{sub}</ExternalLink>,
-            },
-        );
+    public render(): React.ReactNode {
+        //Verji start
+        // const brand = SdkConfig.get().brand;
+        // const faqText = _t(
+        //     "setting|help_about|help_link",
+        //     {
+        //         brand,
+        //     },
+        //     {
+        //         a: (sub) => <ExternalLink href={SdkConfig.get("help_url")}>{sub}</ExternalLink>,
+        //     },
+        // ); Verji end
 
         let updateButton: JSX.Element | undefined;
         if (this.state.canUpdate) {
@@ -276,7 +283,31 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
             <SettingsTab>
                 <SettingsSection>
                     {bugReportingSection}
-                    <SettingsSubsection heading={_t("common|faq")} description={faqText} />
+                    <SettingsSubsection heading={_t("common|faq")} />
+                    <div className="mx_SettingsTab_subsectionText">
+                        {/* ROSBERG START */}
+                        <AccessibleButton kind="primary" onClick={this.verjiHelp}>
+                            {_t("common|help", { brand: SdkConfig.get().brand })}
+                        </AccessibleButton>
+                        {/* ROSBERG END */}
+                    </div>
+
+                    {/* Verji start */}
+                    {/* <b><span className='mx_SettingsTab_subheading'>{_t("verji|user_settings_help_about|bug_report")}</span></b> */}
+                    <div className="mx_SettingsTab_subsectionText">
+                        <p>{_t("verji|user_settings_help_about|experience_errors")}</p>
+                        <a href={_t("verji|user_settings_help_about|mailto_support")}>
+                            {_t("verji|user_settings_help_about|mailto_support")}
+                        </a>
+                        <p>{_t("verji|user_settings_help_about|support_phone")}</p>
+                        <p>
+                            <b>{_t("verji|user_settings_help_about|monday_friday")}</b>
+                        </p>
+                        <p>
+                            <b>{_t("verji|user_settings_help_about|opening_hours")}</b>
+                        </p>
+                    </div>
+                    {/* Verji end */}
                     <SettingsSubsection heading={_t("setting|help_about|versions")}>
                         <SettingsSubsectionText>
                             <CopyableText getTextToCopy={this.getVersionTextToCopy}>
@@ -288,6 +319,7 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
                             {updateButton}
                         </SettingsSubsectionText>
                     </SettingsSubsection>
+                    {/* Verji start
                     {this.renderLegal()}
                     {this.renderCredits()}
                     <SettingsSubsection heading={_t("common|advanced")}>
@@ -330,6 +362,7 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
                             {_t("setting|help_about|clear_cache_reload")}
                         </AccessibleButton>
                     </SettingsSubsection>
+                    Verji end */}
                 </SettingsSection>
             </SettingsTab>
         );

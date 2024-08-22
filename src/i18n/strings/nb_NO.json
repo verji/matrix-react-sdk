@@ -4641,5 +4641,21 @@
       "wordByItself": "Et ord i seg selv er lett å gjette"
     }
   },
-  "Åland Islands": "Åland"
+  "Åland Islands": "Åland",
+  "verji": {
+      "power_levels": {
+        "customer_admin": "Customer",
+        "RosbergAdmin": "Rosberg",
+        "SystemAdmin": "System",
+        "Standard": "Standard"
+      },
+      "user_settings_help_about": {
+        "bug_report" : "Feilrapportering",
+        "experience_errors": "Dersom du opplever feil i Verji, kan du kontakte Verji Support",
+        "mailto_support": "mailto:support@verji.com",
+        "support_phone": "Telefon",
+        "monday_friday": "Mandag - Fredag",
+        "08.00_16.00": "08.00 - 16.00"
+      }
+  }
 }

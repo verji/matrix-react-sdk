@@ -28,11 +28,19 @@ import PresenceLabel from "./PresenceLabel";
 export enum PowerStatus {
     Admin = "admin",
     Moderator = "moderator",
+    CustomerAdmin = "customer",
+    RosbergAdmin = "rosberg",
+    SystemAdmin = "system",
+    Standard = "standard",
 }
 
 const PowerLabel: Record<PowerStatus, TranslationKey> = {
     [PowerStatus.Admin]: _td("power_level|admin"),
     [PowerStatus.Moderator]: _td("power_level|mod"),
+    [PowerStatus.CustomerAdmin]: _td("verji|power_levels|customer_admin"),
+    [PowerStatus.RosbergAdmin]: _td("verji|power_levels|rosberg_admin"),
+    [PowerStatus.SystemAdmin]: _td("verji|power_levels|system_admin"),
+    [PowerStatus.Standard]: _td("verji|power_levels|standard"),
 };
 
 export type PresenceState = "offline" | "online" | "unavailable" | "io.element.unreachable";
