@@ -31,7 +31,7 @@ import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import PosthogTrackers from "../../../PosthogTrackers";
 import SettingsStore from "../../../settings/SettingsStore";
 import { useFeatureEnabled } from "../../../hooks/useSettings";
-import { UIComponent } from "../../../settings/UIFeature";
+import { UIComponent, UIFeature } from "../../../settings/UIFeature";
 import { RoomNotificationStateStore } from "../../../stores/notifications/RoomNotificationStateStore";
 import { ITagMap } from "../../../stores/room-list/algorithms/models";
 import { DefaultTagID, TagID } from "../../../stores/room-list/models";
@@ -149,7 +149,7 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
                                 }}
                             />
                         )}
-                        {showInviteUsers && (
+                        {showInviteUsers && SettingsStore.getValue(UIFeature.ShowInviteToSpaceFromPeoplePlus) && (
                             <IconizedContextMenuOption
                                 label={_t("action|invite_to_space")}
                                 iconClassName="mx_RoomList_iconInvite"
