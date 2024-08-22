@@ -63,6 +63,7 @@ describe("<SidebarUserSettingsTab />", () => {
                     [MetaSpace.Orphans]: true,
                 };
             }
+
             return false;
         });
         render(<SidebarUserSettingsTab />);
@@ -90,6 +91,7 @@ describe("<SidebarUserSettingsTab />", () => {
                     [MetaSpace.Orphans]: true,
                 };
             }
+
             return false;
         });
         render(<SidebarUserSettingsTab />);
