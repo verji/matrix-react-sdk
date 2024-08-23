@@ -512,7 +512,7 @@ describe("InviteDialog", () => {
 
         const { asFragment } = render(<InviteDialog
             kind={InviteKind.Dm}
-            roomId={roomId}
+            // roomId={roomId}
             onFinished={jest.fn()}
             initialText="@localpart:server.tld"
         />);
@@ -529,7 +529,7 @@ describe("InviteDialog", () => {
 
         render(<InviteDialog
             kind={InviteKind.Dm}
-            roomId={roomId}
+            // roomId={roomId}
             onFinished={jest.fn()}
             initialText="@localpart:server.tld"
         />);

@@ -84,133 +84,136 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
         };
     }
 
-    private onClearCacheAndReload = (): void => {
-        if (!PlatformPeg.get()) return;
+    //Verji
+    // private onClearCacheAndReload = (): void => {
+    //     if (!PlatformPeg.get()) return;
 
-        // Dev note: please keep this log line, it's useful when troubleshooting a MatrixClient suddenly
-        // stopping in the middle of the logs.
-        logger.log("Clear cache & reload clicked");
-        this.context.stopClient();
-        this.context.store.deleteAllData().then(() => {
-            PlatformPeg.get()?.reload();
-        });
-    };
+    //     // Dev note: please keep this log line, it's useful when troubleshooting a MatrixClient suddenly
+    //     // stopping in the middle of the logs.
+    //     logger.log("Clear cache & reload clicked");
+    //     this.context.stopClient();
+    //     this.context.store.deleteAllData().then(() => {
+    //         PlatformPeg.get()?.reload();
+    //     });
+    // };
 
     private onBugReport = (): void => {
         Modal.createDialog(BugReportDialog, {});
     };
 
-    private renderLegal(): ReactNode {
-        const tocLinks = SdkConfig.get().terms_and_conditions_links;
-        if (!tocLinks) return null;
+    //Verji
+    // private renderLegal(): ReactNode {
+    //     const tocLinks = SdkConfig.get().terms_and_conditions_links;
+    //     if (!tocLinks) return null;
 
-        const legalLinks: JSX.Element[] = [];
-        for (const tocEntry of tocLinks) {
-            legalLinks.push(
-                <div key={tocEntry.url}>
-                    <ExternalLink href={tocEntry.url}>{tocEntry.text}</ExternalLink>
-                </div>,
-            );
-        }
+    //     const legalLinks: JSX.Element[] = [];
+    //     for (const tocEntry of tocLinks) {
+    //         legalLinks.push(
+    //             <div key={tocEntry.url}>
+    //                 <ExternalLink href={tocEntry.url}>{tocEntry.text}</ExternalLink>
+    //             </div>,
+    //         );
+    //     }
 
-        return (
-            <SettingsSubsection heading={_t("common|legal")}>
-                <SettingsSubsectionText>{legalLinks}</SettingsSubsectionText>
-            </SettingsSubsection>
-        );
-    }
+    //     return (
+    //         <SettingsSubsection heading={_t("common|legal")}>
+    //             <SettingsSubsectionText>{legalLinks}</SettingsSubsectionText>
+    //         </SettingsSubsection>
+    //     );
+    // }
 
-    private renderCredits(): JSX.Element {
-        // Note: This is not translated because it is legal text.
-        // Also, &nbsp; is ugly but necessary.
-        return (
-            <SettingsSubsection heading={_t("common|credits")}>
-                <SettingsSubsectionText>
-                    <ul>
-                        <li>
-                            {_t(
-                                "credits|default_cover_photo",
-                                {},
-                                {
-                                    photo: (sub) => (
-                                        <ExternalLink
-                                            href="themes/element/img/backgrounds/lake.jpg"
-                                            rel="noreferrer noopener"
-                                            target="_blank"
-                                        >
-                                            {sub}
-                                        </ExternalLink>
-                                    ),
-                                    author: (sub) => (
-                                        <ExternalLink href="https://www.flickr.com/golan">{sub}</ExternalLink>
-                                    ),
-                                    terms: (sub) => (
-                                        <ExternalLink
-                                            href="https://creativecommons.org/licenses/by-sa/4.0/"
-                                            rel="noreferrer noopener"
-                                            target="_blank"
-                                        >
-                                            {sub}
-                                        </ExternalLink>
-                                    ),
-                                },
-                            )}
-                        </li>
-                        <li>
-                            {_t(
-                                "credits|twemoji_colr",
-                                {},
-                                {
-                                    colr: (sub) => (
-                                        <ExternalLink
-                                            href="https://github.com/matrix-org/twemoji-colr"
-                                            rel="noreferrer noopener"
-                                            target="_blank"
-                                        >
-                                            {sub}
-                                        </ExternalLink>
-                                    ),
-                                    author: (sub) => <ExternalLink href="https://mozilla.org">{sub}</ExternalLink>,
-                                    terms: (sub) => (
-                                        <ExternalLink
-                                            href="https://www.apache.org/licenses/LICENSE-2.0"
-                                            rel="noreferrer noopener"
-                                            target="_blank"
-                                        >
-                                            {sub}
-                                        </ExternalLink>
-                                    ),
-                                },
-                            )}
-                        </li>
-                        <li>
-                            {_t(
-                                "credits|twemoji",
-                                {},
-                                {
-                                    twemoji: (sub) => (
-                                        <ExternalLink href="https://twemoji.twitter.com/">{sub}</ExternalLink>
-                                    ),
-                                    author: (sub) => (
-                                        <ExternalLink href="https://twemoji.twitter.com/">{sub}</ExternalLink>
-                                    ),
-                                    terms: (sub) => (
-                                        <ExternalLink
-                                            href="https://creativecommons.org/licenses/by/4.0/"
-                                            rel="noreferrer noopener"
-                                            target="_blank"
-                                        >
-                                            {sub}
-                                        </ExternalLink>
-                                    ),
-                                },
-                            )}
-                        </li>
-                    </ul>
-                </SettingsSubsectionText>
-            </SettingsSubsection>
-        );
-    }
+    //Verji
+    // private renderCredits(): JSX.Element {
+    //     // Note: This is not translated because it is legal text.
+    //     // Also, &nbsp; is ugly but necessary.
+    //     return (
+    //         <SettingsSubsection heading={_t("common|credits")}>
+    //             <SettingsSubsectionText>
+    //                 <ul>
+    //                     <li>
+    //                         {_t(
+    //                             "credits|default_cover_photo",
+    //                             {},
+    //                             {
+    //                                 photo: (sub) => (
+    //                                     <ExternalLink
+    //                                         href="themes/element/img/backgrounds/lake.jpg"
+    //                                         rel="noreferrer noopener"
+    //                                         target="_blank"
+    //                                     >
+    //                                         {sub}
+    //                                     </ExternalLink>
+    //                                 ),
+    //                                 author: (sub) => (
+    //                                     <ExternalLink href="https://www.flickr.com/golan">{sub}</ExternalLink>
+    //                                 ),
+    //                                 terms: (sub) => (
+    //                                     <ExternalLink
+    //                                         href="https://creativecommons.org/licenses/by-sa/4.0/"
+    //                                         rel="noreferrer noopener"
+    //                                         target="_blank"
+    //                                     >
+    //                                         {sub}
+    //                                     </ExternalLink>
+    //                                 ),
+    //                             },
+    //                         )}
+    //                     </li>
+    //                     <li>
+    //                         {_t(
+    //                             "credits|twemoji_colr",
+    //                             {},
+    //                             {
+    //                                 colr: (sub) => (
+    //                                     <ExternalLink
+    //                                         href="https://github.com/matrix-org/twemoji-colr"
+    //                                         rel="noreferrer noopener"
+    //                                         target="_blank"
+    //                                     >
+    //                                         {sub}
+    //                                     </ExternalLink>
+    //                                 ),
+    //                                 author: (sub) => <ExternalLink href="https://mozilla.org">{sub}</ExternalLink>,
+    //                                 terms: (sub) => (
+    //                                     <ExternalLink
+    //                                         href="https://www.apache.org/licenses/LICENSE-2.0"
+    //                                         rel="noreferrer noopener"
+    //                                         target="_blank"
+    //                                     >
+    //                                         {sub}
+    //                                     </ExternalLink>
+    //                                 ),
+    //                             },
+    //                         )}
+    //                     </li>
+    //                     <li>
+    //                         {_t(
+    //                             "credits|twemoji",
+    //                             {},
+    //                             {
+    //                                 twemoji: (sub) => (
+    //                                     <ExternalLink href="https://twemoji.twitter.com/">{sub}</ExternalLink>
+    //                                 ),
+    //                                 author: (sub) => (
+    //                                     <ExternalLink href="https://twemoji.twitter.com/">{sub}</ExternalLink>
+    //                                 ),
+    //                                 terms: (sub) => (
+    //                                     <ExternalLink
+    //                                         href="https://creativecommons.org/licenses/by/4.0/"
+    //                                         rel="noreferrer noopener"
+    //                                         target="_blank"
+    //                                     >
+    //                                         {sub}
+    //                                     </ExternalLink>
+    //                                 ),
+    //                             },
+    //                         )}
+    //                     </li>
+    //                 </ul>
+    //             </SettingsSubsectionText>
+    //         </SettingsSubsection>
+    //     );
+    // }
 
     private getVersionTextToCopy = (): string => {
         const { appVersion, cryptoVersion } = this.getVersionInfo();
