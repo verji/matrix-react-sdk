@@ -73,7 +73,15 @@
         "confirm_button": "Bekreft",
         "existing_guest_instructions": "Følgende gjest(er) %(users)s er allerede Verji-brukere. Følg instruksjonene nedenfor for å invitere eksisterende brukere.",
         "invite_process_error": "Oops, noe gikk galt under invitasjonsprosessen. Du kan spore invitasjonene dine ved å åpne din %(path)s.",
-        "invite_new_users": "Inviter nye brukere til %(tenant)s"
+        "invite_new_users": "Inviter nye brukere til %(tenant)s",
+        "user_settings_help_about": {
+          "bug_report" : "Feilrapportering",
+          "experience_errors": "Dersom du opplever feil i Verji, kan du kontakte Verji Support",
+          "mailto_support": "mailto:support@verji.com",
+          "support_phone": "Telefon",
+          "monday_friday": "Mandag - Fredag",
+          "08.00_16.00": "08.00 - 16.00"
+        }
     },
   "%(duration)sd": "%(duration)sd",
   "%(duration)sh": "%(duration)st",
@@ -4717,21 +4725,5 @@
       "wordByItself": "Et ord i seg selv er lett å gjette"
     }
   },
-  "Åland Islands": "Åland",
-  "verji": {
-      "power_levels": {
-        "customer_admin": "Customer",
-        "RosbergAdmin": "Rosberg",
-        "SystemAdmin": "System",
-        "Standard": "Standard"
-      },
-      "user_settings_help_about": {
-        "bug_report" : "Feilrapportering",
-        "experience_errors": "Dersom du opplever feil i Verji, kan du kontakte Verji Support",
-        "mailto_support": "mailto:support@verji.com",
-        "support_phone": "Telefon",
-        "monday_friday": "Mandag - Fredag",
-        "08.00_16.00": "08.00 - 16.00"
-      }
-  }
+  "Åland Islands": "Åland"
 }
