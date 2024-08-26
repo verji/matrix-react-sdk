@@ -48,7 +48,9 @@ describe("ReactionsRowButtonTooltip", () => {
                     content={content}
                     reactionEvents={reactionEvents}
                     customReactionImagesEnabled={customReactionImagesEnabled}
-                />
+                >
+                    <div>Test tooltip</div>
+                </ReactionsRowButtonTooltip>
             </MatrixClientContext.Provider>,
         );
 
