@@ -41,6 +41,7 @@ import { IProfileInfo } from "../../../../src/hooks/useProfileInfo";
 import { DirectoryMember, startDmOnFirstMessage } from "../../../../src/utils/direct-messages";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import Modal from "../../../../src/Modal";
+import HomePage from "../../../../src/components/structures/HomePage";
 
 const mockGetAccessToken = jest.fn().mockResolvedValue("getAccessToken");
 jest.mock("../../../../src/IdentityAuthClient", () =>
@@ -281,11 +282,20 @@ describe("InviteDialog", () => {
         mockClient.getIdentityServerUrl.mockReturnValue("https://identity-server");
         mockClient.lookupThreePid.mockResolvedValue({});
 
-        render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        // VERJI modify invite kind, due to heavy modifications in invitation flow
+        // render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         const input = screen.getByTestId("invite-dialog-input");
         input.focus();
-        await userEvent.paste(`${bobId} ${aliceEmail}`);
+
+        // VERJI modify test, by pasting individually and separating values with enter key
+        //await userEvent.paste(`${bobId} ${aliceEmail}`);
+        await userEvent.paste(`${bobId}`);
+        await userEvent.keyboard("[Enter]");
+
+        await userEvent.paste(`${aliceEmail}`);
+        await userEvent.keyboard("[Enter]");
 
         await screen.findAllByText(bobId);
         await screen.findByText(aliceEmail);
@@ -295,7 +305,9 @@ describe("InviteDialog", () => {
         mockClient.getIdentityServerUrl.mockReturnValue("https://identity-server");
         mockClient.lookupThreePid.mockResolvedValue({});
 
-        render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        // VERJI modify invite kind, due to heavy modifications in invitation flow
+        // render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         const input = screen.getByTestId("invite-dialog-input");
         input.focus();
@@ -306,7 +318,9 @@ describe("InviteDialog", () => {
     });
 
     it("should allow to invite multiple emails to a room", async () => {
-        render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        // VERJI modify invite kind, due to heavy modifications in invitation flow
+        // render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         await enterIntoSearchField(aliceEmail);
         expectPill(aliceEmail);
@@ -334,8 +348,8 @@ describe("InviteDialog", () => {
             expectPill(bobEmail);
         });
     });
-
-    it("should not allow to invite more than one email to a DM", async () => {
+    // VERJI - skip this test, we do allow multiple email invites to dm.
+    it.skip("should not allow to invite more than one email to a DM", async () => {
         render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         // Start with an email → should convert to a pill
@@ -355,7 +369,8 @@ describe("InviteDialog", () => {
         expectNoPill(bobEmail);
     });
 
-    it("should not allow to invite a MXID and an email to a DM", async () => {
+    // VERJI - skip this test, we do allow mxId and email invites to dm.
+    it.skip("should not allow to invite a MXID and an email to a DM", async () => {
         render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         // Start with a MXID → should convert to a pill
@@ -381,13 +396,20 @@ describe("InviteDialog", () => {
     });
 
     it("should not allow pasting the same user multiple times", async () => {
-        render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        // VERJI modify invite kind, due to heavy modifications in invitation flow
+        // render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+        render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
 
         const input = screen.getByTestId("invite-dialog-input");
         input.focus();
         await userEvent.paste(`${bobId}`);
+        await userEvent.keyboard("[Enter]"); // Verji: Add this line to register input
+
         await userEvent.paste(`${bobId}`);
+        await userEvent.keyboard("[Enter]"); // Verji: Add this line to register input
+
         await userEvent.paste(`${bobId}`);
+        await userEvent.keyboard("[Enter]"); // Verji: Add this line to register input
 
         expect(input).toHaveValue("");
         await expect(screen.findAllByText(bobId, { selector: "a" })).resolves.toHaveLength(1);
@@ -409,7 +431,8 @@ describe("InviteDialog", () => {
         expect(tile).toBeInTheDocument();
     });
 
-    describe("when inviting a user with an unknown profile", () => {
+    // VERJI - skip these tests, because we prevent the "invite anyway modal"
+    describe.skip("when inviting a user with an unknown profile", () => {
         beforeEach(async () => {
             render(<InviteDialog kind={InviteKind.Dm} onFinished={jest.fn()} />);
             await enterIntoSearchField(carolId);
@@ -492,5 +515,11 @@ describe("InviteDialog", () => {
         );
         await flushPromises();
         expect(screen.queryByText("@localpart:server.tld")).not.toBeInTheDocument();
+    });
+    it("does not show buttons on HomePage when UIFeature is false", () => {
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
+
+        render(<HomePage justRegistered={true} />);
+        expect(screen.queryByText("Explore")).not.toBeInTheDocument();
     });
 });

@@ -25,7 +25,7 @@ import RoomList from "../../../../src/components/views/rooms/RoomList";
 import ResizeNotifier from "../../../../src/utils/ResizeNotifier";
 import { MetaSpace } from "../../../../src/stores/spaces";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
-import { UIComponent } from "../../../../src/settings/UIFeature";
+import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
 import dis from "../../../../src/dispatcher/dispatcher";
 import { Action } from "../../../../src/dispatcher/actions";
 import * as testUtils from "../../../test-utils";
@@ -36,6 +36,7 @@ import DMRoomMap from "../../../../src/utils/DMRoomMap";
 import RoomListStore from "../../../../src/stores/room-list/RoomListStore";
 import { ITagMap } from "../../../../src/stores/room-list/algorithms/models";
 import { DefaultTagID } from "../../../../src/stores/room-list/models";
+import SettingsStore from "../../../../src/settings/SettingsStore";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -47,6 +48,80 @@ const getUserIdForRoomId = jest.fn();
 const getDMRoomsForUserId = jest.fn();
 // @ts-ignore
 DMRoomMap.sharedInstance = { getUserIdForRoomId, getDMRoomsForUserId };
+
+describe("UIFeature tests", () => {
+    stubClient();
+    //const client = MatrixClientPeg.safeGet();
+    const store = SpaceStore.instance;
+
+    function getComponent(props: Partial<ComponentProps<typeof RoomList>> = {}): JSX.Element {
+        return (
+            <RoomList
+                onKeyDown={jest.fn()}
+                onFocus={jest.fn()}
+                onBlur={jest.fn()}
+                onResize={jest.fn()}
+                resizeNotifier={new ResizeNotifier()}
+                isMinimized={false}
+                activeSpace={MetaSpace.Home}
+                {...props}
+            />
+        );
+    }
+    beforeEach(() => {
+        store.setActiveSpace(MetaSpace.Home);
+        mocked(shouldShowComponent).mockImplementation((feature) => true);
+    });
+    describe("UIFeature.showStartChatPlusMenuForMetaSpace", () => {
+        it("UIFeature.showStartChatPlusMenuForMetaSpace = true: renders 'Start Chat' plus-button", () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+                if (name == UIFeature.ShowStartChatPlusMenuForMetaSpace) return true;
+                return false;
+            });
+            render(getComponent());
+
+            expect(screen.getByLabelText("Start chat")).toBeInTheDocument();
+        });
+
+        it("UIFeature.showStartChatPlusMenuForMetaSpace = false: does not render 'Start Chat' plus-button", () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+                if (name == UIFeature.ShowStartChatPlusMenuForMetaSpace) return false;
+                return false;
+            });
+            render(getComponent());
+            expect(screen.queryByLabelText("Start chat")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("UIFeature.showAddRoomPlusMenuForMetaSpace", () => {
+        beforeEach(() => {
+            store.setActiveSpace(MetaSpace.Home);
+        });
+
+        it("UIFeature.showAddRoomPlusMenuForMetaSpace = true: renders 'Add room' plus-button", () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+                if (name == UIFeature.ShowAddRoomPlusMenuForMetaSpace) return true;
+                return false;
+            });
+            render(getComponent());
+            expect(screen.getByLabelText("Add room")).toBeInTheDocument();
+        });
+
+        it("UIFeature.showAddRoomPlusMenuForMetaSpace = false: does not render 'Add room' plus-button", () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
+                if (name == UIFeature.ShowAddRoomPlusMenuForMetaSpace) return false;
+                return false;
+            });
+
+            render(getComponent());
+
+            expect(screen.queryByLabelText("Add room")).not.toBeInTheDocument();
+        });
+    });
+    afterEach(() => {
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => true);
+    });
+});
 
 describe("RoomList", () => {
     stubClient();
@@ -207,6 +282,34 @@ describe("RoomList", () => {
                     action: Action.ViewRoom,
                     room_id: space1,
                 });
+            });
+
+            it("UIFeature.addExistingRoomToSpace = true: should render 'Add existing room' context menu option", async () => {
+                jest.spyOn(SettingsStore, "getValue").mockImplementation((val) =>
+                    val === UIFeature.AddExistingRoomToSpace ? true : "default",
+                );
+                mocked(shouldShowComponent).mockReturnValue(true);
+                render(getComponent());
+
+                const roomsList = screen.getByRole("group", { name: "Rooms" });
+                await userEvent.click(within(roomsList).getByRole("button", { name: "Add room" }));
+
+                const menu = screen.getByRole("menu");
+                expect(within(menu).getByRole("menuitem", { name: "Add existing room" })).toBeInTheDocument();
+            });
+
+            it("UIFeature.addExistingRoomToSpace = false: should not render 'Add existing room' context menu option", async () => {
+                jest.spyOn(SettingsStore, "getValue").mockImplementation((val) =>
+                    val === UIFeature.AddExistingRoomToSpace ? false : "default",
+                );
+                mocked(shouldShowComponent).mockReturnValue(true);
+                render(getComponent());
+
+                const roomsList = screen.getByRole("group", { name: "Rooms" });
+                await userEvent.click(within(roomsList).getByRole("button", { name: "Add room" }));
+
+                const menu = screen.getByRole("menu");
+                expect(within(menu).queryByRole("menuitem", { name: "Add existing room" })).not.toBeInTheDocument();
             });
         });
 

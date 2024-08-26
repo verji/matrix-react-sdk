@@ -114,7 +114,7 @@ exports[`ThreadsActivityCentre renders notifications matching the snapshot 1`] =
         />
       </svg>
       <div
-        class="mx_NotificationBadge mx_NotificationBadge_visible mx_NotificationBadge_level_notification mx_NotificationBadge_dot"
+        class="mx_NotificationBadge mx_NotificationBadge_visible mx_NotificationBadge_green mx_NotificationBadge_level_notification mx_NotificationBadge_dot"
       >
         <span
           class="mx_NotificationBadge_count"
@@ -127,7 +127,7 @@ exports[`ThreadsActivityCentre renders notifications matching the snapshot 1`] =
 
 exports[`ThreadsActivityCentre should close the release announcement when the TAC button is clicked 1`] = `
 <body
-  data-scroll-locked=""
+  data-scroll-locked="1"
   style="pointer-events: none;"
 >
   <span
