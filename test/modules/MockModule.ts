@@ -20,8 +20,8 @@ import { AllExtensions } from "@matrix-org/react-sdk-module-api/lib/types/extens
 import { ProvideCryptoSetupExtensions } from "@matrix-org/react-sdk-module-api/lib/extensions/CryptoSetupExtensions";
 import {
     ProvideUserSearchExtensions,
-    SearchContext
- } from "@matrix-org/react-sdk-module-api/lib/extensions/UserSearchExtensions";
+    SearchContext,
+} from "@matrix-org/react-sdk-module-api/lib/extensions/UserSearchExtensions";
 import { ProvideExperimentalExtensions } from "@matrix-org/react-sdk-module-api/lib/extensions/ExperimentalExtensions";
 
 import { ModuleRunner } from "../../src/modules/ModuleRunner";
@@ -106,11 +106,11 @@ class MockModuleWithUserSearchExtension extends RuntimeModule {
 
     moduleName: string = MockModuleWithUserSearchExtension.name;
 
-    extensions: AllExtensions = {        
+    extensions: AllExtensions = {
         userSearch: {
-            getSearchContext: jest.fn().mockReturnValue(<SearchContext> {
+            getSearchContext: jest.fn().mockReturnValue(<SearchContext>{
                 extraBodyArgs: {},
-                extraRequestOptions: {}
+                extraRequestOptions: {},
             }),
         } as ProvideUserSearchExtensions,
     };
@@ -119,7 +119,6 @@ class MockModuleWithUserSearchExtension extends RuntimeModule {
         super(moduleApi);
     }
 }
-
 
 /**
  * Register a mock module which implements the cryptoSetup extension.

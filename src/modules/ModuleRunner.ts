@@ -17,13 +17,12 @@ limitations under the License.
 import { safeSet } from "matrix-js-sdk/src/utils";
 import { TranslationStringsObject } from "@matrix-org/react-sdk-module-api/lib/types/translations";
 import { AnyLifecycle } from "@matrix-org/react-sdk-module-api/lib/lifecycles/types";
-import { ExtensionsManager  } from "@matrix-org/react-sdk-module-api/lib/extensions/ExtensionsManager";
+import { ExtensionsManager } from "@matrix-org/react-sdk-module-api/lib/extensions/ExtensionsManager";
 
 import { AppModule } from "./AppModule";
 import { ModuleFactory } from "./ModuleFactory";
 
 import "./ModuleComponents";
-
 
 /**
  * Handles and coordinates the operation of modules.

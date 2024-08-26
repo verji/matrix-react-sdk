@@ -539,9 +539,16 @@ export class StopGapWidgetDriver extends WidgetDriver {
     public async searchUserDirectory(searchTerm: string, limit?: number): Promise<ISearchUserDirectoryResult> {
         const client = MatrixClientPeg.safeGet();
 
-        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
+            client,
+            SdkContextClass.instance,
+        );
 
-        const { limited, results } = await client.searchUserDirectory({ term: searchTerm, limit }, searchContext.extraBodyArgs, searchContext.extraRequestOptions);
+        const { limited, results } = await client.searchUserDirectory(
+            { term: searchTerm, limit },
+            searchContext.extraBodyArgs,
+            searchContext.extraRequestOptions,
+        );
 
         return {
             limited,

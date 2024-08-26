@@ -21,7 +21,7 @@ import {
     registerMockModule,
     registerMockModuleWithCryptoSetupExtension,
     registerMockModuleWithExperimentalExtension,
-    registerMockModuleWithUserSearchExtension
+    registerMockModuleWithUserSearchExtension,
 } from "./MockModule";
 import { ModuleRunner } from "../../src/modules/ModuleRunner";
 

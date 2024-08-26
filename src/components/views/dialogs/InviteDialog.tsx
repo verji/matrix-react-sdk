@@ -644,10 +644,17 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         try {
             const client = await MatrixClientPeg.get();
 
-            const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+            const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
+                client,
+                SdkContextClass.instance,
+            );
 
             client
-                ?.searchUserDirectory({ term: this.state.filterText.trim().split(":")[0] ?? this.state.filterText }, searchContext.extraBodyArgs, searchContext.extraRequestOptions,)
+                ?.searchUserDirectory(
+                    { term: this.state.filterText.trim().split(":")[0] ?? this.state.filterText },
+                    searchContext.extraBodyArgs,
+                    searchContext.extraRequestOptions,
+                )
                 .then(async (r) => {
                     this.setState({ busy: false });
 
@@ -951,14 +958,13 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         this.props.onFinished(false);
     };
 
-
-
-
     private updateSuggestions = async (term: string): Promise<void> => {
+        const client = MatrixClientPeg.safeGet();
+        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
+            client,
+            SdkContextClass.instance,
+        );
 
-        const client =  MatrixClientPeg.safeGet();
-        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
-    
         client
             .searchUserDirectory({ term }, searchContext.extraBodyArgs, searchContext.extraRequestOptions)
             .then(async (r): Promise<void> => {
@@ -1171,7 +1177,10 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
         let directoryUsers: any[] = [];
 
         const client = await MatrixClientPeg.get();
-        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(client, SdkContextClass.instance);
+        const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
+            client,
+            SdkContextClass.instance,
+        );
         client
             ?.searchUserDirectory({ term: text }, searchContext.extraBodyArgs, searchContext.extraRequestOptions)
             .then(async (r) => {
