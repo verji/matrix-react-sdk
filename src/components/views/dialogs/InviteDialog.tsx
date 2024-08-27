@@ -642,7 +642,7 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
 
         let foundUser = false;
         try {
-            const client = await MatrixClientPeg.get();
+            const client = MatrixClientPeg.get();
 
             const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
                 client,
@@ -1176,7 +1176,7 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
 
         let directoryUsers: any[] = [];
 
-        const client = await MatrixClientPeg.get();
+        const client = MatrixClientPeg.get();
         const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
             client,
             SdkContextClass.instance,

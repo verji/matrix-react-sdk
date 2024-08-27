@@ -51,7 +51,7 @@ export const useUserDirectory = (): {
 
             try {
                 setLoading(true);
-                const client = await MatrixClientPeg.safeGet();
+                const client = MatrixClientPeg.safeGet();
                 const searchContext = await ModuleRunner.instance.extensions.userSearch.getSearchContext(
                     client,
                     SdkContextClass.instance,
