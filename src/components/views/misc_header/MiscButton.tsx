@@ -1,9 +1,9 @@
 /*
-    ROSBERG FILE
+    Copyright ROSBERG / VerjiTech
 */
 
-import React from 'react';
-import classNames from 'classnames';
+import React from "react";
+import classNames from "classnames";
 
 // import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import AccessibleButton from "../elements/AccessibleButton";
@@ -30,23 +30,25 @@ export default class MiscButton extends React.Component<IProps> {
         this.onClick = this.onClick.bind(this);
     }
 
-    private onClick() : void{
+    private onClick(): void {
         this.props.onClick();
     }
 
-    public render() : React.ReactElement {
+    public render(): React.ReactElement {
         const classes = classNames({
             mx_LegacyRoomHeader_button: true,
             mx_RightPanel_supportButton_highlight: this.props.isHighlighted,
             [`${this.props.name}`]: true,
         });
 
-        return <AccessibleButton
-            aria-current={this.props.isHighlighted}
-            role="button"
-            title={this.props.title}
-            className={classes}
-            onClick={this.onClick}
-        />;
+        return (
+            <AccessibleButton
+                aria-current={this.props.isHighlighted}
+                role="button"
+                title={this.props.title}
+                className={classes}
+                onClick={this.onClick}
+            />
+        );
     }
 }
