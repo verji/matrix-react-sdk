@@ -649,7 +649,7 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
                 SdkContextClass.instance,
             );
 
-            client
+            await client
                 ?.searchUserDirectory(
                     { term: this.state.filterText.trim().split(":")[0] ?? this.state.filterText },
                     searchContext.extraBodyArgs,
@@ -1181,7 +1181,7 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
             client,
             SdkContextClass.instance,
         );
-        client
+        await client
             ?.searchUserDirectory({ term: text }, searchContext.extraBodyArgs, searchContext.extraRequestOptions)
             .then(async (r) => {
                 this.setState({ busy: false });
