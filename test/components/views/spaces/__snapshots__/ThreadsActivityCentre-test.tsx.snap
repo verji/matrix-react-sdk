@@ -2,7 +2,7 @@
 
 exports[`ThreadsActivityCentre renders notifications matching the snapshot 1`] = `
 <div
-  aria-labelledby="radix-16"
+  aria-labelledby="radix-14"
   aria-orientation="vertical"
   class="_menu_1x5h1_17"
   data-align="start"
@@ -11,7 +11,7 @@ exports[`ThreadsActivityCentre renders notifications matching the snapshot 1`] =
   data-side="top"
   data-state="open"
   dir="ltr"
-  id="radix-17"
+  id="radix-15"
   role="menu"
   style="outline: none; --radix-dropdown-menu-content-transform-origin: var(--radix-popper-transform-origin); --radix-dropdown-menu-content-available-width: var(--radix-popper-available-width); --radix-dropdown-menu-content-available-height: var(--radix-popper-available-height); --radix-dropdown-menu-trigger-width: var(--radix-popper-anchor-width); --radix-dropdown-menu-trigger-height: var(--radix-popper-anchor-height); pointer-events: auto;"
   tabindex="-1"
@@ -127,7 +127,7 @@ exports[`ThreadsActivityCentre renders notifications matching the snapshot 1`] =
 
 exports[`ThreadsActivityCentre should close the release announcement when the TAC button is clicked 1`] = `
 <body
-  data-scroll-locked=""
+  data-scroll-locked="1"
   style="pointer-events: none;"
 >
   <span
@@ -218,7 +218,7 @@ exports[`ThreadsActivityCentre should close the release announcement when the TA
 
 exports[`ThreadsActivityCentre should match snapshot when empty 1`] = `
 <div
-  aria-labelledby="radix-22"
+  aria-labelledby="radix-20"
   aria-orientation="vertical"
   class="_menu_1x5h1_17"
   data-align="start"
@@ -227,7 +227,7 @@ exports[`ThreadsActivityCentre should match snapshot when empty 1`] = `
   data-side="top"
   data-state="open"
   dir="ltr"
-  id="radix-23"
+  id="radix-21"
   role="menu"
   style="outline: none; --radix-dropdown-menu-content-transform-origin: var(--radix-popper-transform-origin); --radix-dropdown-menu-content-available-width: var(--radix-popper-available-width); --radix-dropdown-menu-content-available-height: var(--radix-popper-available-height); --radix-dropdown-menu-trigger-width: var(--radix-popper-anchor-width); --radix-dropdown-menu-trigger-height: var(--radix-popper-anchor-height); pointer-events: auto;"
   tabindex="-1"
@@ -252,7 +252,7 @@ exports[`ThreadsActivityCentre should match snapshot when empty 1`] = `
 
 exports[`ThreadsActivityCentre should order the room with the same notification level by most recent 1`] = `
 <div
-  aria-labelledby="radix-24"
+  aria-labelledby="radix-22"
   aria-orientation="vertical"
   class="_menu_1x5h1_17"
   data-align="start"
@@ -261,7 +261,7 @@ exports[`ThreadsActivityCentre should order the room with the same notification 
   data-side="top"
   data-state="open"
   dir="ltr"
-  id="radix-25"
+  id="radix-23"
   role="menu"
   style="outline: none; --radix-dropdown-menu-content-transform-origin: var(--radix-popper-transform-origin); --radix-dropdown-menu-content-available-width: var(--radix-popper-available-width); --radix-dropdown-menu-content-available-height: var(--radix-popper-available-height); --radix-dropdown-menu-trigger-width: var(--radix-popper-anchor-width); --radix-dropdown-menu-trigger-height: var(--radix-popper-anchor-height); pointer-events: auto;"
   tabindex="-1"
