@@ -525,37 +525,40 @@ describe("InviteDialog", () => {
     });
     it("shows 'Send invite link' in invitedialog when UIFeature is true", () => {
         room.currentState.setStateEvents([mkRoomCreateEvent(bobId, roomId, { "m.federate": false })]);
-        jest.spyOn(SettingsStore, "getValue").mockImplementation(name => {
-            if (name===UIFeature.SendInviteLinkPrompt){
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+            if (name === UIFeature.SendInviteLinkPrompt) {
                 return true;
             }
             return true;
         });
 
-        const { asFragment } = render(<InviteDialog
-            kind={InviteKind.Dm}
-            // roomId={roomId}
-            onFinished={jest.fn()}
-            initialText="@localpart:server.tld"
-        />);
+        const { asFragment } = render(
+            <InviteDialog
+                kind={InviteKind.Dm}
+                // roomId={roomId}
+                onFinished={jest.fn()}
+                initialText="@localpart:server.tld"
+            />,
+        );
         expect(asFragment).toMatchSnapshot();
         expect(screen.queryByText("Or send invite link")).not.toBeNull();
     });
     it("does not show 'Send invite link' in invitedialog when UIFeature is false", () => {
-        jest.spyOn(SettingsStore, "getValue").mockImplementation(name => {
-            if (name===UIFeature.SendInviteLinkPrompt){
+        jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+            if (name === UIFeature.SendInviteLinkPrompt) {
                 return false;
             }
             return true;
         });
 
-        render(<InviteDialog
-            kind={InviteKind.Dm}
-            // roomId={roomId}
-            onFinished={jest.fn()}
-            initialText="@localpart:server.tld"
-        />);
+        render(
+            <InviteDialog
+                kind={InviteKind.Dm}
+                // roomId={roomId}
+                onFinished={jest.fn()}
+                initialText="@localpart:server.tld"
+            />,
+        );
         expect(screen.queryByText("Or send invite link")).toBeNull();
     });
-
 });

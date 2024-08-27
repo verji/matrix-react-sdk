@@ -139,8 +139,7 @@ describe("ThreadsActivityCentre", () => {
         expect(document.body).toMatchSnapshot();
     });
 
-    it.skip("should render the threads activity centre button and the display label", async () => {
-        //Verji skip, reults in error in pipeline on snapshot
+    it("should render the threads activity centre button and the display label", async () => {
         renderTAC({ displayButtonLabel: true });
         expect(getTACButton()).toBeInTheDocument();
         expect(getTACDescription()).toBeInTheDocument();

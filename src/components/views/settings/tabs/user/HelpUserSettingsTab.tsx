@@ -297,7 +297,7 @@ export default class HelpUserSettingsTab extends React.Component<IProps, IState>
         return (
             <CustomHelpUserSettingsTab.CustomComponent>
                 <SettingsTab>
-                <SettingsSection>
+                    <SettingsSection>
                         {bugReportingSection}
                         <SettingsSubsection heading={_t("common|faq")} />
                         <div className="mx_SettingsTab_subsectionText">
