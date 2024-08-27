@@ -601,6 +601,8 @@ export default class RoomHeader extends React.Component<IProps, IState> {
               this.props.room.getJoinedMembers().length === 2
             : null;
 
+        // const isDm = true;  //for test
+
         if (!this.props.viewingCall && this.props.inRoom && !this.context.tombstone) {
             if (isDm) startButtons.push(<CallButtons key="calls" room={this.props.room} />);
         }
