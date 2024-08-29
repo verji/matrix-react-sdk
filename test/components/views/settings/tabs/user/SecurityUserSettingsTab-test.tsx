@@ -72,7 +72,7 @@ describe("<SecurityUserSettingsTab />", () => {
         expect(screen.queryByText("Message search")).not.toBeNull();
     });
     it("does not render eventIndex when feature is false", () => {
-        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false)
+        jest.spyOn(SettingsStore, "getValue").mockReturnValue(false);
         render(getComponent());
         expect(screen.queryByText("Message search")).toBeNull();
     });
