@@ -1640,9 +1640,9 @@
   resolved "https://registry.yarnpkg.com/@matrix-org/olm/-/olm-3.2.15.tgz#55f3c1b70a21bbee3f9195cecd6846b1083451ec"
   integrity sha512-S7lOrndAK9/8qOtaTq/WhttJC/o4GAzdfK0MUPpo8ApzsJEC0QjtwrkC3KBXdFP1cD1MXi/mlKR7aaoVMKgs6Q==
 
-"@matrix-org/react-sdk-module-api@https://github.com/verji/matrix-react-sdk-module-api.git":
-  version "2.4.0-vrj1"
-  resolved "https://github.com/verji/matrix-react-sdk-module-api.git#24aa40f8c4e5b589d515bffaa0bf2c44886036c2"
+"@matrix-org/react-sdk-module-api@https://github.com/verji/matrix-react-sdk-module-api.git#verji-main":
+  version "2.4.0"
+  resolved "https://github.com/verji/matrix-react-sdk-module-api.git#6da3a7d2abed1e6aab2c8650cc5350d2e9dd75b7"
   dependencies:
     "@babel/runtime" "^7.17.9"
     matrix-events-sdk "^2.0.0"
