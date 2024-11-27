@@ -460,7 +460,6 @@ const RoomSummaryCard: React.FC<IProps> = ({
                     label={_t("action|leave_room")}
                     onSelect={onLeaveRoomClick}
                 />
-            </div>
         </BaseCard>
     );
 };

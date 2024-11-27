@@ -43,7 +43,6 @@ import ServerSupportUnstableFeatureController from "./controllers/ServerSupportU
 import { WatchManager } from "./WatchManager";
 import { CustomTheme } from "../theme";
 import AnalyticsController from "./controllers/AnalyticsController";
-import RustCryptoSdkController from "./controllers/RustCryptoSdkController";
 
 export const defaultWatchManager = new WatchManager();
 
@@ -481,23 +480,8 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         default: false,
     },
     [Features.RustCrypto]: {
-        // use the rust matrix-sdk-crypto-wasm for crypto.
-        isFeature: true,
-        labsGroup: LabGroup.Developer,
-        // unlike most features, `configDisablesSetting` is false here.
-        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
-        displayName: _td("labs|rust_crypto"),
-        description: () => {
-            if (SettingsStore.getValueAt(SettingLevel.CONFIG, Features.RustCrypto)) {
-                // It's enabled in the config, so you can't get rid of it even by logging out.
-                return _t("labs|rust_crypto_in_config_description");
-            } else {
-                return _t("labs|rust_crypto_optin_warning");
-            }
-        },
-        shouldWarn: true,
-        default: false,
-        controller: new RustCryptoSdkController(),
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
+        default: false, // VERJI HARDCODE TO FALSE
     },
     // Must be set under `setting_defaults` in config.json.
     // If set to 100 in conjunction with `feature_rust_crypto`, all existing users will migrate to the new crypto.

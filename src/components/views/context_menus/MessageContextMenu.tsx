@@ -41,7 +41,7 @@ import Modal from "../../../Modal";
 import Resend from "../../../Resend";
 import SettingsStore from "../../../settings/SettingsStore";
 import { isUrlPermitted } from "../../../HtmlUtils";
-import { canEditContent, editEvent, isContentActionable, canPinEvent } from "../../../utils/EventUtils";
+import { canEditContent, editEvent, isContentActionable } from "../../../utils/EventUtils";
 import IconizedContextMenu, { IconizedContextMenuOption, IconizedContextMenuOptionList } from "./IconizedContextMenu";
 import { Action } from "../../../dispatcher/actions";
 import { RoomPermalinkCreator } from "../../../utils/permalinks/Permalinks";
@@ -203,7 +203,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         //Verji end
 
         let canPin =
-            !!roomState?.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli) && canPinEvent(this.props.mxEvent);
+            !!roomState?.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli) && PinningUtils.canPinOrUnpin(cli, this.props.mxEvent);
 
         // HACK: Intentionally say we can't pin if the user doesn't want to use the functionality
         if (!SettingsStore.getValue("feature_pinning")) canPin = false;
