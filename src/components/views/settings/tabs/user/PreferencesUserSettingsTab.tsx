@@ -15,12 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { ReactElement, useCallback, useEffect, useState } from "react";
 
-import { _t } from "../../../../../languageHandler";
+import { NonEmptyArray } from "../../../../../@types/common";
+import { _t, getCurrentLanguage } from "../../../../../languageHandler";
 import { UseCase } from "../../../../../settings/enums/UseCase";
 import SettingsStore from "../../../../../settings/SettingsStore";
 import Field from "../../../elements/Field";
+import Dropdown from "../../../elements/Dropdown";
 import { SettingLevel } from "../../../../../settings/SettingLevel";
 import SettingsFlag from "../../../elements/SettingsFlag";
 import AccessibleButton from "../../../elements/AccessibleButton";
@@ -33,6 +35,12 @@ import { showUserOnboardingPage } from "../../../user-onboarding/UserOnboardingP
 import SettingsSubsection from "../../shared/SettingsSubsection";
 import SettingsTab from "../SettingsTab";
 import { SettingsSection } from "../../shared/SettingsSection";
+import LanguageDropdown from "../../../elements/LanguageDropdown";
+import PlatformPeg from "../../../../../PlatformPeg";
+import { IS_MAC } from "../../../../../Keyboard";
+import SpellCheckSettings from "../../SpellCheckSettings";
+import LabelledToggleSwitch from "../../../elements/LabelledToggleSwitch";
+import * as TimezoneHandler from "../../../../../TimezoneHandler";
 import { UIFeature } from "../../../../../settings/UIFeature";
 
 interface IProps {
@@ -40,10 +48,82 @@ interface IProps {
 }
 
 interface IState {
+    timezone: string | undefined;
+    timezones: string[];
+    timezoneSearch: string | undefined;
     autocompleteDelay: string;
     readMarkerInViewThresholdMs: string;
     readMarkerOutOfViewThresholdMs: string;
 }
+
+const LanguageSection: React.FC = () => {
+    const [language, setLanguage] = useState(getCurrentLanguage());
+
+    const onLanguageChange = useCallback(
+        (newLanguage: string) => {
+            if (language === newLanguage) return;
+
+            SettingsStore.setValue("language", null, SettingLevel.DEVICE, newLanguage);
+            setLanguage(newLanguage);
+            const platform = PlatformPeg.get();
+            if (platform) {
+                platform.setLanguage([newLanguage]);
+                platform.reload();
+            }
+        },
+        [language],
+    );
+
+    return (
+        <div className="mx_SettingsSubsection_dropdown">
+            {_t("settings|general|application_language")}
+            <LanguageDropdown onOptionChange={onLanguageChange} value={language} />
+            <div className="mx_PreferencesUserSettingsTab_section_hint">
+                {_t("settings|general|application_language_reload_hint")}
+            </div>
+        </div>
+    );
+};
+
+const SpellCheckSection: React.FC = () => {
+    const [spellCheckEnabled, setSpellCheckEnabled] = useState<boolean | undefined>();
+    const [spellCheckLanguages, setSpellCheckLanguages] = useState<string[] | undefined>();
+
+    useEffect(() => {
+        (async () => {
+            const plaf = PlatformPeg.get();
+            const [enabled, langs] = await Promise.all([plaf?.getSpellCheckEnabled(), plaf?.getSpellCheckLanguages()]);
+
+            setSpellCheckEnabled(enabled);
+            setSpellCheckLanguages(langs || undefined);
+        })();
+    }, []);
+
+    const onSpellCheckEnabledChange = useCallback((enabled: boolean) => {
+        setSpellCheckEnabled(enabled);
+        PlatformPeg.get()?.setSpellCheckEnabled(enabled);
+    }, []);
+
+    const onSpellCheckLanguagesChange = useCallback((languages: string[]): void => {
+        setSpellCheckLanguages(languages);
+        PlatformPeg.get()?.setSpellCheckLanguages(languages);
+    }, []);
+
+    if (!PlatformPeg.get()?.supportsSpellCheckSettings()) return null;
+
+    return (
+        <>
+            <LabelledToggleSwitch
+                label={_t("settings|general|allow_spellcheck")}
+                value={Boolean(spellCheckEnabled)}
+                onChange={onSpellCheckEnabledChange}
+            />
+            {spellCheckEnabled && spellCheckLanguages !== undefined && !IS_MAC && (
+                <SpellCheckSettings languages={spellCheckLanguages} onLanguagesChange={onSpellCheckLanguagesChange} />
+            )}
+        </>
+    );
+};
 
 export default class PreferencesUserSettingsTab extends React.Component<IProps, IState> {
     private static ROOM_LIST_SETTINGS = ["breadcrumbs", "FTUE.userOnboardingButton"];
@@ -100,6 +180,9 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
         super(props);
 
         this.state = {
+            timezone: TimezoneHandler.getUserTimezone(),
+            timezones: TimezoneHandler.getAllTimezones(),
+            timezoneSearch: undefined,
             autocompleteDelay: SettingsStore.getValueAt(SettingLevel.DEVICE, "autocompleteDelay").toString(10),
             readMarkerInViewThresholdMs: SettingsStore.getValueAt(
                 SettingLevel.DEVICE,
@@ -111,6 +194,25 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
             ).toString(10),
         };
     }
+
+    private onTimezoneChange = (tz: string): void => {
+        this.setState({ timezone: tz });
+        TimezoneHandler.setUserTimezone(tz);
+    };
+
+    /**
+     * If present filter the time zones matching the search term
+     */
+    private onTimezoneSearchChange = (search: string): void => {
+        const timezoneSearch = search.toLowerCase();
+        const timezones = timezoneSearch
+            ? TimezoneHandler.getAllTimezones().filter((tz) => {
+                  return tz.toLowerCase().includes(timezoneSearch);
+              })
+            : TimezoneHandler.getAllTimezones();
+
+        this.setState({ timezones, timezoneSearch });
+    };
 
     private onAutocompleteDelayChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         this.setState({ autocompleteDelay: e.target.value });
@@ -176,9 +278,25 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
             // Only show the user onboarding setting if the user should see the user onboarding page
             .filter((it) => it !== "FTUE.userOnboardingButton" || showUserOnboardingPage(useCase));
 
+        const browserTimezoneLabel: string = _t("settings|preferences|default_timezone", {
+            timezone: TimezoneHandler.shortBrowserTimezone(),
+        });
+
+        // Always Preprend the default option
+        const timezones = this.state.timezones.map((tz) => {
+            return <div key={tz}>{tz}</div>;
+        });
+        timezones.unshift(<div key="">{browserTimezoneLabel}</div>);
+
         return (
             <SettingsTab data-testid="mx_PreferencesUserSettingsTab">
                 <SettingsSection>
+                    {/* The heading string is still 'general' from where it was moved, but this section should become 'general' */}
+                    <SettingsSubsection heading={_t("settings|general|language_section")}>
+                        <LanguageSection />
+                        <SpellCheckSection />
+                    </SettingsSubsection>
+
                     {roomListSettings.length > 0 && (
                         <SettingsSubsection heading={_t("settings|preferences|room_list_heading")}>
                             {this.renderGroup(roomListSettings)}
@@ -208,6 +326,23 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
                     </SettingsSubsection>
 
                     <SettingsSubsection heading={_t("settings|preferences|time_heading")}>
+                        <div className="mx_SettingsSubsection_dropdown">
+                            {_t("settings|preferences|user_timezone")}
+                            <Dropdown
+                                id="mx_dropdownUserTimezone"
+                                className="mx_dropdownUserTimezone"
+                                data-testid="mx_dropdownUserTimezone"
+                                searchEnabled={true}
+                                value={this.state.timezone}
+                                label={_t("settings|preferences|user_timezone")}
+                                placeholder={browserTimezoneLabel}
+                                onOptionChange={this.onTimezoneChange}
+                                onSearchChange={this.onTimezoneSearchChange}
+                            >
+                                {timezones as NonEmptyArray<ReactElement & { key: string }>}
+                            </Dropdown>
+                        </div>
+
                         {this.renderGroup(PreferencesUserSettingsTab.TIME_SETTINGS)}
                     </SettingsSubsection>
 

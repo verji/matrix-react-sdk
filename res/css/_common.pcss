@@ -25,8 +25,6 @@ limitations under the License.
 @import url("maplibre-gl/dist/maplibre-gl.css");
 
 :root {
-    font-size: 10px;
-
     --container-border-width: 8px;
     --container-gap-width: 8px; /* only even numbers should be used because otherwise we get 0.5px margin values. */
     --transition-short: 0.1s;
@@ -177,9 +175,9 @@ a:visited {
     color: $accent-alt;
 }
 
-input[type="text"],
-input[type="search"],
-input[type="password"] {
+:not(.mx_no_textinput):not(.mx_textinput):not(.mx_Field) > input[type="text"],
+:not(.mx_no_textinput):not(.mx_textinput):not(.mx_Field) > input[type="search"],
+:not(.mx_no_textinput):not(.mx_textinput):not(.mx_Field) > input[type="password"] {
     padding: 9px;
     font: var(--cpd-font-body-md-semibold);
     font-weight: var(--cpd-font-weight-semibold);
@@ -332,7 +330,10 @@ legend {
 .mx_Dialog_border {
     z-index: var(--dialog-zIndex-standard);
     position: relative;
-    max-height: calc(100% - var(--cpd-space-12x));
+    width: 100%;
+    max-width: fit-content;
+    box-sizing: border-box;
+    max-height: calc(100% - var(--cpd-space-6x));
     display: flex;
     flex-direction: column;
 
@@ -375,6 +376,7 @@ legend {
         font-family: inherit !important;
         white-space: normal !important;
         line-height: inherit !important;
+        background-color: inherit;
         color: inherit; /* inherit the colour from the dark or light theme by default (but not for code blocks) */
 
         pre,
@@ -518,6 +520,8 @@ legend {
         content: "";
         width: 28px;
         height: 28px;
+        left: 0;
+        top: 0;
         position: absolute;
         mask-image: url("@vector-im/compound-design-tokens/icons/close.svg");
         mask-repeat: no-repeat;
@@ -597,7 +601,10 @@ legend {
  * Elements that should not be styled like a dialog button are mentioned in a :not() pseudo-class.
  * For the widest browser support, we use multiple :not pseudo-classes instead of :not(.a, .b).
  */
-.mx_Dialog button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton),
+.mx_Dialog
+    button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):not(
+        .mx_UserProfileSettings button
+    ):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button),
 .mx_Dialog input[type="submit"],
 .mx_Dialog_buttons button:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton),
 .mx_Dialog_buttons input[type="submit"] {
@@ -614,11 +621,17 @@ legend {
     font-family: inherit;
 }
 
-.mx_Dialog button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):last-child {
+.mx_Dialog
+    button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):not(
+        .mx_UserProfileSettings button
+    ):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button):last-child {
     margin-right: 0px;
 }
 
-.mx_Dialog button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):focus,
+.mx_Dialog
+    button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):not(
+        .mx_UserProfileSettings button
+    ):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button):focus,
 .mx_Dialog input[type="submit"]:focus,
 .mx_Dialog_buttons button:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton):focus,
 .mx_Dialog_buttons input[type="submit"]:focus {
@@ -627,7 +640,10 @@ legend {
 
 .mx_Dialog button.mx_Dialog_primary:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]),
 .mx_Dialog input[type="submit"].mx_Dialog_primary,
-.mx_Dialog_buttons button.mx_Dialog_primary:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton),
+.mx_Dialog_buttons
+    button.mx_Dialog_primary:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton):not(
+        .mx_UserProfileSettings button
+    ):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button),
 .mx_Dialog_buttons input[type="submit"].mx_Dialog_primary {
     color: var(--cpd-color-text-on-solid-primary);
     background-color: var(--cpd-color-bg-action-primary-rest);
@@ -637,7 +653,10 @@ legend {
 
 .mx_Dialog button.danger:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]),
 .mx_Dialog input[type="submit"].danger,
-.mx_Dialog_buttons button.danger:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton),
+.mx_Dialog_buttons
+    button.danger:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton):not(.mx_UserProfileSettings button):not(
+        .mx_ThemeChoicePanel_CustomTheme button
+    ):not(.mx_UnpinAllDialog button),
 .mx_Dialog_buttons input[type="submit"].danger {
     background-color: var(--cpd-color-bg-critical-primary);
     border: solid 1px var(--cpd-color-bg-critical-primary);
@@ -650,7 +669,10 @@ legend {
     color: var(--cpd-color-text-critical-primary);
 }
 
-.mx_Dialog button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):disabled,
+.mx_Dialog
+    button:not(.mx_Dialog_nonDialogButton):not([class|="maplibregl"]):not(.mx_AccessibleButton):not(
+        .mx_UserProfileSettings button
+    ):not(.mx_ThemeChoicePanel_CustomTheme button):not(.mx_UnpinAllDialog button):disabled,
 .mx_Dialog input[type="submit"]:disabled,
 .mx_Dialog_buttons button:not(.mx_Dialog_nonDialogButton):not(.mx_AccessibleButton):disabled,
 .mx_Dialog_buttons input[type="submit"]:disabled {
@@ -827,7 +849,7 @@ legend {
 @define-mixin ThreadSummaryIcon {
     content: "";
     display: inline-block;
-    mask-image: url("$(res)/img/element-icons/thread-summary.svg");
+    mask-image: url("@vector-im/compound-design-tokens/icons/threads.svg");
     mask-position: center;
     mask-repeat: no-repeat;
     mask-size: contain;

@@ -16,6 +16,7 @@ limitations under the License.
 
 import { mocked } from "jest-mock";
 import { SyncState } from "matrix-js-sdk/src/matrix";
+import { sleep } from "matrix-js-sdk/src/utils";
 
 import { MatrixClientPeg } from "../../src/MatrixClientPeg";
 import ToastStore from "../../src/stores/ToastStore";
@@ -40,7 +41,7 @@ describe("LifecycleStore", () => {
             prevState: SyncState.Prepared,
         });
 
-        await new Promise(setImmediate);
+        await sleep(0);
 
         expect(addOrReplaceToast).not.toHaveBeenCalledWith(
             expect.objectContaining({
@@ -58,7 +59,7 @@ describe("LifecycleStore", () => {
             prevState: SyncState.Prepared,
         });
 
-        await new Promise(setImmediate);
+        await sleep(0);
 
         expect(addOrReplaceToast).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -77,9 +78,9 @@ describe("LifecycleStore", () => {
             prevState: SyncState.Prepared,
         });
 
-        await new Promise(setImmediate);
+        await sleep(0);
 
-        addOrReplaceToast.mock.calls[0][0].props.onAccept();
+        addOrReplaceToast.mock.calls[0][0].props.onPrimaryClick();
 
         expect(dismissToast).toHaveBeenCalledWith(addOrReplaceToast.mock.calls[0][0].key);
     });

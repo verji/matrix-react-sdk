@@ -75,6 +75,10 @@ export interface IConfigOptions {
         available: boolean;
         logo: string; // url
         url: string; // download url
+        url_macos?: string;
+        url_win64?: string;
+        url_win32?: string;
+        url_linux?: string;
     };
     mobile_builds: {
         ios: string | null; // download url
@@ -94,6 +98,7 @@ export interface IConfigOptions {
     integrations_ui_url?: string;
     integrations_rest_url?: string;
     integrations_widgets_urls?: string[];
+    default_widget_container_height?: number; // height in pixels
 
     show_labs_settings: boolean;
     features?: Record<string, boolean>; // <FeatureName, EnabledBool>
@@ -219,4 +224,5 @@ export interface IConfigOptions {
 export interface ISsoRedirectOptions {
     immediate?: boolean;
     on_welcome_page?: boolean;
+    on_login_page?: boolean;
 }

@@ -17,8 +17,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { encodeUnpaddedBase64 } from "matrix-js-sdk/src/matrix";
+// Note: we don't import the base64 utils from `matrix-js-sdk/src/matrix` because this file
+// is used by Element Web's service worker, and importing `matrix` brings in ~1mb of stuff
+// we don't need. Instead, we ignore the import restriction and only bring in what we actually
+// need.
+// Note: `base64` is not public in the js-sdk, so if it changes/breaks, that's on us. We should
+// be okay with our frequent tests, locked versioning, etc though. We'll pick up problems well
+// before release.
+// eslint-disable-next-line no-restricted-imports
+import { encodeUnpaddedBase64 } from "matrix-js-sdk/src/base64";
 import { logger } from "matrix-js-sdk/src/logger";
+
+/**
+ * Encrypted format of a pickle key, as stored in IndexedDB.
+ */
+export interface EncryptedPickleKey {
+    /** The encrypted payload. */
+    encrypted?: BufferSource;
+
+    /** Initialisation vector for the encryption. */
+    iv?: BufferSource;
+
+    /** The encryption key which was used to encrypt the payload. */
+    cryptoKey?: CryptoKey;
+}
 
 /**
  * Calculates the `additionalData` for the AES-GCM key used by the pickling processes. This
@@ -47,6 +69,32 @@ export function getPickleAdditionalData(userId: string, deviceId: string): Uint8
 }
 
 /**
+ * Encrypt the given pickle key, ready for storage in the database.
+ *
+ * @param pickleKey - The key to be encrypted.
+ * @param userId - The user ID the pickle key belongs to.
+ * @param deviceId - The device ID the pickle key belongs to.
+ *
+ * @returns Data object ready for storing in indexeddb.
+ */
+export async function encryptPickleKey(
+    pickleKey: Uint8Array,
+    userId: string,
+    deviceId: string,
+): Promise<EncryptedPickleKey | undefined> {
+    if (!crypto?.subtle) {
+        return undefined;
+    }
+    const cryptoKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const iv = new Uint8Array(32);
+    crypto.getRandomValues(iv);
+
+    const additionalData = getPickleAdditionalData(userId, deviceId);
+    const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData }, cryptoKey, pickleKey);
+    return { encrypted, iv, cryptoKey };
+}
+
+/**
  * Decrypts the provided data into a pickle key and base64-encodes it ready for use elsewhere.
  *
  * If `data` is undefined in part or in full, returns undefined.
@@ -59,7 +107,7 @@ export function getPickleAdditionalData(userId: string, deviceId: string): Uint8
  * @returns A promise that resolves to the encoded pickle key, or undefined if the key cannot be built and encoded.
  */
 export async function buildAndEncodePickleKey(
-    data: { encrypted?: BufferSource; iv?: BufferSource; cryptoKey?: CryptoKey } | undefined,
+    data: EncryptedPickleKey | undefined,
     userId: string,
     deviceId: string,
 ): Promise<string | undefined> {

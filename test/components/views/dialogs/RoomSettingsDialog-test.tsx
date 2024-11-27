@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
     EventTimeline,
     EventType,
@@ -35,6 +35,7 @@ import RoomSettingsDialog from "../../../../src/components/views/dialogs/RoomSet
 import MatrixClientContext from "../../../../src/contexts/MatrixClientContext";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { UIFeature } from "../../../../src/settings/UIFeature";
+import DMRoomMap from "../../../../src/utils/DMRoomMap";
 import { ModuleRunner } from "../../../../src/modules/ModuleRunner";
 
 describe("<RoomSettingsDialog />", () => {
@@ -67,6 +68,11 @@ describe("<RoomSettingsDialog />", () => {
         });
 
         jest.spyOn(SettingsStore, "getValue").mockReset().mockReturnValue(false);
+
+        const dmRoomMap = {
+            getUserIdForRoomId: jest.fn(),
+        } as unknown as DMRoomMap;
+        jest.spyOn(DMRoomMap, "shared").mockReturnValue(dmRoomMap);
     });
 
     const getComponent = (onFinished = jest.fn(), propRoomId = roomId) =>
@@ -145,7 +151,7 @@ describe("<RoomSettingsDialog />", () => {
                 expect(screen.getByTestId("settings-tab-ROOM_PEOPLE_TAB")).toBeInTheDocument();
             });
 
-            it("re-renders on room join rule changes", () => {
+            it("re-renders on room join rule changes", async () => {
                 jest.spyOn(SettingsStore, "getValue").mockImplementation(
                     (setting) => setting === "feature_ask_to_join",
                 );
@@ -158,7 +164,9 @@ describe("<RoomSettingsDialog />", () => {
                     room.getLiveTimeline().getState(EventTimeline.FORWARDS)!,
                     null,
                 );
-                expect(screen.queryByTestId("settings-tab-ROOM_PEOPLE_TAB")).not.toBeInTheDocument();
+                await waitFor(() =>
+                    expect(screen.queryByTestId("settings-tab-ROOM_PEOPLE_TAB")).not.toBeInTheDocument(),
+                );
             });
         });
 
@@ -199,7 +207,7 @@ describe("<RoomSettingsDialog />", () => {
         it("displays poll history when tab clicked", () => {
             const { container } = getComponent();
 
-            fireEvent.click(screen.getByText("Poll history"));
+            fireEvent.click(screen.getByText("Polls"));
 
             expect(container.querySelector(".mx_SettingsTab")).toMatchSnapshot();
         });

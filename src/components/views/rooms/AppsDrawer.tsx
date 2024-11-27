@@ -39,6 +39,7 @@ import { clamp, percentageOf, percentageWithin } from "../../../utils/numbers";
 import UIStore from "../../../stores/UIStore";
 import { ActionPayload } from "../../../dispatcher/payloads";
 import Spinner from "../elements/Spinner";
+import SdkConfig from "../../../SdkConfig";
 import { ModuleRunner } from "../../../modules/ModuleRunner";
 
 interface IProps {
@@ -351,7 +352,7 @@ const PersistentVResizer: React.FC<IPersistentResizerProps> = ({
         defaultHeight = clamp(defaultHeight, 0, 100);
         defaultHeight = percentageWithin(defaultHeight / 100, minHeight, maxHeight);
     } else {
-        defaultHeight = 380; //Verji changed from 280
+        defaultHeight = SdkConfig.get().default_widget_container_height ?? 380 //VERJI 280 original value, 380 set by us VERJI
     }
 
     return (

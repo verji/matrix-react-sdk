@@ -52,6 +52,7 @@ describe("DecryptionFailureTracker", function () {
         const tracker = new DecryptionFailureTracker(
             () => count++,
             () => "UnknownError",
+            false,
         );
 
         tracker.addVisibleEvent(failedDecryptionEvent);
@@ -78,6 +79,7 @@ describe("DecryptionFailureTracker", function () {
                 reportedRawCode = rawCode;
             },
             () => "UnknownError",
+            false,
         );
 
         tracker.addVisibleEvent(failedDecryptionEvent);
@@ -101,6 +103,7 @@ describe("DecryptionFailureTracker", function () {
         const tracker = new DecryptionFailureTracker(
             () => count++,
             () => "UnknownError",
+            false,
         );
 
         eventDecrypted(tracker, failedDecryptionEvent, Date.now());
@@ -121,6 +124,7 @@ describe("DecryptionFailureTracker", function () {
                 propertiesByErrorCode[errorCode] = properties;
             },
             (error: string) => error,
+            false,
         );
 
         // use three different errors so that we can distinguish the reports
@@ -161,6 +165,7 @@ describe("DecryptionFailureTracker", function () {
                 expect(true).toBe(false);
             },
             () => "UnknownError",
+            false,
         );
 
         tracker.addVisibleEvent(decryptedEvent);
@@ -189,6 +194,7 @@ describe("DecryptionFailureTracker", function () {
                     expect(true).toBe(false);
                 },
                 () => "UnknownError",
+                false,
             );
 
             eventDecrypted(tracker, decryptedEvent, Date.now());
@@ -216,6 +222,7 @@ describe("DecryptionFailureTracker", function () {
         const tracker = new DecryptionFailureTracker(
             () => count++,
             () => "UnknownError",
+            false,
         );
 
         tracker.addVisibleEvent(decryptedEvent);
@@ -379,6 +386,7 @@ describe("DecryptionFailureTracker", function () {
             (errorCode: string) => (counts[errorCode] = (counts[errorCode] || 0) + 1),
             (error: DecryptionFailureCode) =>
                 error === DecryptionFailureCode.UNKNOWN_ERROR ? "UnknownError" : "OlmKeysNotSentError",
+            false,
         );
 
         const decryptedEvent1 = await createFailedDecryptionEvent({
@@ -416,6 +424,7 @@ describe("DecryptionFailureTracker", function () {
         const tracker = new DecryptionFailureTracker(
             (errorCode: string) => (counts[errorCode] = (counts[errorCode] || 0) + 1),
             (_errorCode: string) => "OlmUnspecifiedError",
+            false,
         );
 
         const decryptedEvent1 = await createFailedDecryptionEvent({
@@ -450,6 +459,7 @@ describe("DecryptionFailureTracker", function () {
         const tracker = new DecryptionFailureTracker(
             (errorCode: string) => (counts[errorCode] = (counts[errorCode] || 0) + 1),
             (errorCode: string) => Array.from(errorCode).reverse().join(""),
+            false,
         );
 
         const decryptedEvent = await createFailedDecryptionEvent({
@@ -475,51 +485,27 @@ describe("DecryptionFailureTracker", function () {
             },
             // @ts-ignore access to private member
             DecryptionFailureTracker.instance.errorCodeMapFn,
+            false,
         );
 
         const now = Date.now();
 
-        const event1 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID,
-        });
-        tracker.addVisibleEvent(event1);
-        eventDecrypted(tracker, event1, now);
+        async function createAndTrackEventWithError(code: DecryptionFailureCode) {
+            const event = await createFailedDecryptionEvent({ code });
+            tracker.addVisibleEvent(event);
+            eventDecrypted(tracker, event, now);
+            return event;
+        }
 
-        const event2 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.OLM_UNKNOWN_MESSAGE_INDEX,
-        });
-        tracker.addVisibleEvent(event2);
-        eventDecrypted(tracker, event2, now);
-
-        const event3 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.HISTORICAL_MESSAGE_NO_KEY_BACKUP,
-        });
-        tracker.addVisibleEvent(event3);
-        eventDecrypted(tracker, event3, now);
-
-        const event4 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.HISTORICAL_MESSAGE_BACKUP_UNCONFIGURED,
-        });
-        tracker.addVisibleEvent(event4);
-        eventDecrypted(tracker, event4, now);
-
-        const event5 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.HISTORICAL_MESSAGE_WORKING_BACKUP,
-        });
-        tracker.addVisibleEvent(event5);
-        eventDecrypted(tracker, event5, now);
-
-        const event6 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.HISTORICAL_MESSAGE_USER_NOT_JOINED,
-        });
-        tracker.addVisibleEvent(event6);
-        eventDecrypted(tracker, event6, now);
-
-        const event7 = await createFailedDecryptionEvent({
-            code: DecryptionFailureCode.UNKNOWN_ERROR,
-        });
-        tracker.addVisibleEvent(event7);
-        eventDecrypted(tracker, event7, now);
+        await createAndTrackEventWithError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID);
+        await createAndTrackEventWithError(DecryptionFailureCode.OLM_UNKNOWN_MESSAGE_INDEX);
+        await createAndTrackEventWithError(DecryptionFailureCode.HISTORICAL_MESSAGE_NO_KEY_BACKUP);
+        await createAndTrackEventWithError(DecryptionFailureCode.HISTORICAL_MESSAGE_BACKUP_UNCONFIGURED);
+        await createAndTrackEventWithError(DecryptionFailureCode.HISTORICAL_MESSAGE_WORKING_BACKUP);
+        await createAndTrackEventWithError(DecryptionFailureCode.HISTORICAL_MESSAGE_USER_NOT_JOINED);
+        await createAndTrackEventWithError(DecryptionFailureCode.MEGOLM_KEY_WITHHELD);
+        await createAndTrackEventWithError(DecryptionFailureCode.MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE);
+        await createAndTrackEventWithError(DecryptionFailureCode.UNKNOWN_ERROR);
 
         // Pretend "now" is Infinity
         tracker.checkFailures(Infinity);
@@ -531,6 +517,8 @@ describe("DecryptionFailureTracker", function () {
             "HistoricalMessage",
             "HistoricalMessage",
             "ExpectedDueToMembership",
+            "OlmKeysNotSentError",
+            "RoomKeysWithheldForUnverifiedDevice",
             "UnknownError",
         ]);
     });
@@ -543,6 +531,7 @@ describe("DecryptionFailureTracker", function () {
                 propertiesByErrorCode[errorCode] = properties;
             },
             (error: string) => error,
+            false,
         );
 
         // use three different errors so that we can distinguish the reports
@@ -597,6 +586,7 @@ describe("DecryptionFailureTracker", function () {
                 errorCount++;
             },
             (error: string) => error,
+            false,
         );
 
         // Calling .start will start some intervals.  This test shouldn't run
@@ -638,6 +628,7 @@ describe("DecryptionFailureTracker", function () {
                 propertiesByErrorCode[errorCode] = properties;
             },
             (error: string) => error,
+            false,
         );
 
         // @ts-ignore access to private method
@@ -710,6 +701,7 @@ describe("DecryptionFailureTracker", function () {
                 failure = properties;
             },
             () => "UnknownError",
+            false,
         );
 
         tracker.addVisibleEvent(failedDecryptionEvent);

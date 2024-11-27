@@ -22,7 +22,7 @@ const config: Config = {
     testEnvironment: "jsdom",
     testMatch: ["<rootDir>/test/**/*-test.[jt]s?(x)", "<rootDir>/test/**/**/*-test.[jt]s?(x)"],
     globalSetup: "<rootDir>/test/globalSetup.ts",
-    setupFiles: ["jest-canvas-mock"],
+    setupFiles: ["jest-canvas-mock", "web-streams-polyfill/polyfill"],
     setupFilesAfterEnv: ["<rootDir>/test/setupTests.ts"],
     moduleFileExtensions: ["js", "jsx", "json", "ts", "tsx"],
     moduleNameMapper: {
@@ -54,7 +54,7 @@ if (env["GITHUB_ACTIONS"] !== undefined) {
 
     // if we're running against the develop branch, also enable the slow test reporter
     if (env["GITHUB_REF"] == "refs/heads/develop") {
-        reporters.push("<rootDir>/test/slowReporter.js");
+        reporters.push("<rootDir>/test/slowReporter.cjs");
     }
     config.reporters = reporters;
 }

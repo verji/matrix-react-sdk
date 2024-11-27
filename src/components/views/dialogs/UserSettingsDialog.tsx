@@ -15,15 +15,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import { Toast } from "@vector-im/compound-web";
+import React, { useState } from "react";
 import {
     CustomComponentOpts,
     CustomComponentLifecycle,
 } from "@matrix-org/react-sdk-module-api/lib/lifecycles/CustomComponentLifecycle";
+import UserProfileIcon from "@vector-im/compound-design-tokens/assets/web/icons/user-profile";
+import DevicesIcon from "@vector-im/compound-design-tokens/assets/web/icons/devices";
+import VisibilityOnIcon from "@vector-im/compound-design-tokens/assets/web/icons/visibility-on";
+import NotificationsIcon from "@vector-im/compound-design-tokens/assets/web/icons/notifications";
+import PreferencesIcon from "@vector-im/compound-design-tokens/assets/web/icons/preferences";
+import KeyboardIcon from "@vector-im/compound-design-tokens/assets/web/icons/keyboard";
+import SidebarIcon from "@vector-im/compound-design-tokens/assets/web/icons/sidebar";
+import MicOnIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-on";
+import LockIcon from "@vector-im/compound-design-tokens/assets/web/icons/lock";
+import LabsIcon from "@vector-im/compound-design-tokens/assets/web/icons/labs";
+import BlockIcon from "@vector-im/compound-design-tokens/assets/web/icons/block";
+import HelpIcon from "@vector-im/compound-design-tokens/assets/web/icons/help";
 
 import TabbedView, { Tab, useActiveTabWithDefault } from "../../structures/TabbedView";
 import { _t, _td } from "../../../languageHandler";
-import GeneralUserSettingsTab from "../settings/tabs/user/GeneralUserSettingsTab";
+import AccountUserSettingsTab from "../settings/tabs/user/AccountUserSettingsTab";
 import SettingsStore from "../../../settings/SettingsStore";
 import LabsUserSettingsTab, { showLabsFlags } from "../settings/tabs/user/LabsUserSettingsTab";
 import AppearanceUserSettingsTab from "../settings/tabs/user/AppearanceUserSettingsTab";
@@ -42,20 +55,22 @@ import { UserTab } from "./UserTab";
 import { NonEmptyArray } from "../../../@types/common";
 import { SDKContext, SdkContextClass } from "../../../contexts/SDKContext";
 import { useSettingValue } from "../../../hooks/useSettings";
+import { ToastContext, useActiveToast } from "../../../contexts/ToastContext";
 import { ModuleRunner } from "../../../modules/ModuleRunner";
 interface IProps {
     initialTabId?: UserTab;
+    showMsc4108QrCode?: boolean;
     sdkContext: SdkContextClass;
     onFinished(): void;
 }
 
 function titleForTabID(tabId: UserTab): React.ReactNode {
     const subs = {
-        strong: (sub: string) => <strong>{sub}</strong>,
+        strong: (sub: string) => <span className="mx_UserSettingsDialog_title_strong">{sub}</span>,
     };
     switch (tabId) {
-        case UserTab.General:
-            return _t("settings|general|dialog_title", undefined, subs);
+        case UserTab.Account:
+            return _t("settings|account|dialog_title", undefined, subs);
         case UserTab.SessionManager:
             return _t("settings|sessions|dialog_title", undefined, subs);
         case UserTab.Appearance:
@@ -84,6 +99,8 @@ function titleForTabID(tabId: UserTab): React.ReactNode {
 export default function UserSettingsDialog(props: IProps): JSX.Element {
     const voipEnabled = useSettingValue<boolean>(UIFeature.Voip);
     const mjolnirEnabled = useSettingValue<boolean>("feature_mjolnir");
+    // store this prop in state as changing tabs back and forth should clear it
+    const [showMsc4108QrCode, setShowMsc4108QrCode] = useState(props.showMsc4108QrCode);
 
     const getTabs = (): NonEmptyArray<Tab<UserTab>> => {
         const tabs: Tab<UserTab>[] = [];
@@ -94,10 +111,10 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
         );
         tabs.push(
             new Tab(
-                UserTab.General,
-                _td("common|general"),
-                "mx_UserSettingsDialog_settingsIcon",
-                <GeneralUserSettingsTab closeSettingsFn={props.onFinished} />,
+                UserTab.Account,
+                _td("settings|account|title"),
+                <UserProfileIcon />,
+                <AccountUserSettingsTab closeSettingsFn={props.onFinished} />,
                 "UserSettingsGeneral",
             ),
         );
@@ -105,10 +122,10 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.SessionManager,
                 _td("settings|sessions|title"),
-                "mx_UserSettingsDialog_sessionsIcon",
+                <DevicesIcon />,
                 (
                     <customSessionManagerTabOpts.CustomComponent>
-                        <SessionManagerTab />
+                        <SessionManagerTab showMsc4108QrCode={showMsc4108QrCode} />
                     </customSessionManagerTabOpts.CustomComponent>
                 ),
                 undefined,
@@ -118,7 +135,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Appearance,
                 _td("common|appearance"),
-                "mx_UserSettingsDialog_appearanceIcon",
+                <VisibilityOnIcon />,
                 <AppearanceUserSettingsTab />,
                 "UserSettingsAppearance",
             ),
@@ -127,7 +144,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Notifications,
                 _td("notifications|enable_prompt_toast_title"),
-                "mx_UserSettingsDialog_bellIcon",
+                <NotificationsIcon />,
                 <NotificationUserSettingsTab />,
                 "UserSettingsNotifications",
             ),
@@ -136,7 +153,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Preferences,
                 _td("common|preferences"),
-                "mx_UserSettingsDialog_preferencesIcon",
+                <PreferencesIcon />,
                 <PreferencesUserSettingsTab closeSettingsFn={props.onFinished} />,
                 "UserSettingsPreferences",
             ),
@@ -145,7 +162,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Keyboard,
                 _td("settings|keyboard|title"),
-                "mx_UserSettingsDialog_keyboardIcon",
+                <KeyboardIcon />,
                 <KeyboardUserSettingsTab />,
                 "UserSettingsKeyboard",
             ),
@@ -154,7 +171,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Sidebar,
                 _td("settings|sidebar|title"),
-                "mx_UserSettingsDialog_sidebarIcon",
+                <SidebarIcon />,
                 <SidebarUserSettingsTab />,
                 "UserSettingsSidebar",
             ),
@@ -165,7 +182,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
                 new Tab(
                     UserTab.Voice,
                     _td("settings|voip|title"),
-                    "mx_UserSettingsDialog_voiceIcon",
+                    <MicOnIcon />,
                     <VoiceUserSettingsTab />,
                     "UserSettingsVoiceVideo",
                 ),
@@ -176,7 +193,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Security,
                 _td("room_settings|security|title"),
-                "mx_UserSettingsDialog_securityIcon",
+                <LockIcon />,
                 <SecurityUserSettingsTab closeSettingsFn={props.onFinished} />,
                 "UserSettingsSecurityPrivacy",
             ),
@@ -184,13 +201,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
 
         if (showLabsFlags() || SettingsStore.getFeatureSettingNames().some((k) => SettingsStore.getBetaInfo(k))) {
             tabs.push(
-                new Tab(
-                    UserTab.Labs,
-                    _td("common|labs"),
-                    "mx_UserSettingsDialog_labsIcon",
-                    <LabsUserSettingsTab />,
-                    "UserSettingsLabs",
-                ),
+                new Tab(UserTab.Labs, _td("common|labs"), <LabsIcon />, <LabsUserSettingsTab />, "UserSettingsLabs"),
             );
         }
         if (mjolnirEnabled) {
@@ -198,7 +209,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
                 new Tab(
                     UserTab.Mjolnir,
                     _td("labs_mjolnir|title"),
-                    "mx_UserSettingsDialog_mjolnirIcon",
+                    <BlockIcon />,
                     <MjolnirUserSettingsTab />,
                     "UserSettingMjolnir",
                 ),
@@ -208,7 +219,7 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
             new Tab(
                 UserTab.Help,
                 _td("setting|help_about|title"),
-                "mx_UserSettingsDialog_helpIcon",
+                <HelpIcon />,
                 <HelpUserSettingsTab />,
                 "UserSettingsHelpAbout",
             ),
@@ -217,29 +228,42 @@ export default function UserSettingsDialog(props: IProps): JSX.Element {
         return tabs as NonEmptyArray<Tab<UserTab>>;
     };
 
-    const [activeTabId, setActiveTabId] = useActiveTabWithDefault(getTabs(), UserTab.General, props.initialTabId);
+    const [activeTabId, _setActiveTabId] = useActiveTabWithDefault(getTabs(), UserTab.Account, props.initialTabId);
+    const setActiveTabId = (tabId: UserTab): void => {
+        _setActiveTabId(tabId);
+        // Clear this so switching away from the tab and back to it will not show the QR code again
+        setShowMsc4108QrCode(false);
+    };
+
+    const [activeToast, toastRack] = useActiveToast();
 
     return (
         // XXX: SDKContext is provided within the LoggedInView subtree.
         // Modals function outside the MatrixChat React tree, so sdkContext is reprovided here to simulate that.
         // The longer term solution is to move our ModalManager into the React tree to inherit contexts properly.
         <SDKContext.Provider value={props.sdkContext}>
-            <BaseDialog
-                className="mx_UserSettingsDialog"
-                hasCancel={true}
-                onFinished={props.onFinished}
-                title={titleForTabID(activeTabId)}
-            >
-                <div className="mx_SettingsDialog_content">
-                    <TabbedView
-                        tabs={getTabs()}
-                        activeTabId={activeTabId}
-                        screenName="UserSettings"
-                        onChange={setActiveTabId}
-                        responsive={true}
-                    />
-                </div>
-            </BaseDialog>
+            <ToastContext.Provider value={toastRack}>
+                <BaseDialog
+                    className="mx_UserSettingsDialog"
+                    hasCancel={true}
+                    onFinished={props.onFinished}
+                    title={titleForTabID(activeTabId)}
+                    titleClass="mx_UserSettingsDialog_title"
+                >
+                    <div className="mx_SettingsDialog_content">
+                        <TabbedView
+                            tabs={getTabs()}
+                            activeTabId={activeTabId}
+                            screenName="UserSettings"
+                            onChange={setActiveTabId}
+                            responsive={true}
+                        />
+                    </div>
+                    <div className="mx_SettingsDialog_toastContainer">
+                        {activeToast && <Toast>{activeToast}</Toast>}
+                    </div>
+                </BaseDialog>
+            </ToastContext.Provider>
         </SDKContext.Provider>
     );
 }
