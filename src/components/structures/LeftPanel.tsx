@@ -50,6 +50,7 @@ import PageType from "../../PageTypes";
 import { UserOnboardingButton } from "../views/user-onboarding/UserOnboardingButton";
 import SettingsStore from "../../settings/SettingsStore";
 import { ModuleRunner } from "../../modules/ModuleRunner";
+import { Landmark, LandmarkNavigation } from "../../accessibility/LandmarkNavigation";
 
 interface IProps {
     isMinimized: boolean;
@@ -313,6 +314,16 @@ export default class LeftPanel extends React.Component<IProps, IState> {
                     this.roomListRef.current?.focus();
                 }
                 break;
+        }
+
+        const navAction = getKeyBindingsManager().getNavigationAction(ev);
+        if (navAction === KeyBindingAction.PreviousLandmark || navAction === KeyBindingAction.NextLandmark) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            LandmarkNavigation.findAndFocusNextLandmark(
+                Landmark.ROOM_SEARCH,
+                navAction === KeyBindingAction.PreviousLandmark,
+            );
         }
     };
 

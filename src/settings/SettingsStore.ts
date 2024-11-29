@@ -17,6 +17,7 @@ limitations under the License.
 
 import { logger } from "matrix-js-sdk/src/logger";
 import { ReactNode } from "react";
+import { ClientEvent, SyncState } from "matrix-js-sdk/src/matrix";
 
 import DeviceSettingsHandler from "./handlers/DeviceSettingsHandler";
 import RoomDeviceSettingsHandler from "./handlers/RoomDeviceSettingsHandler";
@@ -35,6 +36,8 @@ import SettingsHandler from "./handlers/SettingsHandler";
 import { SettingUpdatedPayload } from "../dispatcher/payloads/SettingUpdatedPayload";
 import { Action } from "../dispatcher/actions";
 import PlatformSettingsHandler from "./handlers/PlatformSettingsHandler";
+import ReloadOnChangeController from "./controllers/ReloadOnChangeController";
+import { MatrixClientPeg } from "../MatrixClientPeg";
 
 // Convert the settings to easier to manage objects for the handlers
 const defaultSettings: Record<string, any> = {};
@@ -132,6 +135,12 @@ export default class SettingsStore {
 
     // Counter used for generation of watcher IDs
     private static watcherCount = 1;
+
+    public static reset(): void {
+        for (const handler of Object.values(LEVEL_HANDLERS)) {
+            handler.reset();
+        }
+    }
 
     /**
      * Gets all the feature-style setting names.
@@ -263,13 +272,19 @@ export default class SettingsStore {
     public static getDisplayName(settingName: string, atLevel = SettingLevel.DEFAULT): string | null {
         if (!SETTINGS[settingName] || !SETTINGS[settingName].displayName) return null;
 
-        let displayName = SETTINGS[settingName].displayName;
-        if (displayName instanceof Object) {
-            if (displayName[atLevel]) displayName = displayName[atLevel];
-            else displayName = displayName["default"];
+        const displayName = SETTINGS[settingName].displayName;
+
+        if (typeof displayName === "string") {
+            return _t(displayName);
+        }
+        if (displayName?.[atLevel]) {
+            return _t(displayName[atLevel]);
+        }
+        if (displayName?.["default"]) {
+            return _t(displayName["default"]);
         }
 
-        return displayName ? _t(displayName) : null;
+        return null;
     }
 
     /**
@@ -310,7 +325,12 @@ export default class SettingsStore {
             SettingsStore.isFeature(settingName) &&
             SettingsStore.getValueAt(SettingLevel.CONFIG, settingName, null, true, true) !== false
         ) {
-            return SETTINGS[settingName]?.betaInfo;
+            const betaInfo = SETTINGS[settingName]!.betaInfo;
+            if (betaInfo) {
+                betaInfo.requiresRefresh =
+                    betaInfo.requiresRefresh ?? SETTINGS[settingName]!.controller instanceof ReloadOnChangeController;
+            }
+            return betaInfo;
         }
     }
 
@@ -349,7 +369,7 @@ export default class SettingsStore {
         const setting = SETTINGS[settingName];
         const levelOrder = getLevelOrder(setting);
 
-        return SettingsStore.getValueAt(levelOrder[0], settingName, roomId, false, excludeDefault);
+        return SettingsStore.getValueAt<T>(levelOrder[0], settingName, roomId, false, excludeDefault);
     }
 
     /**
@@ -363,13 +383,13 @@ export default class SettingsStore {
      * @param {boolean} excludeDefault True to disable using the default value.
      * @return {*} The value, or null if not found.
      */
-    public static getValueAt(
+    public static getValueAt<T = any>(
         level: SettingLevel,
         settingName: string,
         roomId: string | null = null,
         explicit = false,
         excludeDefault = false,
-    ): any {
+    ): T {
         // Verify that the setting is actually a setting
         const setting = SETTINGS[settingName];
         if (!setting) {
@@ -505,8 +525,8 @@ export default class SettingsStore {
      * set for a particular room, otherwise it should be supplied.
      *
      * This takes into account both the value of {@link SettingController#settingDisabled} of the
-     * `SettingController`, if any; and, for settings where {@link IBaseSetting#configDisablesSetting} is true,
-     * whether the setting has been given a value in `config.json`.
+     * `SettingController`, if any; and, for settings where {@link IBaseSetting#supportedLevelsAreOrdered} is true,
+     * checks whether a level of higher precedence is set.
      *
      * Typically, if the user cannot set the setting, it should be hidden, to declutter the UI;
      * however some settings (typically, the labs flags) are exposed but greyed out, to unveil
@@ -514,30 +534,55 @@ export default class SettingsStore {
      *
      * @param {string} settingName The name of the setting to check.
      * @param {String} roomId The room ID to check in, may be null.
-     * @param {SettingLevel} level The level to
-     * check at.
+     * @param {SettingLevel} level The level to check at.
      * @return {boolean} True if the user may set the setting, false otherwise.
      */
     public static canSetValue(settingName: string, roomId: string | null, level: SettingLevel): boolean {
+        const setting = SETTINGS[settingName];
         // Verify that the setting is actually a setting
-        if (!SETTINGS[settingName]) {
+        if (!setting) {
             throw new Error("Setting '" + settingName + "' does not appear to be a setting.");
         }
 
-        if (SETTINGS[settingName].controller?.settingDisabled) {
+        if (setting.controller?.settingDisabled) {
             return false;
         }
 
         // For some config settings (mostly: non-beta features), a value in config.json overrides the local setting
-        // (ie: we force them as enabled or disabled).
-        if (SETTINGS[settingName]?.configDisablesSetting) {
-            const configVal = SettingsStore.getValueAt(SettingLevel.CONFIG, settingName, roomId, true, true);
-            if (configVal === true || configVal === false) return false;
+        // (ie: we force them as enabled or disabled). In this case we should not let the user change the setting.
+        if (
+            setting?.supportedLevelsAreOrdered &&
+            SettingsStore.settingIsOveriddenAtConfigLevel(settingName, roomId, level)
+        ) {
+            return false;
         }
 
         const handler = SettingsStore.getHandler(settingName, level);
         if (!handler) return false;
         return handler.canSetValue(settingName, roomId);
+    }
+
+    /**
+     * Determines if the setting at the specified level is overidden by one at a config level.
+     * @param settingName The name of the setting to check.
+     * @param roomId The room ID to check in, may be null.
+     * @param level The level to check at.
+     * @returns
+     */
+    public static settingIsOveriddenAtConfigLevel(
+        settingName: string,
+        roomId: string | null,
+        level: SettingLevel,
+    ): boolean {
+        const setting = SETTINGS[settingName];
+        const levelOrders = getLevelOrder(setting);
+        const configIndex = levelOrders.indexOf(SettingLevel.CONFIG);
+        const levelIndex = levelOrders.indexOf(level);
+        if (configIndex === -1 || levelIndex === -1 || configIndex >= levelIndex) {
+            return false;
+        }
+        const configVal = SettingsStore.getValueAt(SettingLevel.CONFIG, settingName, roomId, true, true);
+        return configVal === true || configVal === false;
     }
 
     /**
@@ -595,9 +640,60 @@ export default class SettingsStore {
     }
 
     /**
+     * Migrate the setting for URL previews in e2e rooms from room account
+     * data to the room device level.
+     *
+     * @param isFreshLogin True if the user has just logged in, false if a previous session is being restored.
+     */
+    private static async migrateURLPreviewsE2EE(isFreshLogin: boolean): Promise<void> {
+        const MIGRATION_DONE_FLAG = "url_previews_e2ee_migration_done";
+        if (localStorage.getItem(MIGRATION_DONE_FLAG)) return;
+        if (isFreshLogin) return;
+
+        const client = MatrixClientPeg.safeGet();
+
+        const doMigration = async (): Promise<void> => {
+            logger.info("Performing one-time settings migration of URL previews in E2EE rooms");
+
+            const roomAccounthandler = LEVEL_HANDLERS[SettingLevel.ROOM_ACCOUNT];
+
+            for (const room of client.getRooms()) {
+                // We need to use the handler directly because this setting is no longer supported
+                // at this level at all
+                const val = roomAccounthandler.getValue("urlPreviewsEnabled_e2ee", room.roomId);
+
+                if (val !== undefined) {
+                    await SettingsStore.setValue("urlPreviewsEnabled_e2ee", room.roomId, SettingLevel.ROOM_DEVICE, val);
+                }
+            }
+
+            localStorage.setItem(MIGRATION_DONE_FLAG, "true");
+        };
+
+        const onSync = (state: SyncState): void => {
+            if (state === SyncState.Prepared) {
+                client.removeListener(ClientEvent.Sync, onSync);
+
+                doMigration().catch((e) => {
+                    logger.error("Failed to migrate URL previews in E2EE rooms:", e);
+                });
+            }
+        };
+
+        client.on(ClientEvent.Sync, onSync);
+    }
+
+    /**
      * Runs or queues any setting migrations needed.
      */
-    public static runMigrations(): void {
+    public static runMigrations(isFreshLogin: boolean): void {
+        // This can be removed once enough users have run a version of Element with
+        // this migration. A couple of months after its release should be sufficient
+        // (so around October 2024).
+        // The consequences of missing the migration are only that URL previews will
+        // be disabled in E2EE rooms.
+        SettingsStore.migrateURLPreviewsE2EE(isFreshLogin);
+
         // Dev notes: to add your migration, just add a new `migrateMyFeature` function, call it, and
         // add a comment to note when it can be removed.
         return;

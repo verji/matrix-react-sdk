@@ -389,6 +389,11 @@ export enum Action {
      */
     View3pidInvite = "view_3pid_invite",
 
+    /**
+     * Opens right panel room summary and focuses the search input
+     */
+    FocusMessageSearch = "focus_search",
+
     // Verji start
     /**
      * View Verji news

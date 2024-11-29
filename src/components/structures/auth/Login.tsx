@@ -485,6 +485,7 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
                 fragmentAfterLogin={this.props.fragmentAfterLogin}
                 primary={!this.state.flows?.find((flow) => flow.type === "m.login.password")}
                 action={SSOAction.LOGIN}
+                disabled={this.isBusy()}
             />
         );
     };
@@ -561,7 +562,8 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
                                 <ServerPicker
                                     serverConfig={this.props.serverConfig}
                                     onServerConfigChange={this.props.onServerConfigChange}
-                                />
+                                    disabled={this.isBusy()}
+                    />
                                 {this.renderLoginComponentForFlows()}
                                 {footer}
                             </AuthBody>

@@ -28,7 +28,6 @@ import HeaderButtons, { HeaderKind } from "./HeaderButtons";
 import { RightPanelPhases } from "../../../stores/right-panel/RightPanelStorePhases";
 import { ActionPayload } from "../../../dispatcher/payloads";
 import RightPanelStore from "../../../stores/right-panel/RightPanelStore";
-import { useReadPinnedEvents, usePinnedEvents } from "./PinnedMessagesCard";
 import { showThreadPanel } from "../../../dispatcher/dispatch-actions/threads";
 import SettingsStore from "../../../settings/SettingsStore";
 import {
@@ -40,6 +39,7 @@ import { SummarizedNotificationState } from "../../../stores/notifications/Summa
 import PosthogTrackers from "../../../PosthogTrackers";
 import { ButtonEvent } from "../elements/AccessibleButton";
 import { doesRoomOrThreadHaveUnreadMessages } from "../../../Unread";
+import { usePinnedEvents, useReadPinnedEvents } from "../../../hooks/usePinnedEvents";
 
 const ROOM_INFO_PHASES = [
     RightPanelPhases.RoomSummary,
@@ -214,27 +214,27 @@ export default class LegacyRoomHeaderButtons extends HeaderButtons<IProps> {
         const currentPhase = RightPanelStore.instance.currentCard.phase;
         if (currentPhase && ROOM_INFO_PHASES.includes(currentPhase)) {
             if (this.state.phase === currentPhase) {
-                RightPanelStore.instance.showOrHidePanel(currentPhase);
+                RightPanelStore.instance.showOrHidePhase(currentPhase);
             } else {
-                RightPanelStore.instance.showOrHidePanel(currentPhase, RightPanelStore.instance.currentCard.state);
+                RightPanelStore.instance.showOrHidePhase(currentPhase, RightPanelStore.instance.currentCard.state);
             }
         } else {
             // This toggles for us, if needed
-            RightPanelStore.instance.showOrHidePanel(RightPanelPhases.RoomSummary);
+            RightPanelStore.instance.showOrHidePhase(RightPanelPhases.RoomSummary);
         }
     };
 
     private onNotificationsClicked = (): void => {
         // This toggles for us, if needed
-        RightPanelStore.instance.showOrHidePanel(RightPanelPhases.NotificationPanel);
+        RightPanelStore.instance.showOrHidePhase(RightPanelPhases.NotificationPanel);
     };
 
     private onPinnedMessagesClicked = (): void => {
         // This toggles for us, if needed
-        RightPanelStore.instance.showOrHidePanel(RightPanelPhases.PinnedMessages);
+        RightPanelStore.instance.showOrHidePhase(RightPanelPhases.PinnedMessages);
     };
     private onTimelineCardClicked = (): void => {
-        RightPanelStore.instance.showOrHidePanel(RightPanelPhases.Timeline);
+        RightPanelStore.instance.showOrHidePhase(RightPanelPhases.Timeline);
     };
 
     private onThreadsPanelClicked = (ev: ButtonEvent): void => {

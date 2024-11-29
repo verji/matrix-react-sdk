@@ -35,7 +35,6 @@ import { RoomNotifState } from "../../../RoomNotifs";
 import Modal from "../../../Modal";
 import ExportDialog from "../dialogs/ExportDialog";
 import { useFeatureEnabled } from "../../../hooks/useSettings";
-import { usePinnedEvents } from "../right_panel/PinnedMessagesCard";
 import { RightPanelPhases } from "../../../stores/right-panel/RightPanelStorePhases";
 import { RoomSettingsTab } from "../dialogs/RoomSettingsDialog";
 import { useEventEmitterState } from "../../../hooks/useEventEmitter";
@@ -52,6 +51,8 @@ import { shouldShowComponent } from "../../../customisations/helpers/UIComponent
 import { UIComponent, UIFeature } from "../../../settings/UIFeature";
 import { DeveloperToolsOption } from "./DeveloperToolsOption";
 import { tagRoom } from "../../../utils/room/tagRoom";
+import { useIsVideoRoom } from "../../../utils/video-rooms";
+import { usePinnedEvents } from "../../../hooks/usePinnedEvents";
 
 interface IProps extends IContextMenuProps {
     room: Room;
@@ -113,10 +114,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
     }
 
     const isDm = DMRoomMap.shared().getUserIdForRoomId(room.roomId);
-    const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
-    const elementCallVideoRoomsEnabled = useFeatureEnabled("feature_element_call_video_rooms");
-    const isVideoRoom =
-        videoRoomsEnabled && (room.isElementVideoRoom() || (elementCallVideoRoomsEnabled && room.isCallRoom()));
+    const isVideoRoom = useIsVideoRoom(room);
     const canInvite = useEventEmitterState(cli, RoomMemberEvent.PowerLevel, () => room.canInvite(cli.getUserId()!));
     let inviteOption: JSX.Element | undefined;
     if (canInvite && !isDm && shouldShowComponent(UIComponent.InviteUsers)) {

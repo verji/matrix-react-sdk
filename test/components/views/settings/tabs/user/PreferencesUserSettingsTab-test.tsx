@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 import React from "react";
-import { fireEvent, render, RenderResult, waitFor, screen } from "@testing-library/react";
+import { fireEvent, render, RenderResult, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import PreferencesUserSettingsTab from "../../../../../../src/components/views/settings/tabs/user/PreferencesUserSettingsTab";
 import { MatrixClientPeg } from "../../../../../../src/MatrixClientPeg";
@@ -23,6 +24,7 @@ import { mockPlatformPeg, stubClient } from "../../../../../test-utils";
 import SettingsStore from "../../../../../../src/settings/SettingsStore";
 import { SettingLevel } from "../../../../../../src/settings/SettingLevel";
 import MatrixClientBackedController from "../../../../../../src/settings/controllers/MatrixClientBackedController";
+import PlatformPeg from "../../../../../../src/PlatformPeg";
 import { UIFeature } from "../../../../../../src/settings/UIFeature";
 
 describe("PreferencesUserSettingsTab", () => {
@@ -64,6 +66,69 @@ describe("PreferencesUserSettingsTab", () => {
     it("should render", () => {
         const { asFragment } = renderTab();
         expect(asFragment()).toMatchSnapshot();
+    });
+
+    it("should reload when changing language", async () => {
+        const reloadStub = jest.fn();
+        PlatformPeg.get()!.reload = reloadStub;
+
+        renderTab();
+        const languageDropdown = await screen.findByRole("button", { name: "Language Dropdown" });
+        expect(languageDropdown).toBeInTheDocument();
+
+        await userEvent.click(languageDropdown);
+
+        const germanOption = await screen.findByText("Deutsch");
+        await userEvent.click(germanOption);
+        expect(reloadStub).toHaveBeenCalled();
+    });
+
+    it("should search and select a user timezone", async () => {
+        renderTab();
+
+        expect(await screen.findByText(/Browser default/)).toBeInTheDocument();
+        const timezoneDropdown = await screen.findByRole("button", { name: "Set timezone" });
+        await userEvent.click(timezoneDropdown);
+
+        // Without filtering `expect(screen.queryByRole("option" ...` take over 1s.
+        await fireEvent.change(screen.getByRole("combobox", { name: "Set timezone" }), {
+            target: { value: "Africa/Abidjan" },
+        });
+
+        expect(screen.queryByRole("option", { name: "Africa/Abidjan" })).toBeInTheDocument();
+        expect(screen.queryByRole("option", { name: "Europe/Paris" })).not.toBeInTheDocument();
+
+        await fireEvent.change(screen.getByRole("combobox", { name: "Set timezone" }), {
+            target: { value: "Europe/Paris" },
+        });
+
+        expect(screen.queryByRole("option", { name: "Africa/Abidjan" })).not.toBeInTheDocument();
+        const option = await screen.getByRole("option", { name: "Europe/Paris" });
+        await userEvent.click(option);
+
+        expect(await screen.findByText("Europe/Paris")).toBeInTheDocument();
+    });
+
+    it("should not show spell check setting if unsupported", async () => {
+        PlatformPeg.get()!.supportsSpellCheckSettings = jest.fn().mockReturnValue(false);
+
+        renderTab();
+        expect(screen.queryByRole("switch", { name: "Allow spell check" })).not.toBeInTheDocument();
+    });
+
+    it("should enable spell check", async () => {
+        const spellCheckEnableFn = jest.fn();
+        PlatformPeg.get()!.supportsSpellCheckSettings = jest.fn().mockReturnValue(true);
+        PlatformPeg.get()!.getSpellCheckEnabled = jest.fn().mockReturnValue(false);
+        PlatformPeg.get()!.setSpellCheckEnabled = spellCheckEnableFn;
+
+        renderTab();
+        const toggle = await screen.findByRole("switch", { name: "Allow spell check" });
+        expect(toggle).toHaveAttribute("aria-checked", "false");
+
+        await userEvent.click(toggle);
+
+        expect(spellCheckEnableFn).toHaveBeenCalledWith(true);
     });
 
     describe("Feature flag tests for PreferencesUserSettingsTab", () => {
@@ -238,8 +303,13 @@ describe("PreferencesUserSettingsTab", () => {
         const mockGetValue = (val: boolean) => {
             const copyOfGetValueAt = SettingsStore.getValueAt;
 
-            SettingsStore.getValueAt = (level: SettingLevel, name: string, roomId?: string, isExplicit?: boolean) => {
-                if (name === "sendReadReceipts") return val;
+            SettingsStore.getValueAt = <T,>(
+                level: SettingLevel,
+                name: string,
+                roomId?: string,
+                isExplicit?: boolean,
+            ): T => {
+                if (name === "sendReadReceipts") return val as T;
                 return copyOfGetValueAt(level, name, roomId, isExplicit);
             };
         };

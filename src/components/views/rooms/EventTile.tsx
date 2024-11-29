@@ -35,8 +35,7 @@ import {
 import { logger } from "matrix-js-sdk/src/logger";
 import { CallErrorCode } from "matrix-js-sdk/src/webrtc/call";
 import { CryptoEvent } from "matrix-js-sdk/src/crypto";
-import { UserTrustLevel } from "matrix-js-sdk/src/crypto/CrossSigning";
-import { EventShieldColour, EventShieldReason } from "matrix-js-sdk/src/crypto-api";
+import { EventShieldColour, EventShieldReason, UserVerificationStatus } from "matrix-js-sdk/src/crypto-api";
 import { Tooltip } from "@vector-im/compound-web";
 
 import ReplyChain from "../elements/ReplyChain";
@@ -61,7 +60,7 @@ import PlatformPeg from "../../../PlatformPeg";
 import MemberAvatar from "../avatars/MemberAvatar";
 import SenderProfile from "../messages/SenderProfile";
 import MessageTimestamp from "../messages/MessageTimestamp";
-import { IReadReceiptInfo } from "./ReadReceiptMarker";
+import { IReadReceiptPosition } from "./ReadReceiptMarker";
 import MessageActionBar from "../messages/MessageActionBar";
 import ReactionsRow from "../messages/ReactionsRow";
 import { getEventDisplayInfo } from "../../../utils/EventRenderingUtils";
@@ -168,7 +167,7 @@ export interface EventTileProps {
     // opaque readreceipt info for each userId; used by ReadReceiptMarker
     // to manage its animations. Should be an empty object when the room
     // first loads
-    readReceiptMap?: { [userId: string]: IReadReceiptInfo };
+    readReceiptMap?: { [userId: string]: IReadReceiptPosition };
 
     // A function which is used to check if the parent panel is being
     // unmounted, to avoid unnecessary work. Should return true if we
@@ -298,7 +297,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
     };
 
     public static contextType = RoomContext;
-    public context!: React.ContextType<typeof RoomContext>;
+    public declare context: React.ContextType<typeof RoomContext>;
 
     private unmounted = false;
 
@@ -577,7 +576,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         }
     };
 
-    private onUserVerificationChanged = (userId: string, _trustStatus: UserTrustLevel): void => {
+    private onUserVerificationChanged = (userId: string, _trustStatus: UserVerificationStatus): void => {
         if (userId === this.props.mxEvent.getSender()) {
             this.verifyEvent();
         }

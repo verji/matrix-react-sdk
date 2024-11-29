@@ -20,6 +20,7 @@ import { Error as ErrorEvent } from "@matrix-org/analytics-events/types/typescri
 import { DecryptionFailureCode } from "matrix-js-sdk/src/crypto-api";
 
 import { PosthogAnalytics } from "./PosthogAnalytics";
+import { MEGOLM_ENCRYPTION_ALGORITHM } from "./utils/crypto";
 
 /** The key that we use to store the `reportedEvents` bloom filter in localstorage */
 const DECRYPTION_FAILURE_STORAGE_KEY = "mx_decryption_failure_event_ids";
@@ -77,7 +78,10 @@ export class DecryptionFailureTracker {
             // Map JS-SDK error codes to tracker codes for aggregation
             switch (errorCode) {
                 case DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID:
+                case DecryptionFailureCode.MEGOLM_KEY_WITHHELD:
                     return "OlmKeysNotSentError";
+                case DecryptionFailureCode.MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE:
+                    return "RoomKeysWithheldForUnverifiedDevice";
                 case DecryptionFailureCode.OLM_UNKNOWN_MESSAGE_INDEX:
                     return "OlmIndexError";
                 case DecryptionFailureCode.HISTORICAL_MESSAGE_NO_KEY_BACKUP:
@@ -158,10 +162,16 @@ export class DecryptionFailureTracker {
      *
      * @param {function} errorCodeMapFn The function used to map decryption failure reason  codes to the
      * `trackedErrorCode`.
+     *
+     * @param {boolean} checkReportedEvents Check if we have already reported an event.
+     * Defaults to `true`. This is only used for tests, to avoid possible false positives from
+     * the Bloom filter. This should be set to `false` for all tests except for those
+     * that specifically test the `reportedEvents` functionality.
      */
     private constructor(
         private readonly fn: TrackingFn,
         private readonly errorCodeMapFn: ErrCodeMapFn,
+        private readonly checkReportedEvents: boolean = true,
     ) {
         if (!fn || typeof fn !== "function") {
             throw new Error("DecryptionFailureTracker requires tracking function");
@@ -201,7 +211,7 @@ export class DecryptionFailureTracker {
      */
     private eventDecrypted(e: MatrixEvent, nowTs: number): void {
         // for now we only track megolm decryption failures
-        if (e.getWireContent().algorithm != "m.megolm.v1.aes-sha2") {
+        if (e.getWireContent().algorithm != MEGOLM_ENCRYPTION_ALGORITHM) {
             return;
         }
         const errCode = e.decryptionFailureReason;
@@ -214,7 +224,7 @@ export class DecryptionFailureTracker {
         const eventId = e.getId()!;
 
         // if it's already reported, we don't need to do anything
-        if (this.reportedEvents.has(eventId)) {
+        if (this.reportedEvents.has(eventId) && this.checkReportedEvents) {
             return;
         }
 
@@ -240,7 +250,7 @@ export class DecryptionFailureTracker {
         const eventId = e.getId()!;
 
         // if it's already reported, we don't need to do anything
-        if (this.reportedEvents.has(eventId)) {
+        if (this.reportedEvents.has(eventId) && this.checkReportedEvents) {
             return;
         }
 
