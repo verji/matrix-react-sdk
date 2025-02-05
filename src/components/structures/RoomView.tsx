@@ -138,8 +138,7 @@ import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { onView3pidInvite } from "../../stores/right-panel/action-handlers";
 import { ModuleRunner } from "../../modules/ModuleRunner";
 // import eventSearch from "../../Searching";
-import searchAllEventsLocally from "../../VerjiLocalSearch"; // VERJI
-import eventSearch from "../../Searching";
+// import searchAllEventsLocally from "../../VerjiLocalSearch"; // VERJI
 
 const DEBUG = false;
 const PREVENT_MULTIPLE_JITSI_WITHIN = 30_000;
@@ -1737,15 +1736,8 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
         debuglog("sending search request");
         const abortController = new AbortController();
 
-        // VERJI START
-        let promise: Promise<ISearchResults>;
-        // currently, we use the local search for all events. edit this 'if' statement to change that.
-        if (scope === SearchScope.Room || scope === SearchScope.All) {
-            promise = searchAllEventsLocally(this.context.client!, term, roomId);
-        } else {
-            promise = eventSearch(this.context.client!, term, roomId, abortController.signal);
-        }
-        // VERJI END
+        const promise= ModuleRunner.instance.extensions.eventSearchModule.eventSearch(
+            this.context.client!, term, roomId, abortController.signal) as unknown as Promise<ISearchResults>;
 
         this.setState({
             search: {
