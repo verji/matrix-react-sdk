@@ -95,6 +95,10 @@
           "title" : "Nyheter",
           "messages" : "Nyheter fra Verji",
           "readarticle" : "Les hele artikkelen"
+        },
+        "themes" : {
+          "Lys" : "Lys",
+          "Mørk" : "Mørk"
         }
   },
   "%(duration)sd": "%(duration)sd",
@@ -3784,7 +3788,7 @@
   },
   "theme": {
     "light_high_contrast": "Lys høy kontrast",
-    "match_system": "Match system"
+    "match_system": "Systemtema"
   },
   "thread_view_back_action_label": "Tilbake til tråden",
   "threads": {

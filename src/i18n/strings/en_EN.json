@@ -95,7 +95,11 @@
           "title" : "Lates news",
           "messages" : "News from <a>Verji</a>",
           "readarticle" : "Les hele artikkelen"
-        }
+        },
+        "themes" : {
+            "Lys" : "Light",
+            "Mørk" : "Dark"
+          }
      },
     "a11y": {
         "emoji_picker": "Emoji picker",
