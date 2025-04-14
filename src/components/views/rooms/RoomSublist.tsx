@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Room } from "matrix-js-sdk/src/matrix";
+import { Room } from "matrix-js-sdk/src/matrix"; // RoomMember
 import classNames from "classnames";
 import { Enable, Resizable } from "re-resizable";
 import { Direction } from "re-resizable/lib/resizer";
@@ -36,7 +36,7 @@ import { ListNotificationState } from "../../../stores/notifications/ListNotific
 import { RoomNotificationStateStore } from "../../../stores/notifications/RoomNotificationStateStore";
 import { ListAlgorithm, SortAlgorithm } from "../../../stores/room-list/algorithms/models";
 import { ListLayout } from "../../../stores/room-list/ListLayout";
-import { DefaultTagID, TagID } from "../../../stores/room-list/models";
+import { DefaultTagID, TagID } from "../../../stores/room-list/models"; // OrderedDefaultTagIDs
 import RoomListLayoutStore from "../../../stores/room-list/RoomListLayoutStore";
 import RoomListStore, { LISTS_UPDATE_EVENT, LISTS_LOADING_EVENT } from "../../../stores/room-list/RoomListStore";
 import { arrayFastClone, arrayHasOrderChange } from "../../../utils/arrays";
@@ -54,6 +54,10 @@ import SettingsStore from "../../../settings/SettingsStore";
 import { SlidingSyncManager } from "../../../SlidingSyncManager";
 import NotificationBadge from "./NotificationBadge";
 import RoomTile from "./RoomTile";
+import SpaceStore from "../../../stores/spaces/SpaceStore";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
+import { getDmsForTenant } from "../../../verji/getDmsForTenant";
+import { isMetaSpace } from "../../../stores/spaces";
 
 const SHOW_N_BUTTON_HEIGHT = 28; // As defined by CSS
 const RESIZE_HANDLE_HEIGHT = 4; // As defined by CSS
@@ -139,6 +143,12 @@ export default class RoomSublist extends React.Component<IProps, IState> {
         const requestedVisibleTiles = Math.max(Math.floor(this.layout.visibleTiles), this.layout.minVisibleTiles);
         const tileCount = Math.min(this.numTiles, requestedVisibleTiles);
         return this.layout.tilesToPixelsWithPadding(tileCount, this.padding);
+    }
+
+    private isADmSublistInSpace(): boolean {
+        const spaceKey = SpaceStore.instance.activeSpace
+        console.log("[Verji] - Selected Space: ", spaceKey)
+        return this.props.tagId === DefaultTagID.DM && !isMetaSpace(spaceKey)
     }
 
     private get padding(): number {
@@ -271,11 +281,30 @@ export default class RoomSublist extends React.Component<IProps, IState> {
         });
     };
 
-    private onListsUpdated = (): void => {
+    private onListsUpdated = async (): Promise<void> => {
         const stateUpdates = {} as IState;
-
+        
         const currentRooms = this.state.rooms;
-        const newRooms = arrayFastClone(RoomListStore.instance.orderedLists[this.props.tagId] || []);
+        let newRooms = []
+        const validUserIds = ["@jtsonlyguest-gxht:staging.verji.app"]
+        const useValidUserFilter = false    // Toggle if we should filter results
+        const useMockedVerjiBackend = true
+        if(useValidUserFilter && this.isADmSublistInSpace()){
+            newRooms = arrayFastClone(RoomListStore.instance.orderedLists[this.props.tagId] || []).filter( room => {
+                const members: string[] = room.getMembers().flatMap(member => member.userId)
+                return members.some(member => validUserIds.includes(member))
+            })
+        }else if (useMockedVerjiBackend && this.isADmSublistInSpace()){
+            console.log("[VERJI] - LIST WAS UPDATED... ")
+            const space = SpaceStore.instance.activeSpace
+            const tenantInfo: any = await MatrixClientPeg.safeGet().getStateEvent(space, "app.verji.tenant_info", "app.verji.tenant_info")
+           newRooms = await getDmsForTenant(tenantInfo.tenant_id, MatrixClientPeg.safeGet())
+        } else {
+            newRooms = arrayFastClone(RoomListStore.instance.orderedLists[this.props.tagId] || []);
+        }
+
+
+       
         if (arrayHasOrderChange(currentRooms, newRooms)) {
             stateUpdates.rooms = newRooms;
         }
@@ -527,7 +556,6 @@ export default class RoomSublist extends React.Component<IProps, IState> {
             if (!this.props.forceExpanded) {
                 visibleRooms = visibleRooms.slice(0, this.numVisibleTiles);
             }
-
             for (const room of visibleRooms) {
                 tiles.push(
                     <RoomTile
@@ -848,7 +876,15 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                 mx_RoomSublist_resizerHandles: true,
                 mx_RoomSublist_resizerHandles_showNButton: !!showNButton,
             });
-
+            if(this.isADmSublistInSpace()){
+                console.log("[VERJI] - Victory, the following are DM-rooms: ", this.state.rooms)
+                setTimeout(async () => {
+                    const space = SpaceStore.instance.activeSpace
+                    console.log("[VERJI] - SPACE: ", space)
+                    const tenantInfo: any = await MatrixClientPeg.safeGet().getStateEvent(space, "app.verji.tenant_info", "app.verji.tenant_info")
+                    console.log("[VERJI] - TENANT info: ", tenantInfo)
+                },5000)
+            }
             content = (
                 <React.Fragment>
                     <Resizable
