@@ -117,7 +117,7 @@ describe("ReadReceiptGroup", () => {
         });
 
         // Verji - Skip test, id's in the snapshot are now dynamic, unsure why. Skipping
-        it.todo("Investigate dynamic id's in snapshot, and fix test below.")
+        it.todo("Investigate dynamic id's in snapshot, and fix test below.");
         it.skip("should display a tooltip", async () => {
             renderReadReceipt();
 
