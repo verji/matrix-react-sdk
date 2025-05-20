@@ -48,19 +48,13 @@ limitations under the License.
 
     /* .mx_TabbedView_tabLabel:hover, */
     .mx_TabbedView_tabLabel_active {
-        color: $tab-label-active-fg-color;
-        /* color: #578E2F; */
+        /* color: $tab-label-active-fg-color; */
+        color: #578e2f;
         /* color: #000000; */
 
         .mx_TabbedView_maskedIcon::before {
             background-color: var(--cpd-color-icon-primary);
         }
-    }
-
-    .mx_TabbedView_tabLabel_active {
-        /* background-color: var(--cpd-color-bg-subtle-secondary); */
-        /* color: #578E2F; */
-        background-color: #578E2F;
     }
 
     .mx_TabbedView_maskedIcon {
@@ -108,7 +102,7 @@ limitations under the License.
     }
 
     .mx_TabbedView_tabLabel_active .mx_TabbedView_maskedIcon::before {
-        background-color: #578E2F;
+        background-color: #578e2f;
         /* background-color: $accent; */
     }
 
@@ -146,7 +140,7 @@ limitations under the License.
     transition:
         color 0.1s,
         background-color 0.1s;
-    }
+}
 
 .mx_TabbedView_maskedIcon {
     display: inline-block;
