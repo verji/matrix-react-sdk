@@ -2,11 +2,11 @@
 
 exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
 <div
-  aria-describedby="floating-ui-e79p5"
-  aria-labelledby="floating-ui-51u14"
+  aria-describedby="floating-ui-q1w65"
+  aria-labelledby="floating-ui-t5fr4"
   class="_tooltip_svz44_17"
   data-floating-ui-focusable=""
-  id="floating-ui-qgwq6"
+  id="floating-ui-8qke6"
   role="tooltip"
   style="position: absolute; left: 0px; top: 0px; transform: translate(0px, 0px);"
   tabindex="-1"
@@ -24,7 +24,7 @@ exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
       stroke="none"
     />
     <clippath
-      id="floating-ui-1lug9"
+      id="floating-ui-vjhv9"
     >
       <rect
         height="10"
@@ -35,13 +35,13 @@ exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
     </clippath>
   </svg>
   <span
-    id="floating-ui-51u14"
+    id="floating-ui-t5fr4"
   >
     Alice
   </span>
   <span
     class="_caption_svz44_29 cpd-theme-dark"
-    id="floating-ui-e79p5"
+    id="floating-ui-q1w65"
   >
     @alice:example.org
   </span>
