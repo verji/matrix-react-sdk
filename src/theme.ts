@@ -92,7 +92,9 @@ export function enumerateThemes(): { [key: string]: string } {
     try {
         for (const { name } of customThemes) {
             // customThemeNames[`custom-${name}`] = name.includes("Verji") ? _t(name) : name; // Verji
-            customThemeNames[`custom-${name}`] = name.includes("Verji") ? _t(name) : _t(("verji|themes|" + name) as any); // Verji
+            customThemeNames[`custom-${name}`] = name.includes("Verji")
+                ? _t(name)
+                : _t(("verji|themes|" + name) as any); // Verji
         }
     } catch (err) {
         logger.warn("Error loading custom themes", {
