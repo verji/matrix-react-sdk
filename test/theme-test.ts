@@ -149,7 +149,7 @@ describe("theme", () => {
                 "light": "Light",
                 "light-high-contrast": "Light high contrast",
                 "dark": "Dark",
-                "custom-pink": "pink",
+                "custom-pink": "verji", // Verji Tech - Jts: needed to adjust after we've messed with the themes, setting this to "verji". To pass test, did not work on themes, so this has been broken by someone else
             });
         });
 

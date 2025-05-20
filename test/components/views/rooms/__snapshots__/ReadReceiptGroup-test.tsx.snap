@@ -2,10 +2,11 @@
 
 exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
 <div
-  aria-describedby="floating-ui-5"
-  aria-labelledby="floating-ui-4"
+  aria-describedby="floating-ui-jzy35"
+  aria-labelledby="floating-ui-eigu4"
   class="_tooltip_svz44_17"
-  id="floating-ui-6"
+  data-floating-ui-focusable=""
+  id="floating-ui-bnu36"
   role="tooltip"
   style="position: absolute; left: 0px; top: 0px; transform: translate(0px, 0px);"
   tabindex="-1"
@@ -23,7 +24,7 @@ exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
       stroke="none"
     />
     <clippath
-      id="floating-ui-9"
+      id="floating-ui-518r9"
     >
       <rect
         height="10"
@@ -34,13 +35,13 @@ exports[`ReadReceiptGroup <ReadReceiptPerson /> should display a tooltip 1`] = `
     </clippath>
   </svg>
   <span
-    id="floating-ui-4"
+    id="floating-ui-eigu4"
   >
     Alice
   </span>
   <span
     class="_caption_svz44_29 cpd-theme-dark"
-    id="floating-ui-5"
+    id="floating-ui-jzy35"
   >
     @alice:example.org
   </span>
@@ -85,7 +86,7 @@ exports[`ReadReceiptGroup <ReadReceiptPerson /> should render 1`] = `
         <p
           class="mx_ReadReceiptGroup_secondary"
         >
-          Wed, 15 May, 0:00
+          Wed, 15 May 2024, 0:00
         </p>
       </div>
     </div>
