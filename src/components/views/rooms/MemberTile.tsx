@@ -195,8 +195,8 @@ export default class MemberTile extends React.Component<IProps, IState> {
 
         const powerStatusMap = new Map([
             [100, PowerStatus.SystemAdmin],
-            [95, PowerStatus.RosbergAdmin],
-            [90, PowerStatus.CustomerAdmin],
+            [95, PowerStatus.VerjiAdmin],
+            [90, PowerStatus.TenantAdmin],
             [80, PowerStatus.Admin],
             [50, PowerStatus.Moderator],
             [0, PowerStatus.Standard],

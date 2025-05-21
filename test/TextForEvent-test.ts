@@ -248,7 +248,9 @@ describe("TextForEvent", () => {
                     [userB.userId]: 50,
                 },
             });
-            const expectedText = "Alice changed the power level of Bob (@b) from Moderator to Admin.";
+            // Verji we expect different role
+            const expectedText = "Alice changed the power level of Bob (@b) from Moderator to System Admin.";
+            // const expectedText = "Alice changed the power level of Bob (@b) from Moderator to Admin.";
             expect(textForEvent(event, mockClient)).toEqual(expectedText);
         });
 
@@ -263,7 +265,9 @@ describe("TextForEvent", () => {
                     [userB.userId]: 50,
                 },
             });
-            const expectedText = "Alice changed the power level of Bob (@b) from Moderator to Default.";
+            // Verji - Change expected test to different role
+            const expectedText = "Alice changed the power level of Bob (@b) from Moderator to Standard.";
+            // const expectedText = "Alice changed the power level of Bob (@b) from Moderator to Default.";
             expect(textForEvent(event, mockClient)).toEqual(expectedText);
         });
 
@@ -292,7 +296,7 @@ describe("TextForEvent", () => {
                 },
             });
             const expectedText =
-                "Alice changed the power level of Bob (@b) from Moderator to Admin," +
+                "Alice changed the power level of Bob (@b) from Moderator to System Admin," +
                 " Bob (@c) from Custom (101) to Moderator.";
             expect(textForEvent(event, mockClient)).toEqual(expectedText);
         });
