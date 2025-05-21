@@ -17,13 +17,16 @@ limitations under the License.
 import { _t } from "./languageHandler";
 
 export function levelRoleMap(usersDefault: number): Record<number | "undefined", string> {
+    // Verji change map to use Verji translations for Role matting
     return {
         undefined: _t("power_level|default"),
-        0: _t("power_level|restricted"),
-        [usersDefault]: _t("power_level|default"),
-        50: _t("power_level|moderator"),
-        95: "VerjiAdmin", //Verji
-        100: _t("power_level|admin"),
+        0: _t("verji|power_level|standard"),
+        [usersDefault]: _t("verji|power_level|default"),
+        50: _t("verji|power_level|moderator"),
+        80: _t("verji|power_level|admin"),
+        90: _t("verji|power_level|tenant"),
+        95: _t("verji|power_level|verji"), 
+        100: _t("verji|power_level|system"),
     };
 }
 

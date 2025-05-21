@@ -40,12 +40,12 @@ export enum PowerStatus {
 }
 
 const PowerLabel: Record<PowerStatus, TranslationKey> = {
-    [PowerStatus.Admin]: _td("power_level|admin"),
-    [PowerStatus.Moderator]: _td("power_level|mod"),
-    [PowerStatus.CustomerAdmin]: _td("verji|power_levels|customer_admin"),
-    [PowerStatus.RosbergAdmin]: _td("verji|power_levels|rosberg_admin"),
-    [PowerStatus.SystemAdmin]: _td("verji|power_levels|system_admin"),
-    [PowerStatus.Standard]: _td("verji|power_levels|standard"),
+    [PowerStatus.Admin]: _td("verji|power_level|admin"),
+    [PowerStatus.Moderator]: _td("verji|power_level|moderator"),
+    [PowerStatus.CustomerAdmin]: _td("verji|power_level|customer_admin"),
+    [PowerStatus.RosbergAdmin]: _td("verji|power_level|rosberg_admin"),
+    [PowerStatus.SystemAdmin]: _td("verji|power_level|system_admin"),
+    [PowerStatus.Standard]: _td("verji|power_level|standard"),
 };
 
 export type PresenceState = "offline" | "online" | "unavailable" | "io.element.unreachable";

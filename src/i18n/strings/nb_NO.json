@@ -58,11 +58,17 @@
         "email_label": "E-post",
         "existing_email_error_message": "En eller flere av e-postene du skrev inn, er allerede Verji-brukere. Vennligst bekreft at informasjonen er korrekt, og inviter dem til %(tenant)s.",
         "invite_button": "Inviter",
-        "power_levels": {
-            "customer_admin": "Kunde",
-            "rosberg_admin": "Rosberg",
+        "power_level": {
+            "customer_admin": "Tenant Admin",
+            "rosberg_admin": "Verji",
             "system_admin": "System",
-            "standard": "Standard"
+            "standard": "Standard",
+            "default": "Standard",
+            "moderator": "Moderator",
+            "admin": "Administrator",
+            "tenant": "Tenant Admin",
+            "verji": "Verji",
+            "system": "System"
         },
         "connected_to_organization_label": "Tilkoblet til organisasjon",
         "confirm_guest_invite": "Bekreft gjesteinvitasjon",
@@ -2317,7 +2323,11 @@
     "label": "Styrkenivå",
     "mod": "Mod",
     "moderator": "Moderator",
-    "restricted": "Begrenset"
+    "restricted": "Begrenset",
+    "customer_admin": "Tenant Admin",
+    "rosberg_admin": "Verji",
+    "system_admin": "System",
+    "standard": "Standard"
   },
   "presence": {
     "away": "Borte",
