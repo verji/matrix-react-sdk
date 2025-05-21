@@ -440,7 +440,7 @@ export default class RolesRoomSettingsTab extends React.Component<IProps> {
                     "m.room.server_acl",
                     "m.room.history_visibility",
                     "m.room.canonical_alias",
-                    "m.room.redaction",
+                    // "m.room.redaction",
                 ];
                 return rosbergHidden.indexOf(eventType) === -1;
             }) // Verji end

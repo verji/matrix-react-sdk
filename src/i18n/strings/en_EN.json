@@ -2354,7 +2354,7 @@
             "m.room.name_space": "Change space name",
             "m.room.pinned_events": "Manage pinned events",
             "m.room.power_levels": "Change permissions",
-            "m.room.redaction": "Remove messages sent by me",
+            "m.room.redaction": "Remove own messages",
             "m.room.server_acl": "Change server ACLs",
             "m.room.tombstone": "Upgrade the room",
             "m.room.topic": "Change topic",

@@ -2845,7 +2845,7 @@
       "m.room.name_space": "Endre område navn",
       "m.room.pinned_events": "Administrer festede hendelser",
       "m.room.power_levels": "Endre tillatelser",
-      "m.room.redaction": "Fjern meldinger sendt av meg",
+      "m.room.redaction": "Fjern egne meldinger",
       "m.room.server_acl": "Endre server-ACL-er",
       "m.room.tombstone": "Oppgrader rommet",
       "m.room.topic": "Endre samtaletema",
