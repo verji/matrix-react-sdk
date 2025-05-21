@@ -59,8 +59,8 @@
         "existing_email_error_message": "En eller flere av e-postene du skrev inn, er allerede Verji-brukere. Vennligst bekreft at informasjonen er korrekt, og inviter dem til %(tenant)s.",
         "invite_button": "Inviter",
         "power_level": {
-            "customer_admin": "Tenant Admin",
-            "rosberg_admin": "Verji",
+            "tenant_admin": "Tenant Admin",
+            "verji_admin": "Verji",
             "system_admin": "System",
             "standard": "Standard",
             "default": "Standard",
