@@ -163,7 +163,7 @@ describe("RolesRoomSettingsTab", () => {
                     fireEvent.change(getStartCallSelect(tab), {
                         target: { value: 0 },
                     });
-                    
+
                     // Verji Change value to "Standard" - in accordance with Verji Power Level Roles
                     // expect(getStartCallSelectedOption(tab)?.textContent).toBe("Default");
                     expect(getStartCallSelectedOption(tab)?.textContent).toBe("Standard");
