@@ -227,6 +227,22 @@ const VideoRoomsButton: React.FC<MetaSpaceButtonProps> = ({ selected, isPanelCol
     );
 };
 
+// Verji START
+const VerjiAppsButton: React.FC<MetaSpaceButtonProps> = ({selected, isPanelCollapsed}) => {
+    return (
+        <MetaSpaceButton
+            spaceKey={MetaSpace.Apps}
+            className="mx_SpaceButton_apps"
+            selected={selected}
+            isPanelCollapsed={isPanelCollapsed}
+            label={getMetaSpaceName(MetaSpace.Apps)}
+            notificationState={SpaceStore.instance.getNotificationState(MetaSpace.Apps)}
+            size="32px"
+        />
+    )
+}
+// Verji End
+
 const CreateSpaceButton: React.FC<Pick<IInnerSpacePanelProps, "isPanelCollapsed" | "setPanelCollapsed">> = ({
     isPanelCollapsed,
     setPanelCollapsed,
@@ -286,6 +302,7 @@ const metaSpaceComponentMap: Record<MetaSpace, typeof HomeButton> = {
     [MetaSpace.People]: PeopleButton,
     [MetaSpace.Orphans]: OrphansButton,
     [MetaSpace.VideoRooms]: VideoRoomsButton,
+    [MetaSpace.Apps]: VerjiAppsButton
 };
 
 interface IInnerSpacePanelProps extends DroppableProvidedProps {
@@ -324,7 +341,7 @@ const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(
                 element="ul"
                 role="tree"
                 aria-label={_t("common|spaces")}
-            >
+            >   
                 {metaSpacesSection}
                 {invites.map((s) => (
                     <SpaceItem

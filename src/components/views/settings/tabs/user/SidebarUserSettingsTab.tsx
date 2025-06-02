@@ -19,6 +19,7 @@ import { Icon as CameraCircle } from "@vector-im/compound-design-tokens/icons/vi
 
 import { Icon as HomeIcon } from "../../../../../../res/img/element-icons/home.svg";
 import { Icon as FavoriteIcon } from "../../../../../../res/img/element-icons/roomlist/favorite.svg";
+import { Icon as AppsIcon } from "../../../../../../res/img/element-icons/room/apps.svg";   // Verji
 import { Icon as MembersIcon } from "../../../../../../res/img/element-icons/room/members.svg";
 import { Icon as HashCircleIcon } from "../../../../../../res/img/element-icons/roomlist/hash-circle.svg";
 import { _t } from "../../../../../languageHandler";
@@ -49,6 +50,7 @@ export const onMetaSpaceChangeFactory =
             [
                 MetaSpace.Home,
                 null,
+                MetaSpace.Apps,
                 MetaSpace.Favourites,
                 MetaSpace.People,
                 MetaSpace.Orphans,
@@ -60,6 +62,7 @@ export const onMetaSpaceChangeFactory =
 const SidebarUserSettingsTab: React.FC = () => {
     const {
         [MetaSpace.Home]: homeEnabled,
+        [MetaSpace.Apps]: appsEnabled,  // VERJI
         [MetaSpace.Favourites]: favouritesEnabled,
         [MetaSpace.People]: peopleEnabled,
         [MetaSpace.Orphans]: orphansEnabled,
@@ -97,6 +100,21 @@ const SidebarUserSettingsTab: React.FC = () => {
                         </SettingsSubsectionText>
                         <SettingsSubsectionText>
                             {_t("settings|sidebar|metaspaces_home_description")}
+                        </SettingsSubsectionText>
+                    </StyledCheckbox>
+                    
+                    {/* VERJI */}
+                    <StyledCheckbox
+                        checked={!!appsEnabled}
+                        onChange={onMetaSpaceChangeFactory(MetaSpace.Apps, "WebSettingsSidebarTabSpacesCheckbox")}
+                        className="mx_SidebarUserSettingsTab_checkbox"
+                    >
+                        <SettingsSubsectionText>
+                            <AppsIcon />
+                            {_t("verji|metaspace|apps")}
+                        </SettingsSubsectionText>
+                        <SettingsSubsectionText>
+                            {_t("verji|metaspace|apps")}
                         </SettingsSubsectionText>
                     </StyledCheckbox>
 

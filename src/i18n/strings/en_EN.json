@@ -70,6 +70,9 @@
             "verji": "Verji",
             "system": "System Admin"
         },
+        "metaspace" : {
+            "apps": "Apps"
+        },
         "connected_to_organization_label": "Connected to organization",
         "confirm_guest_invite": "Confirm guest invite",
         "review_guest_invite_info": "An invitation will be sent to the following guest(s). Please review and confirm their information.",

@@ -50,6 +50,10 @@ import PageType from "../../PageTypes";
 import { UserOnboardingButton } from "../views/user-onboarding/UserOnboardingButton";
 import SettingsStore from "../../settings/SettingsStore";
 import { ModuleRunner } from "../../modules/ModuleRunner";
+import { Icon as SigningIcon} from "../../../res/img/verji/signing.svg";
+import { Icon as AdminIcon} from "../../../res/img/verji/house-user.svg";
+
+import { MenuItem } from "@vector-im/compound-web";
 
 interface IProps {
     isMinimized: boolean;
@@ -65,6 +69,7 @@ enum BreadcrumbsMode {
 interface IState {
     showBreadcrumbs: BreadcrumbsMode;
     activeSpace: SpaceKey;
+    selectedApp?: string
 }
 
 export default class LeftPanel extends React.Component<IProps, IState> {
@@ -382,7 +387,11 @@ export default class LeftPanel extends React.Component<IProps, IState> {
             </div>
         );
     }
-
+    private selectApp(appId: string){
+        console.log("Verji ## select app Clicked: ", appId)
+        this.setState({selectedApp: appId})
+        dis.dispatch({action:"open-app", appId: appId})
+    }
     public render(): React.ReactNode {
         const roomList = (
             <RoomList
@@ -397,6 +406,30 @@ export default class LeftPanel extends React.Component<IProps, IState> {
                 ref={this.roomListRef}
             />
         );
+        
+        const apps = (
+            <>
+                <MenuItem 
+                    Icon={SigningIcon} 
+                    label={"Verji Signing"} 
+                    onSelect={(e) => this.selectApp("verji-signing")} 
+                    className={this.state.selectedApp === "verji-signing" ? "selected" : ""}
+                />
+                <MenuItem 
+                    Icon={AdminIcon} 
+                    label={"Verji Admin Portal"} 
+                    onSelect={(e) => this.selectApp("verji-portal")} 
+                    className={this.state.selectedApp === "verji-portal" ? "selected" : ""}
+                />
+            </>
+        );
+        
+        const appList = (
+            <div className="mx_LeftPanel_appList" style={{ width: "100%", marginTop:"4rem"}}>
+                <div style={{width: "94%", marginLeft: "8%", marginRight: "3%", fontSize: "1.25rem", fontWeight:"600", lineHeight:"1.25",  marginBottom: "1rem"}}>Verji Apps</div>
+                {apps}
+            </div>
+        )
 
         const containerClasses = classNames({
             mx_LeftPanel: true,
@@ -404,30 +437,36 @@ export default class LeftPanel extends React.Component<IProps, IState> {
         });
 
         const roomListClasses = classNames("mx_LeftPanel_actualRoomListContainer", "mx_AutoHideScrollbar");
-
+        console.log("VERJI: SELECTED SPACE: ", this.state.activeSpace)
         return (
-            <div className={containerClasses}>
-                <div className="mx_LeftPanel_roomListContainer">
-                    {shouldShowComponent(UIComponent.FilterContainer) && this.renderSearchDialExplore()}
-                    {this.renderBreadcrumbs()}
-                    {!this.props.isMinimized && <RoomListHeader onVisibilityChange={this.refreshStickyHeaders} />}
-                    <UserOnboardingButton
-                        selected={this.props.pageType === PageType.HomePage}
-                        minimized={this.props.isMinimized}
-                    />
-                    <nav className="mx_LeftPanel_roomListWrapper" aria-label={_t("common|rooms")}>
-                        <div
-                            className={roomListClasses}
-                            ref={this.listContainerRef}
-                            // Firefox sometimes makes this element focusable due to
-                            // overflow:scroll;, so force it out of tab order.
-                            tabIndex={-1}
-                        >
-                            {roomList}
-                        </div>
-                    </nav>
+            <>
+
+            {this.state.activeSpace === MetaSpace.Apps && appList}
+            {this.state.activeSpace !== MetaSpace.Apps && (
+                <div className={containerClasses}>
+                    <div className="mx_LeftPanel_roomListContainer">
+                        {shouldShowComponent(UIComponent.FilterContainer) && this.renderSearchDialExplore()}
+                        {this.renderBreadcrumbs()}
+                        {!this.props.isMinimized && <RoomListHeader onVisibilityChange={this.refreshStickyHeaders} />}
+                        <UserOnboardingButton
+                            selected={this.props.pageType === PageType.HomePage}
+                            minimized={this.props.isMinimized}
+                        />
+                        <nav className="mx_LeftPanel_roomListWrapper" aria-label={_t("common|rooms")}>
+                            <div
+                                className={roomListClasses}
+                                ref={this.listContainerRef}
+                                // Firefox sometimes makes this element focusable due to
+                                // overflow:scroll;, so force it out of tab order.
+                                tabIndex={-1}
+                            >
+                                {roomList}
+                            </div>
+                        </nav>
+                    </div>
                 </div>
-            </div>
+            )}
+            </>
         );
     }
 }

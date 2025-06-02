@@ -77,6 +77,7 @@ const ACTIVE_SPACE_LS_KEY = "mx_active_space";
 
 const metaSpaceOrder: MetaSpace[] = [
     MetaSpace.Home,
+    MetaSpace.Apps, // VERJI
     MetaSpace.Favourites,
     MetaSpace.People,
     MetaSpace.Orphans,
@@ -655,6 +656,15 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
             this.roomIdsBySpace.delete(MetaSpace.Favourites);
         }
 
+        // VERJI START
+        if (enabledMetaSpaces.has(MetaSpace.Apps)) {
+            const favourites = visibleRooms.filter((r) => r.tags[DefaultTagID.Favourite]);
+            this.roomIdsBySpace.set(MetaSpace.Apps, new Set(favourites.map((r) => r.roomId)));
+        } else {
+            this.roomIdsBySpace.delete(MetaSpace.Apps);
+        }
+        // VERJI END
+
         // The People metaspace doesn't need maintaining
 
         // Populate the orphans space if the Home space is enabled as it is a superset of it.
@@ -1108,6 +1118,12 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         if (enabledMetaSpaces.has(MetaSpace.People)) {
             this.emit(MetaSpace.People);
         }
+
+        // Verji Start
+        if (enabledMetaSpaces.has(MetaSpace.Apps)) {
+            this.emit(MetaSpace.Apps);
+        }
+        // Verji End
 
         if (enabledMetaSpaces.has(MetaSpace.Orphans) || enabledMetaSpaces.has(MetaSpace.Home)) {
             if (isDm && this.roomIdsBySpace.get(MetaSpace.Orphans)?.delete(room.roomId)) {

@@ -80,6 +80,7 @@ import { monitorSyncedPushRules } from "../../utils/pushRules/monitorSyncedPushR
 import { ConfigOptions } from "../../SdkConfig";
 import { MatrixClientContextProvider } from "./MatrixClientContextProvider";
 import { ModuleRunner } from "../../modules/ModuleRunner";
+import { VerjiAppPage } from "../views/user-onboarding/VerjiAppPage";
 
 // We need to fetch each pinned message individually (if we don't already have it)
 // so each pinned message may trigger a request. Limit the number per room for sanity.
@@ -112,6 +113,7 @@ interface IProps {
     justRegistered?: boolean;
     roomJustCreatedOpts?: IOpts;
     forceTimeline?: boolean; // see props on MatrixChat
+    appId?: string // Verji
 }
 
 interface IState {
@@ -668,7 +670,12 @@ class LoggedInView extends React.Component<IProps, IState> {
             case PageTypes.HomePage:
                 pageElement = <UserOnboardingPage justRegistered={this.props.justRegistered} />;
                 break;
-
+            // Verji Case
+            case PageTypes.AppView:
+                console.log("PageType Appview!")
+                pageElement = <VerjiAppPage appId={this.props.appId ?? ""} />
+                break;
+            // Verji end
             case PageTypes.UserView:
                 if (!!this.props.currentUserId) {
                     pageElement = (

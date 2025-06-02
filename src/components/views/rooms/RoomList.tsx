@@ -128,6 +128,7 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
             case MetaSpace.Home:
             case MetaSpace.Favourites:
             case MetaSpace.People:
+            case MetaSpace.Apps:
             case MetaSpace.Orphans:
                 showStartChatPlusMenuForMetaSpace = false;
                 break;
@@ -372,6 +373,7 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
             case MetaSpace.Home:
             case MetaSpace.Favourites:
             case MetaSpace.People:
+            case MetaSpace.Apps: // Verji
             case MetaSpace.Orphans:
                 ShowAddRoomPlusMenuForMetaSpace = false;
                 break;
@@ -632,6 +634,7 @@ export default class RoomList extends React.PureComponent<IProps, IState> {
                 (this.props.activeSpace === MetaSpace.People && orderedTagId !== DefaultTagID.DM) ||
                 (this.props.activeSpace === MetaSpace.Orphans && orderedTagId === DefaultTagID.DM) ||
                 (this.props.activeSpace === MetaSpace.VideoRooms && orderedTagId === DefaultTagID.DM) ||
+                (this.props.activeSpace === MetaSpace.Apps && orderedTagId === DefaultTagID.DM) ||  // VERJI
                 (!isMetaSpace(this.props.activeSpace) &&
                     orderedTagId === DefaultTagID.DM &&
                     !SettingsStore.getValue("Spaces.showPeopleInSpace", this.props.activeSpace))

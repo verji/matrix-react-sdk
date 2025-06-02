@@ -208,6 +208,7 @@ interface IState {
     justRegistered?: boolean;
     roomJustCreatedOpts?: IOpts;
     forceTimeline?: boolean; // see props
+    appId?: string // Verji
 }
 
 export default class MatrixChat extends React.PureComponent<IProps, IState> {
@@ -941,6 +942,11 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                     true,
                 );
                 break;
+            // Verji
+            case "open-app":
+                console.log("VERJI ACTION TRIGGERED, open-app: ", payload.appId)
+                this.viewApp(payload.appId)
+                break;
         }
     };
 
@@ -1106,7 +1112,20 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         ThemeController.isLogin = false;
         this.themeWatcher.recheck();
     }
-
+    // Verji Start
+    private viewApp(appId: string): void {
+        // The home page requires the "logged in" view, so we'll set that.
+        this.setStateForNewView({
+            view: Views.LOGGED_IN,
+            appId,
+            currentRoomId: null,
+        });
+        this.setPage(PageType.AppView);
+        this.notifyNewScreen("app-"+appId);
+        ThemeController.isLogin = false;
+        this.themeWatcher.recheck();
+    }
+    // Verji End
     private viewUser(userId: string, subAction: string): void {
         // Wait for the first sync so that `getRoom` gives us a room object if it's
         // in the sync response

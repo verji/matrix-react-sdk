@@ -54,6 +54,22 @@ limitations under the License.
     }
 }
 
+//Verji start
+.mx_LeftPanel_appList {
+  button {
+    background-color: transparent;
+    border-radius: 10px;
+    width: 94%;
+    margin-right: 3%;
+    margin-left: 3%;
+
+    &.selected {
+      background-color:rgba(102, 196, 48, 0.4);
+      border-radius: 6px;
+    }
+  }
+}
+// Verji End
 .mx_LeftPanel {
     background-color: $roomlist-bg-color;
 
@@ -213,6 +229,7 @@ limitations under the License.
             }
 
             //Verji start
+
             .mx_LeftPanel_newsButton::before {
                 mask-image: url("$(res)/img/verji/news.svg");
             }

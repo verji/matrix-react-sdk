@@ -201,6 +201,7 @@ limitations under the License.
         }
 
         &.mx_SpaceButton_home,
+        &.mx_SpaceButton_apps,  /*VERJI*/
         &.mx_SpaceButton_favourites,
         &.mx_SpaceButton_people,
         &.mx_SpaceButton_orphans,
@@ -217,6 +218,11 @@ limitations under the License.
         &.mx_SpaceButton_home .mx_SpaceButton_icon::before {
             mask-image: url("$(res)/img/element-icons/home.svg");
         }
+        /* VERJI Start */
+        &.mx_SpaceButton_apps .mx_SpaceButton_icon::before {
+            mask-image: url("$(res)/img/element-icons/room/apps.svg");
+        }
+        /* VERJI END */
 
         &.mx_SpaceButton_favourites .mx_SpaceButton_icon::before {
             mask-image: url("$(res)/img/element-icons/roomlist/favorite.svg");
