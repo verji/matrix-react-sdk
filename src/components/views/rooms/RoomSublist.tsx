@@ -876,10 +876,11 @@ export default class RoomSublist extends React.Component<IProps, IState> {
         } else if (this.props.showSkeleton && this.state.isExpanded) {
             content = <div className="mx_RoomSublist_skeletonUI" />;
         }
-
+        // Verji RoomSublist Hook
         const CustomRoomSublist = { CustomComponent: React.Fragment };
-        ModuleRunner.instance.invoke(CustomComponentLifecycle.Experimental, CustomRoomSublist as CustomComponentOpts);
+        ModuleRunner.instance.invoke(CustomComponentLifecycle.RoomSublist, CustomRoomSublist as CustomComponentOpts);
         const Props = (props: any): React.JSX.Element => <></>;
+        // Verji End
 
         return (
             <CustomRoomSublist.CustomComponent>
