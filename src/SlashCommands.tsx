@@ -65,7 +65,17 @@ import { Command } from "./slash-commands/command";
 import { goto, join } from "./slash-commands/join";
 
 export { CommandCategories, Command };
-
+// VERJI TECH
+const allowedCommands = [
+    "devtools",
+    "confetti",
+    "rainfall",
+    "snowfall",
+    "fireworks",
+    "spoiler",
+    // ...add allowed command names here
+];
+// END VERJI TECH
 export const Commands = [
     new Command({
         command: "spoiler",
@@ -1016,7 +1026,7 @@ export const Commands = [
             renderingTypes: [TimelineRenderingType.Room],
         });
     }),
-];
+].filter(cmd => allowedCommands.includes(cmd.command)); // VERJI TECH Filter commands based on allowedCommands
 
 // build a map from names and aliases to the Command objects.
 export const CommandMap = new Map<string, Command>();
