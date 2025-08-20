@@ -1026,7 +1026,7 @@ export const Commands = [
             renderingTypes: [TimelineRenderingType.Room],
         });
     }),
-].filter(cmd => allowedCommands.includes(cmd.command)); // VERJI TECH Filter commands based on allowedCommands
+].filter((cmd) => allowedCommands.includes(cmd.command)); // VERJI TECH Filter commands based on allowedCommands
 
 // build a map from names and aliases to the Command objects.
 export const CommandMap = new Map<string, Command>();
