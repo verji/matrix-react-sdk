@@ -61,6 +61,14 @@ import ExtraTile from "./ExtraTile";
 import RoomSublist, { IAuxButtonProps } from "./RoomSublist";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import AccessibleButton from "../elements/AccessibleButton";
+// Verji Rbac
+// If the package exports from its root, use:
+import { checkAccess, storePermissionInIDB } from "@verji/verji-rbac-idb/lib/VerjiRbacService" // Or update to the correct path if needed:
+import { getVerjiApiSdk, initVerjiApiSdkAsync } from "@verji/verji-api-sdk/lib/asyncInit"
+import { convertToVerjiSdkConfig, VerjiAppConfig } from '@verji/verji-api-sdk/lib/utils/convertConfig'
+
+import SdkConfig from "../../../SdkConfig";
+// import { storePermissionInIDB } from "@verji/verji-rbac-idb/dist/VerjiRbacService";
 
 interface IProps {
     onKeyDown: (ev: React.KeyboardEvent, state: IRovingTabIndexState) => void;
@@ -140,7 +148,50 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
     const showCreateRooms = shouldShowComponent(UIComponent.CreateRooms);
     const showInviteUsers = shouldShowComponent(UIComponent.InviteUsers);
 
-    if (activeSpace && (showCreateRooms || showInviteUsers)) {
+    // ADD custom RBAC logic here
+    const space = SpaceStore.instance.activeSpace;
+    const [tenantInfo, setTenantInfo] = React.useState<any>(null);
+    const [hasInvitePermission, setHasInvitePermission] = React.useState<boolean>(false);
+    const appConfig = SdkConfig.get() as Partial<VerjiAppConfig>;
+
+    React.useEffect(() => {
+        let isMounted = true;
+        async function fetchTenantInfo() {
+            try {
+                const info = await MatrixClientPeg.safeGet().getStateEvent(space, "app.verji.tenant_info", "app.verji.tenant_info");
+                if (isMounted) setTenantInfo(info);
+            } catch (e) {
+                if (isMounted) setTenantInfo(null);
+            }
+        }
+        fetchTenantInfo();
+        return () => { isMounted = false; };
+    }, [space]);
+
+    React.useEffect(() => {
+        async function checkInvitePermission() {
+            if (tenantInfo) {
+                await initVerjiApiSdkAsync(() => convertToVerjiSdkConfig(appConfig));
+                
+                const verjiSdk = await getVerjiApiSdk();
+                const macaroon = MatrixClientPeg.safeGet().getAccessToken()
+                const token = await verjiSdk.api.identityService.getAccessToken(macaroon ?? "")
+                const response = await verjiSdk.api.itopsService.getModulePermissions(token, tenantInfo.tenant_id, "Customer")
+                
+                storePermissionInIDB(response)
+                const canInvite = await checkAccess(tenantInfo.tenant_id, "Customer", "customer-person:list");
+                console.log("Has permission to invite: ", canInvite);
+                setHasInvitePermission(canInvite);
+            } else {
+                setHasInvitePermission(false);
+            }
+        }
+        checkInvitePermission();
+    }, [tenantInfo]);
+    
+
+
+    if (activeSpace && (showCreateRooms || showInviteUsers) && hasInvitePermission) {
         let contextMenu: JSX.Element | undefined;
         if (menuDisplayed && handle.current) {
             const canInvite = shouldShowSpaceInvite(activeSpace);
