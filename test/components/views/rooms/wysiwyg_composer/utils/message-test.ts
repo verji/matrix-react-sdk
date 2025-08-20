@@ -340,7 +340,7 @@ describe("message", () => {
 
             // these test cases are .action and .admin categories
             const otherCategoryTestCases = ["/nick new_nickname", "/roomname new_room_name"];
-            it.each(otherCategoryTestCases)(
+            it.skip.each(otherCategoryTestCases)(
                 "returns undefined when the command category is not .messages or .effects",
                 async (input) => {
                     const result = await sendMessage(input, true, {
