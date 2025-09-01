@@ -83,8 +83,9 @@ const useExportFormState = (): ExportConfig => {
             : config.includeAttachments ?? false,
     );
     const [numberOfMessages, setNumberOfMessages] = useState<number>(config.numberOfMessages ?? 100);
+    // Verji - change sizelimit default 2000 MB when exportDefaultSizeLimit is false
     const [sizeLimit, setSizeLimit] = useState<number>(
-        SettingsStore.getValue(UIFeature.ExportDefaultSizeLimit) == false ? 20 : config.sizeMb ?? 8,
+        SettingsStore.getValue(UIFeature.ExportDefaultSizeLimit) == false ? 2000 : config.sizeMb ?? 8,
     );
 
     return {

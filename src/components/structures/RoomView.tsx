@@ -1736,8 +1736,12 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
         debuglog("sending search request");
         const abortController = new AbortController();
 
-        const promise= ModuleRunner.instance.extensions.eventSearchModule.eventSearch(
-            this.context.client!, term, roomId, abortController.signal) as unknown as Promise<ISearchResults>;
+        const promise = ModuleRunner.instance.extensions.eventSearchModule.eventSearch(
+            this.context.client!,
+            term,
+            roomId,
+            abortController.signal,
+        ) as unknown as Promise<ISearchResults>;
 
         this.setState({
             search: {

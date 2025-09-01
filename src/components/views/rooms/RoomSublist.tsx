@@ -22,6 +22,10 @@ import { Enable, Resizable } from "re-resizable";
 import { Direction } from "re-resizable/lib/resizer";
 import * as React from "react";
 import { ComponentType, createRef, ReactComponentElement, ReactNode } from "react";
+import {
+    CustomComponentLifecycle,
+    CustomComponentOpts,
+} from "@matrix-org/react-sdk-module-api/lib/lifecycles/CustomComponentLifecycle";
 
 import { polyfillTouchEvent } from "../../../@types/polyfill";
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
@@ -54,6 +58,7 @@ import SettingsStore from "../../../settings/SettingsStore";
 import { SlidingSyncManager } from "../../../SlidingSyncManager";
 import NotificationBadge from "./NotificationBadge";
 import RoomTile from "./RoomTile";
+import { ModuleRunner } from "../../../modules/ModuleRunner";
 
 const SHOW_N_BUTTON_HEIGHT = 28; // As defined by CSS
 const RESIZE_HANDLE_HEIGHT = 4; // As defined by CSS
@@ -273,9 +278,9 @@ export default class RoomSublist extends React.Component<IProps, IState> {
 
     private onListsUpdated = (): void => {
         const stateUpdates = {} as IState;
-
         const currentRooms = this.state.rooms;
         const newRooms = arrayFastClone(RoomListStore.instance.orderedLists[this.props.tagId] || []);
+
         if (arrayHasOrderChange(currentRooms, newRooms)) {
             stateUpdates.rooms = newRooms;
         }
@@ -527,7 +532,6 @@ export default class RoomSublist extends React.Component<IProps, IState> {
             if (!this.props.forceExpanded) {
                 visibleRooms = visibleRooms.slice(0, this.numVisibleTiles);
             }
-
             for (const room of visibleRooms) {
                 tiles.push(
                     <RoomTile
@@ -848,7 +852,6 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                 mx_RoomSublist_resizerHandles: true,
                 mx_RoomSublist_resizerHandles_showNButton: !!showNButton,
             });
-
             content = (
                 <React.Fragment>
                     <Resizable
@@ -873,19 +876,27 @@ export default class RoomSublist extends React.Component<IProps, IState> {
         } else if (this.props.showSkeleton && this.state.isExpanded) {
             content = <div className="mx_RoomSublist_skeletonUI" />;
         }
+        // Verji RoomSublist Hook
+        const CustomRoomSublist = { CustomComponent: React.Fragment };
+        ModuleRunner.instance.invoke(CustomComponentLifecycle.RoomSublist, CustomRoomSublist as CustomComponentOpts);
+        const Props = (props: any): React.JSX.Element => <></>;
+        // Verji End
 
         return (
-            <div
-                ref={this.sublistRef}
-                className={classes}
-                role="group"
-                aria-hidden={hidden}
-                aria-labelledby={getLabelId(this.props.tagId)}
-                onKeyDown={this.onKeyDown}
-            >
-                {this.renderHeader()}
-                {content}
-            </div>
+            <CustomRoomSublist.CustomComponent>
+                <Props props={this.props} />
+                <div
+                    ref={this.sublistRef}
+                    className={classes}
+                    role="group"
+                    aria-hidden={hidden}
+                    aria-labelledby={getLabelId(this.props.tagId)}
+                    onKeyDown={this.onKeyDown}
+                >
+                    {this.renderHeader()}
+                    {content}
+                </div>
+            </CustomRoomSublist.CustomComponent>
         );
     }
 }

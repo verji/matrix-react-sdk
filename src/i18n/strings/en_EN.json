@@ -58,11 +58,17 @@
         "email_label": "Email",
         "existing_email_error_message": "One or more the e-mails you entered, are already Verji-users. Please confirm the information is correct, and invite them to %(tenant)s.",
         "invite_button": "Invite",
-        "power_levels": {
-            "customer_admin": "Customer",
-            "rosberg_admin": "Rosberg",
+        "power_level": {
+            "tenant_admin": "Tenant Admin",
+            "verji_admin": "Verji",
             "system_admin": "System",
-            "standard": "Standard"
+            "standard": "Standard",
+            "default": "Standard",
+            "moderator": "Moderator",
+            "admin": "Administrator",
+            "tenant": "Tenant Admin",
+            "verji": "Verji",
+            "system": "System Admin"
         },
         "connected_to_organization_label": "Connected to organization",
         "confirm_guest_invite": "Confirm guest invite",
@@ -2348,7 +2354,7 @@
             "m.room.name_space": "Change space name",
             "m.room.pinned_events": "Manage pinned events",
             "m.room.power_levels": "Change permissions",
-            "m.room.redaction": "Remove messages sent by me",
+            "m.room.redaction": "Remove own messages",
             "m.room.server_acl": "Change server ACLs",
             "m.room.tombstone": "Upgrade the room",
             "m.room.topic": "Change topic",
