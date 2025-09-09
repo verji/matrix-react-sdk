@@ -81,6 +81,7 @@ export const enum UIFeature {
     EnableLoginPage = "UIFeature.enableLoginPage",
     EnableNewRoomIntro = "UIFeature.enableNewRoomIntro",
     EnableRoomDevTools = "UIFeature.enableRoomDevTools",
+    EnableRoomDevToolsOptions = "UIFeature.enableRoomDevToolsOptions",
     WidgetContextDeleteButton = "UIFeature.widgetContextDeleteButton",
     ExportDefaultSizeLimit = "UIFeature.exportDefaultSizeLimit",
     AllExportTypes = "UIFeature.allExportTypes",
