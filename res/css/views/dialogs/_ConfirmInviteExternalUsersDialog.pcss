@@ -1,0 +1,43 @@
+/* ROSBERG style module */
+/* NOTE: This file (and any other Rosberg .pcss files)
+   must be imported into: res/css/_components.pcss */
+
+.mx_ConfirmInviteExternalUsersDialog {
+    &.mx_BaseDialog {
+        width: 480px;
+    }
+}
+
+.mx_Dialog_content {
+    margin-bottom: 24px;
+}
+
+.vmx_all_users {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 20px;
+}
+
+.mx_ConfirmInviteExternalUsersDialog_user {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+
+    /* PostCSS-nested requires & for nested selectors */
+    &:first-child {
+        margin-top: 0;
+    }
+
+    &_email,
+    &_project,
+    &_phoneNr {
+        margin-top: 4px;
+        font-style: italic;
+        white-space: nowrap;
+    }
+}
