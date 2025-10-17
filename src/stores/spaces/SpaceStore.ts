@@ -70,6 +70,7 @@ import { ViewHomePagePayload } from "../../dispatcher/payloads/ViewHomePagePaylo
 import { SwitchSpacePayload } from "../../dispatcher/payloads/SwitchSpacePayload";
 import { AfterLeaveRoomPayload } from "../../dispatcher/payloads/AfterLeaveRoomPayload";
 import { SdkContextClass } from "../../contexts/SDKContext";
+import { UIFeature } from "../../settings/UIFeature";
 
 interface IState {}
 
@@ -896,6 +897,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
     private switchSpaceIfNeeded = (roomId = SdkContextClass.instance.roomViewStore.getRoomId()): void => {
         if (!roomId) return;
+        // Verji specific: don't switch space on DM select if the setting is disabled
+        if (!SettingsStore.getValue(UIFeature.SwitchSpaceOnDMSelect) && DMRoomMap.shared().getUserIdForRoomId(roomId))
+            return;
         if (!this.isRoomInSpace(this.activeSpace, roomId) && !this.matrixClient?.getRoom(roomId)?.isSpaceRoom()) {
             this.switchToRelatedSpace(roomId);
         }
