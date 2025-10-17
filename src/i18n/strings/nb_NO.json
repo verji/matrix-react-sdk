@@ -78,7 +78,12 @@
         "confirm_button": "Bekreft",
         "existing_guest_instructions": "Følgende gjest(er) %(users)s er allerede Verji-brukere. Følg instruksjonene nedenfor for å invitere eksisterende brukere.",
         "invite_process_error": "Oops, noe gikk galt under invitasjonsprosessen. Du kan spore invitasjonene dine ved å åpne din %(path)s.",
-        "invite_new_users": "Inviter nye brukere til %(tenant)s",
+        "invite_dialog": {
+            "invite_new_users": "Inviter nye brukere til %(tenant)s",
+            "invalid_phonenumber": "Ugyldig telefonnummer",
+            "invalid_mobilephonenumber": "Ugyldig mobilnummer",
+            "warning" : "Dette tlfnr støtter muligense ikke SMS"
+        },
         "user_settings_help_about": {
           "bug_report" : "Feilrapportering",
           "experience_errors": "Dersom du opplever feil i Verji, kan du kontakte Verji Support",

@@ -1,6 +1,17 @@
 /* ROSBERG style module */
 /* NOTE: This code (and any other Rosberg .pcss files) has to be imported in here: res\css\_components.pcss */
 
+.verji_invalidphone_error{
+    color: red;
+    padding-left: 30px;
+    margin-top : -15px;
+}
+.verji_invalidphone_warning{
+    color: black;
+    padding-left: 20px;
+    margin-top : -15px;
+}
+
 .vmx_main_dialog {
     @at-root .mx_Dialog & {
         height: auto !important;

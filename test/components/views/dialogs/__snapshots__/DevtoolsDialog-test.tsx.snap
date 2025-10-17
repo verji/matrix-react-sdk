@@ -111,6 +111,7 @@ exports[`DevtoolsDialog renders the devtools dialog 1`] = `
           Server info
         </button>
       </div>
+       
       <div>
         <h3>
           Options

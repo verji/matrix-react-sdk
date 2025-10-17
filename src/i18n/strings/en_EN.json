@@ -78,7 +78,12 @@
         "confirm_button": "Confirm",
         "existing_guest_instructions": "Following guest(s) %(users)s are already Verji users. Follow the instructions below to invite existing users.",
         "invite_process_error": "Oops, something went wrong during the invitation process. You can track your invitation(s) by opening your %(path)s.",
-        "invite_new_users": "Invite new users to %(tenant)s",
+        "invite_dialog": {
+            "invite_new_users": "Invite new users to %(tenant)s",
+            "invalid_phonenumber": "Invalid phone number",
+            "invalid_mobilephonenumber": "Invalid mobilephone number",
+            "warning" : "This number might not support SMS"
+        },
         "user_settings_help_about": {
             "bug_report" : "Bugreporting",
             "experience_errors": "If you encounter errors in Verji,contact  Verji Support",
