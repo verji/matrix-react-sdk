@@ -107,6 +107,7 @@ export const enum UIFeature {
     AllowDirectUserInvite = "UIFeature.allowDirectUserInvite",
     SearchInAllRooms = "UIFeature.searchInAllRooms",
     LeaveSpaceButton = "UIFeature.leaveSpaceButton",
+    SwitchSpaceOnDMSelect = "UIFeature.switchSpaceOnDMSelect",
 }
 
 export enum UIComponent {
