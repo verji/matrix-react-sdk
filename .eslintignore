@@ -5,3 +5,6 @@ test/end-to-end-tests/lib/
 # Legacy skinning file that some people might still have
 src/component-index.js
 src/components/structures/scripts/freshworks.js
+
+# Verji - ignore Verji SCSS files
+**/*.scss

@@ -898,7 +898,8 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     private switchSpaceIfNeeded = (roomId = SdkContextClass.instance.roomViewStore.getRoomId()): void => {
         if (!roomId) return;
         // Verji specific: don't switch space on DM select if the setting is disabled
-        if (!SettingsStore.getValue(UIFeature.SwitchSpaceOnDMSelect)  && DMRoomMap.shared().getUserIdForRoomId(roomId)) return;
+        if (!SettingsStore.getValue(UIFeature.SwitchSpaceOnDMSelect) && DMRoomMap.shared().getUserIdForRoomId(roomId))
+            return;
         if (!this.isRoomInSpace(this.activeSpace, roomId) && !this.matrixClient?.getRoom(roomId)?.isSpaceRoom()) {
             this.switchToRelatedSpace(roomId);
         }
