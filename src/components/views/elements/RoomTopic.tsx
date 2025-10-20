@@ -30,6 +30,7 @@ import MatrixClientContext from "../../../contexts/MatrixClientContext";
 import AccessibleButton from "./AccessibleButton";
 import { Linkify, topicToHtml } from "../../../HtmlUtils";
 import { tryTransformPermalinkToLocalHref } from "../../../utils/permalinks/Permalinks";
+import { showSpaceSettings } from "../../../utils/space";
 
 interface IProps extends React.HTMLProps<HTMLDivElement> {
     room: Room;
@@ -100,7 +101,13 @@ export default function RoomTopic({ room, className, ...props }: IProps): JSX.El
                                 kind="primary_outline"
                                 onClick={() => {
                                     modal.close();
-                                    dis.dispatch({ action: "open_room_settings" });
+                                  // VERJI - show space settings instead, if it is a "Space Room". 
+                                    if(room.isSpaceRoom()){                                      
+                                      showSpaceSettings(room)
+                                    }else {
+                                      dis.dispatch({ action: "open_room_settings"});
+                                    }
+
                                 }}
                             >
                                 {_t("room|edit_topic")}
