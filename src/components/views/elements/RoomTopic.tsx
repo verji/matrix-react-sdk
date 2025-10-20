@@ -101,13 +101,12 @@ export default function RoomTopic({ room, className, ...props }: IProps): JSX.El
                                 kind="primary_outline"
                                 onClick={() => {
                                     modal.close();
-                                  // VERJI - show space settings instead, if it is a "Space Room". 
-                                    if(room.isSpaceRoom()){                                      
-                                      showSpaceSettings(room)
-                                    }else {
-                                      dis.dispatch({ action: "open_room_settings"});
+                                    // VERJI - show space settings instead, if it is a "Space Room".
+                                    if (room.isSpaceRoom()) {
+                                        showSpaceSettings(room);
+                                    } else {
+                                        dis.dispatch({ action: "open_room_settings" });
                                     }
-
                                 }}
                             >
                                 {_t("room|edit_topic")}
