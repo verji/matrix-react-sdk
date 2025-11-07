@@ -77,7 +77,7 @@
         "inviting_status": "Inviterer",
         "confirm_button": "Bekreft",
         "existing_guest_instructions": "Følgende gjest(er) %(users)s er allerede Verji-brukere. Følg instruksjonene nedenfor for å invitere eksisterende brukere.",
-        "invite_process_error": "Oops, noe gikk galt under invitasjonsprosessen. Du kan spore invitasjonene dine ved å åpne din %(path)s.",
+        "invite_process_error": "Oi, noe gikk galt under invitasjonsprosessen. Du kan spore invitasjonene dine ved å åpne 'Administrasjonsportal or navigere til: ",
         "invite_dialog": {
             "invite_new_users": "Inviter nye brukere til %(tenant)s",
             "invalid_phonenumber": "Ugyldig telefonnummer",

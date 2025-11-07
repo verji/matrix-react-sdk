@@ -77,7 +77,7 @@
         "inviting_status": "Inviting",
         "confirm_button": "Confirm",
         "existing_guest_instructions": "Following guest(s) %(users)s are already Verji users. Follow the instructions below to invite existing users.",
-        "invite_process_error": "Oops, something went wrong during the invitation process. You can track your invitation(s) by opening your %(path)s.",
+        "invite_process_error": "Oops, something went wrong during the invitation process. Navigate to: ",
         "invite_dialog": {
             "invite_new_users": "Invite new users to %(tenant)s",
             "invalid_phonenumber": "Invalid phone number",
