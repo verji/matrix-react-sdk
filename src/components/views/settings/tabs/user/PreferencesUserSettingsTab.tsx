@@ -234,9 +234,11 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
                         {this.renderGroup(PreferencesUserSettingsTab.TIMELINE_SETTINGS)}
                     </SettingsSubsection>
 
-                    <SettingsSubsection heading={_t("settings|preferences|room_directory_heading")}>
-                        {this.renderGroup(PreferencesUserSettingsTab.ROOM_DIRECTORY_SETTINGS)}
-                    </SettingsSubsection>
+                    {SettingsStore.getValue(UIFeature.ShowNsfwContentSetting) && (
+                        <SettingsSubsection heading={_t("settings|preferences|room_directory_heading")}>
+                            {this.renderGroup(PreferencesUserSettingsTab.ROOM_DIRECTORY_SETTINGS)}
+                        </SettingsSubsection>
+                    )}
 
                     <SettingsSubsection heading={_t("common|general")} stretchContent>
                         {this.renderGroup(PreferencesUserSettingsTab.GENERAL_SETTINGS)}
