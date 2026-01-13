@@ -1,17 +1,6 @@
 /* ROSBERG style module */
 /* NOTE: This code (and any other Rosberg .pcss files) has to be imported in here: res\css\_components.pcss */
 
-.verji_invalidphone_error{
-    color: red;
-    padding-left: 30px;
-    margin-top : -15px;
-}
-.verji_invalidphone_warning{
-    color: black;
-    padding-left: 20px;
-    margin-top : -15px;
-}
-
 .vmx_main_dialog {
     @at-root .mx_Dialog & {
         height: auto !important;
@@ -77,10 +66,10 @@
     flex-direction: row;
     width: 100%;
     align-items: center;
-    :last-child {
-        margin-left: 20px;
-        scale: 0.8;
-    }
+    // :last-child {
+        // margin-left: 20px;
+        // scale: 0.8;
+    // }
 }
 
 .vmx_invite_external_user_field {
@@ -116,7 +105,11 @@
     background-color: var(--quinary-content, #6f7882);
     color: var(--primary-content, #ffffff);
 }
-
+// .vmx_LanguageDropdown {
+//     max-width: fit-content;
+// 	min-width: 80px;
+//     height: 40px;
+// }
 .vmx_dialog_footer {
     display: flex;
     flex-direction: row;
