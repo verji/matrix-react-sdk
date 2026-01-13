@@ -1,7 +1,17 @@
-/* ROSBERG style module */
+/* ROSBERG style module
 /* NOTE: This code (and any other Rosberg .pcss files) has to be imported in here: res\css\_components.pcss */
 
-.vmx_main_dialog {
+.verji_invalidphone_error {
+    color: red;
+    padding-left: 30px;
+    margin-top: -15px;
+}
+.verji_invalidphone_warning {
+    color: black;
+    padding-left: 20px;
+    margin-top: -15px;
+}
+
     @at-root .mx_Dialog & {
         height: auto !important;
     }
@@ -12,9 +22,7 @@
     flex-direction: row;
     position: relative;
     justify-content: space-between;
-    padding-bottom: 12px;
     margin-bottom: 12px;
-
     padding: 8px;
     border: 1px solid #dec802;
     border-radius: 4px;
@@ -40,19 +48,18 @@
     flex-wrap: wrap;
     position: relative;
     justify-content: space-between;
-    padding-bottom: 12px;
     margin-bottom: 12px;
-    // border-bottom: 1px solid var(--quinary-content, #6F7882)
-
+    min-width: 0;
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    // margin-bottom: 8px;
-
     .vmx_invite_external_user_close_btn {
         right: 10px;
         display: none;
         scale: 0.8;
+    }
+    .mx_Dropdown_option {
+        height: 38.5px;
     }
     &:hover {
         .vmx_invite_external_user_close_btn {
@@ -74,12 +81,16 @@
 
 .vmx_invite_external_user_field {
     flex: 1 1 0;
-    /* min-width: 300px;     */
     padding: 1rem;
     box-sizing: border-box;
+    min-width: 0;
 }
 
 @media (max-width: 960px) {
+    .vmx_invite_external_user {
+        display: block;
+        position: static;
+    }
     .vmx_invite_external_user_field {
         flex-basis: 100%;
     }
@@ -95,6 +106,17 @@
 
 .vmx_input {
     margin: 0 !important;
+}
+.mx_Field {
+    .mx_Field_input {
+        .vmx_input {
+            min-width: fit-content;
+
+            #external_user_email {
+                min-width: fit-content;
+            }
+        }
+    }
 }
 
 .vmx_infoText {
@@ -169,9 +191,9 @@
             mask-size: 100%;
             mask-repeat: no-repeat;
             position: absolute;
-            top: 6px; // 50%
-            left: 6px; // 50%
-            background-color: #ffffff; // this is fine without a var because it's for both themes
+            top: 6px;
+            left: 6px;
+            background-color: #ffffff; /* this is fine without a var because it's for both themes */
         }
     }
 
@@ -205,10 +227,13 @@
         font-size: $font-12px;
         color: $muted-fg-color;
         float: right;
-        line-height: 3.6rem; // Height of the avatar to keep the time vertically aligned
+        line-height: 3.6rem; /* Height of the avatar to keep the time vertically aligned */
     }
 
     .vmx_InviteDialog_roomTile_highlight {
         font-weight: 900;
     }
+}
+#vmx_LanguageDropdown {
+    height: 38.5px;
 }

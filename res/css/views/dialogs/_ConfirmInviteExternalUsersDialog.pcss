@@ -1,5 +1,5 @@
 /* ROSBERG style module */
-/* NOTE: This code (and any other Rosberg .pcss/.scss files) has to be imported in here: res\css\_components.pcss */
+/* NOTE: Import this file in: res/css/_components.pcss */
 
 .mx_ConfirmInviteExternalUsersDialog {
     &.mx_BaseDialog {
@@ -27,13 +27,23 @@
     border: 1px solid #ccc;
     border-radius: 4px;
 
-    :first-child {
+    &:first-child {
         margin-top: 0;
     }
 
-    &_email,
-    &_project,
-    &_phoneNr {
+    .mx_ConfirmInviteExternalUsersDialog_user_email {
+        margin-top: 4px;
+        font-style: italic;
+        white-space: nowrap;
+    }
+
+    .mx_ConfirmInviteExternalUsersDialog_user_project {
+        margin-top: 4px;
+        font-style: italic;
+        white-space: nowrap;
+    }
+
+    .mx_ConfirmInviteExternalUsersDialog_user_phoneNr {
         margin-top: 4px;
         font-style: italic;
         white-space: nowrap;
