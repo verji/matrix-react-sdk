@@ -82,7 +82,7 @@
             "invite_new_users": "Invite new users to %(tenant)s",
             "invalid_phonenumber": "Invalid phone number",
             "invalid_mobilephonenumber": "Invalid mobilephone number",
-            "warning" : "This number might not support SMS"
+            "warning" : "Number might not support SMS"
         },
         "user_settings_help_about": {
             "bug_report" : "Bugreporting",
@@ -750,7 +750,7 @@
         "voice_message_button": "Voice Message"
     },
     "console_dev_note": "This as a warning",
-    "console_scam_warning": "If someone told you to copy/paste something here, there is a high likelihood you're being scammed!",
+    "console_scam_warning": "Only copy or paste something here if it comes from Verji's official channels. Verji support uses console sometimes for debugging, but from other sources there is a high chance of fraud!",
     "console_wait": "Wait!",
     "create_room": {
         "action_create_room": "Create room",

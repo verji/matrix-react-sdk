@@ -82,7 +82,7 @@
             "invite_new_users": "Inviter nye brukere til %(tenant)s",
             "invalid_phonenumber": "Ugyldig telefonnummer",
             "invalid_mobilephonenumber": "Ugyldig mobilnummer",
-            "warning" : "Dette tlfnr støtter muligense ikke SMS"
+            "warning" : "Tlfnr støtter muligense ikke SMS"
         },
         "user_settings_help_about": {
           "bug_report" : "Feilrapportering",
@@ -1189,7 +1189,7 @@
     "voice_message_button": "Talemelding"
   },
   "console_dev_note": "Dette til advarsel",
-  "console_scam_warning": "Hvis noen ba deg om å kopiere/lime inn noe her, er det stor sannsynlighet for at du blir svindlet!",
+  "console_scam_warning": "Kun kopier eller lime inn noe her hvis det kommer fra Verjis offisielle kanaler. Verji support bruker console noen ganger for å feilsøke, men fra andre kilder er det stor sjanse for svindel!",
   "console_wait": "Vent!",
   "create_room": {
     "action_create_room": "Opprett rom",
@@ -2249,7 +2249,7 @@
     "google_trademarks": "Google Play og Google Play-logoen er varemerker for Google LLC.",
     "has_avatar_label": "Flott, det vil hjelp folk å ha tillit til at det er deg",
     "intro_byline": "Ei samtalene dine.",
-    "intro_welcome": "Velkommen til %(appName)s",
+    "intro_welcome": "Velkommen til Verji",
     "no_avatar_label": "Legg til et bilde slik at folk vet at det er deg.",
     "only_n_steps_to_go": {
       "one": "Bare %(count)s trinn igjen",
