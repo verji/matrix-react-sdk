@@ -256,7 +256,11 @@ export default class MFileBody extends React.Component<IProps, IState> {
                 );
             }
 
-            const url = "usercontent/"; // XXX: this path should probably be passed from the skin
+            // VERJI START
+            // const url = "usercontent/"; // XXX: this path should probably be passed from the skin
+            // Use the client version to avoid caching issues with the iframe content
+            const url = `usercontent/?v=${process.env.VERSION}`; // XXX: this path should probably be passed from the skin
+            // VERJI END
 
             // If the attachment is encrypted then put the link inside an iframe.
             return (
