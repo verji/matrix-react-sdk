@@ -53,7 +53,11 @@ function getManagedIframe(): { iframe: HTMLIFrameElement; onLoadPromise: Promise
         managedIframe.onload = () => {
             resolve();
         };
-        managedIframe.src = "usercontent/"; // XXX: Should come from the skin
+        // VERJI START
+        // managedIframe.src = "usercontent/"; XXX: Should come from the skin
+        // Use the client version to avoid caching issues with the iframe content
+        managedIframe.src = `usercontent/?v=${process.env.VERSION}`;
+        // VERJI END
     });
 
     return { iframe: managedIframe, onLoadPromise };
