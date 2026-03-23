@@ -4005,5 +4005,10 @@
             "userInputs": "Det bör inte finnas några personliga eller sidrelaterade data.",
             "wordByItself": "Enstaka ord är enkla att gissa"
         }
+    },
+    "verji": {
+        "dm_fetch_error_message": "Något gick fel vid hämtning av dina direktmeddelanden för denna klient.",
+        "dm_fetch_error_timeout": "Tidsgränsen överskreds",
+        "dm_fetch_error_unknown": "Okänt fel"
     }
 }
