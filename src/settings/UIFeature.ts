@@ -110,6 +110,7 @@ export const enum UIFeature {
     LeaveSpaceButton = "UIFeature.leaveSpaceButton",
     SwitchSpaceOnDMSelect = "UIFeature.switchSpaceOnDMSelect",
     ShowNsfwContentSetting = "UIFeature.showNsfwContentSetting",
+    VerjiSpaceDmBadges = "UIFeature.verjiSpaceDmBadges",
 }
 
 export enum UIComponent {

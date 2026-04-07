@@ -1543,6 +1543,11 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
+    // VERJI: When enabled, includes Verji-fetched DM rooms in space badge notification counts
+    [UIFeature.VerjiSpaceDmBadges]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: false,
+    },
 
     // Electron-specific settings, they are stored by Electron and set/read over an IPC.
     // We store them over there are they are necessary to know before the renderer process launches.
