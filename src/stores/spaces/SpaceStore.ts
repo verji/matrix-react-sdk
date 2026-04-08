@@ -732,7 +732,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
             if (verjiDmBadgesEnabled && !isMetaSpace(s)) {
                 const verjiDmRooms = this.verjiDmRoomsBySpace.get(s);
                 if (verjiDmRooms?.length) {
-                    const existingRoomIds = new Set(filteredRooms.map(r => r.roomId));
+                    const existingRoomIds = new Set(filteredRooms.map((r) => r.roomId));
                     for (const room of verjiDmRooms) {
                         if (!existingRoomIds.has(room.roomId)) {
                             filteredRooms.push(room);
