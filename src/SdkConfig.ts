@@ -68,10 +68,12 @@ export const DEFAULTS: DeepReadonly<IConfigOptions> = {
         logo: "vector-icons/1024.png",
         url: "https://element.io/download",
     },
+    // VERJI: Verji's own mobile apps instead of Element's. Verji is not published on F-Droid, so that link is
+    // disabled by default.
     mobile_builds: {
-        ios: "https://apps.apple.com/app/vector/id1083446067",
-        android: "https://play.google.com/store/apps/details?id=im.vector.app",
-        fdroid: "https://f-droid.org/repository/browse/?fdid=im.vector.app",
+        ios: "https://apps.apple.com/app/verji/id1558512305",
+        android: "https://play.google.com/store/apps/details?id=com.rosberg.verji",
+        fdroid: null,
     },
 };
 
