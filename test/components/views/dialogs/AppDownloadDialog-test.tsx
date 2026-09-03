@@ -25,26 +25,32 @@ describe("AppDownloadDialog", () => {
         SdkConfig.reset();
     });
 
-    it("should render with desktop, ios, android, fdroid buttons by default", () => {
+    // VERJI: the default mobile_builds now point at the Verji apps, and fdroid defaults to null
+    // because Verji is not published on F-Droid. The two tests below were previously written
+    // around Element's defaults, where F-Droid was present unless explicitly disabled.
+    it("should render with desktop, ios and android buttons by default", () => {
         const { asFragment } = render(<AppDownloadDialog onFinished={jest.fn()} />);
         expect(screen.queryByRole("button", { name: "Download Element Desktop" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Download on the App Store" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Get it on Google Play" })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).not.toBeInTheDocument();
         expect(asFragment()).toMatchSnapshot();
     });
 
-    it("should allow disabling fdroid build", () => {
+    // VERJI: inverted from "should allow disabling fdroid build". F-Droid is off by default now,
+    // so the case worth covering is that a deployment can still switch it back on through config.
+    it("should allow enabling fdroid build", () => {
         SdkConfig.add({
             mobile_builds: {
-                fdroid: null,
+                // Verji does not publish to F-Droid; this only exercises the config path.
+                fdroid: "https://f-droid.org/packages/com.example.app",
             },
         } as ConfigOptions);
         const { asFragment } = render(<AppDownloadDialog onFinished={jest.fn()} />);
         expect(screen.queryByRole("button", { name: "Download Element Desktop" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Download on the App Store" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Get it on Google Play" })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).toBeInTheDocument();
         expect(asFragment()).toMatchSnapshot();
     });
 
@@ -58,7 +64,8 @@ describe("AppDownloadDialog", () => {
         expect(screen.queryByRole("button", { name: "Download Element Desktop" })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Download on the App Store" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Get it on Google Play" })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).toBeInTheDocument();
+        // VERJI: F-Droid is off by default now
+        expect(screen.queryByRole("button", { name: "Get it on F-Droid" })).not.toBeInTheDocument();
         expect(asFragment()).toMatchSnapshot();
     });
 

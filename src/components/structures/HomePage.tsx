@@ -144,7 +144,7 @@ const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
         introSection = <UserWelcomeTop />;
     } else {
         const brandingConfig = SdkConfig.getObject("branding");
-        const logoUrl = brandingConfig?.get("auth_header_logo_url") ?? "themes/element/img/logos/element-logo.svg";
+        const logoUrl = brandingConfig?.get("auth_header_logo_url") ?? "vector-icons/300.png"; // VERJI: Verji icon fallback
 
         introSection = (
             <React.Fragment>
