@@ -54,6 +54,7 @@ import PosthogTrackers from "../../../PosthogTrackers";
 import { SDKContext } from "../../../contexts/SDKContext";
 import { canInviteTo } from "../../../utils/room/canInviteTo";
 import { inviteToRoom } from "../../../utils/room/inviteToRoom";
+import { isDmRoom } from "../../../utils/room/isDmRoom";
 import { Action } from "../../../dispatcher/actions";
 import { SpaceScopeHeader } from "./SpaceScopeHeader";
 
@@ -368,7 +369,14 @@ export default class MemberList extends React.Component<IProps, IState> {
         const room = cli.getRoom(this.props.roomId);
         let inviteButton: JSX.Element | undefined;
 
-        if (room?.getMyMembership() === KnownMembership.Join && shouldShowComponent(UIComponent.InviteUsers)) {
+        // VERJI: no invite affordance inside a DM; inviting a third person into a DM is not a
+        // supported use of Verji.
+        if (
+            room &&
+            !isDmRoom(room) &&
+            room.getMyMembership() === KnownMembership.Join &&
+            shouldShowComponent(UIComponent.InviteUsers)
+        ) {
             const inviteButtonText = room.isSpaceRoom() ? _t("space|invite_this_space") : _t("room|invite_this_room");
 
             const button = (

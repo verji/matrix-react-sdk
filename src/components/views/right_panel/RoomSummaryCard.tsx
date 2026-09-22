@@ -83,6 +83,7 @@ import { DefaultTagID } from "../../../stores/room-list/models";
 import { tagRoom } from "../../../utils/room/tagRoom";
 import { canInviteTo } from "../../../utils/room/canInviteTo";
 import { inviteToRoom } from "../../../utils/room/inviteToRoom";
+import { isDmRoom } from "../../../utils/room/isDmRoom";
 import { useAccountData } from "../../../hooks/useAccountData";
 import { useRoomState } from "../../../hooks/useRoomState";
 import { useTopic } from "../../../hooks/room/useTopic";
@@ -487,6 +488,8 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, permalinkCreator, onClose, on
         RoomListStore.instance.getTagsForRoom(room),
     );
     const canInviteToState = useEventEmitterState(room, RoomStateEvent.Update, () => canInviteTo(room));
+    // VERJI: no invite affordance inside a DM.
+    const isDm = isDmRoom(room);
     const isFavorite = roomTags.includes(DefaultTagID.Favourite);
 
     return (
@@ -530,12 +533,15 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, permalinkCreator, onClose, on
                 // XXX: https://github.com/element-hq/compound/issues/288
                 onSelect={() => {}}
             />
-            <MenuItem
-                Icon={UserAddIcon}
-                label={_t("action|invite")}
-                disabled={!canInviteToState}
-                onSelect={() => inviteToRoom(room)}
-            />
+            {/* VERJI: the invite item is removed entirely inside a DM, not merely disabled. */}
+            {!isDm && (
+                <MenuItem
+                    Icon={UserAddIcon}
+                    label={_t("action|invite")}
+                    disabled={!canInviteToState}
+                    onSelect={() => inviteToRoom(room)}
+                />
+            )}
             {SettingsStore.getValue(UIFeature.RoomSummaryCopyLink) && (
                 <>
                     <MenuItem Icon={LinkIcon} label={_t("action|copy_link")} onSelect={onShareRoomClick} />

@@ -1255,6 +1255,12 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
+    // VERJI: when false, the room-list header "+" plus-menu is hidden on every space type.
+    // Defaults to true so upstream behaviour is unchanged; Verji deployments set it false in config.
+    [UIFeature.ShowRoomListPlusMenu]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
     [UIFeature.ShowStartChatPlusMenuForMetaSpace]: {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
