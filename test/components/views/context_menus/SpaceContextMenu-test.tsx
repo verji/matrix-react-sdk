@@ -34,6 +34,8 @@ import { shouldShowComponent } from "../../../../src/customisations/helpers/UICo
 import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { _t } from "../../../../src/languageHandler";
+import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
+import { mkEvent, mockStateEventImplementation } from "../../../test-utils";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -70,6 +72,8 @@ describe("<SpaceContextMenu />", () => {
             },
             client: mockClient,
             getMyMembership: jest.fn(),
+            // VERJI: read by the create-room gate; unset, the space is not a Verji space.
+            isSpaceRoom: jest.fn(),
             ...props,
         }) as unknown as Room;
 
@@ -223,6 +227,96 @@ describe("<SpaceContextMenu />", () => {
             await userEvent.click(screen.getByTestId("new-subspace-option"));
             expect(showCreateNewSubspace).toHaveBeenCalledWith(space);
             expect(onFinished).toHaveBeenCalled();
+        });
+    });
+
+    // VERJI: Hierarchy V2 — the menu's "Room" option follows the same create-room rule as the
+    // room list's Rooms "+".
+    describe("the Hierarchy V2 create-room gate", () => {
+        const TENANT = "tenant-1";
+        const ORG_A = "org-a";
+        const STANDARD_USER = { "Customer-User#": [TENANT] };
+
+        /** A space carrying Verji state, keyed on its own type as itops-matrix writes it. */
+        const makeVerjiSpace = (events: Record<string, object>): Room => {
+            const roomId = "!verji-space:server";
+            const state = Object.entries(events).map(([type, content]) =>
+                mkEvent({ event: true, type, room: roomId, user: userId, skey: type, content, ts: Date.now() }),
+            );
+            return makeMockSpace({
+                roomId,
+                isSpaceRoom: jest.fn().mockReturnValue(true),
+                currentState: {
+                    maySendStateEvent: jest.fn().mockReturnValue(true),
+                    getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)),
+                },
+            });
+        };
+        const TENANT_INFO = { "app.verji.tenant_info": { tenant_id: TENANT } };
+        const PARENT = { "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" } };
+
+        const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}): void => {
+            jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
+                (tenantId) => rolloutOn && tenantId === TENANT,
+            );
+            jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation(
+                (tenantId, roleName, instanceId) =>
+                    tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+            );
+        };
+
+        beforeEach(() => {
+            mocked(shouldShowComponent).mockReturnValue(true);
+        });
+
+        afterEach(() => {
+            jest.restoreAllMocks();
+        });
+
+        it("offers the room option exactly as today when the rollout switch is off", async () => {
+            mockStore(false, {});
+            const space = makeVerjiSpace(TENANT_INFO);
+            renderComponent({ space });
+
+            const option = screen.getByTestId("new-room-option");
+            expect(option).not.toHaveAttribute("aria-disabled", "true");
+            await userEvent.click(option);
+            expect(showCreateNewRoom).toHaveBeenCalledWith(space);
+        });
+
+        it("disables the room option for a Guest, with the guest hint, and does not open the dialog", async () => {
+            mockStore(true, {});
+            renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+
+            const option = screen.getByTestId("new-room-option");
+            expect(option).toHaveAttribute("aria-disabled", "true");
+            await userEvent.hover(option);
+            expect((await screen.findByRole("tooltip")).textContent).toContain("You are a guest in");
+            await userEvent.click(option);
+            expect(showCreateNewRoom).not.toHaveBeenCalled();
+        });
+
+        it("keeps the room option for a StandardUser at a TenantRoot", () => {
+            mockStore(true, STANDARD_USER);
+            renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+
+            expect(screen.getByTestId("new-room-option")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("removes the room option at an OrgUnitCategory", () => {
+            mockStore(true, STANDARD_USER);
+            renderComponent({ space: makeVerjiSpace({ ...TENANT_INFO, ...PARENT }) });
+
+            expect(screen.queryByTestId("new-room-option")).not.toBeInTheDocument();
+        });
+
+        it("keeps the room option for the guest org's Owner at that OrgUnit", () => {
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
+            renderComponent({
+                space: makeVerjiSpace({ ...TENANT_INFO, ...PARENT, "app.verji.org_unit_info": { org_unit_id: ORG_A } }),
+            });
+
+            expect(screen.getByTestId("new-room-option")).not.toHaveAttribute("aria-disabled", "true");
         });
     });
 

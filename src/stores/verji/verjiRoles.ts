@@ -28,8 +28,10 @@ limitations under the License.
  * `Customer-User` covers every OrgUnit in the tenant, so asking with it would open the OrgUnit
  * gates for people who are not members of those OrgUnits. Always ask with the `#` twin.
  *
- * `Owner` is the exception: itops never recurses it, so it is inherently direct and correctly has
- * no `#` twin.
+ * `ClientOrganization-Owner` is the exception: itops never recurses an `…Owner` role, so it is
+ * inherently direct and correctly has no `#` twin. It is module-prefixed like every other role —
+ * the bare `Owner` is a different grant (instance ownership of signing orders, onboarding jobs and
+ * the like) and says nothing about an OrgUnit.
  *
  * ## Superusers read denied
  *
@@ -46,8 +48,11 @@ const ROLE_TENANT_MANAGER_DIRECT = "Customer-Manager#";
 const ROLE_ORG_UNIT_USER_DIRECT = "ClientOrganization-User#";
 /** Directly granted `ClientOrganization-Manager` — the OrgUnit's PrimaryContact. */
 const ROLE_ORG_UNIT_MANAGER_DIRECT = "ClientOrganization-Manager#";
-/** The OrgUnit's Owner — the tenant user who created it. Never recursed, so no `#` twin. */
-const ROLE_ORG_UNIT_OWNER = "Owner";
+/**
+ * The OrgUnit's Owner — the tenant user who created it; the account service grants it to the
+ * caller when it creates a guest org. Never recursed, so no `#` twin.
+ */
+const ROLE_ORG_UNIT_OWNER = "ClientOrganization-Owner";
 
 /**
  * The slice of `sdk.permissions` these predicates need.

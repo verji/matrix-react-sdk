@@ -94,7 +94,7 @@ function evaluateGate(
 export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
         if (isStandardUser(reader, c.tenantId)) return ALLOWED;
-        return denied(_t("verji|gate|onboard_denied_guest", { tenant: c.spaceName }));
+        return denied(_t("verji|gate|onboard_denied_guest", { tenant: c.tenantName }));
     });
 }
 
@@ -118,7 +118,7 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
             case VerjiSpaceKind.OrgUnit: {
                 // Two distinct denial reasons, and the hint must name the right one.
                 if (!isStandardUser(reader, c.tenantId)) {
-                    return denied(_t("verji|gate|create_room_denied_guest", { tenant: c.spaceName }));
+                    return denied(_t("verji|gate|create_room_denied_guest", { tenant: c.tenantName }));
                 }
                 if (!c.orgUnitId) {
                     // An OrgUnit space is identified *by* org_unit_info, so this is unreachable via
@@ -134,7 +134,7 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
             case VerjiSpaceKind.TenantRoot:
             default:
                 if (isStandardUser(reader, c.tenantId)) return ALLOWED;
-                return denied(_t("verji|gate|create_room_denied_guest", { tenant: c.spaceName }));
+                return denied(_t("verji|gate|create_room_denied_guest", { tenant: c.tenantName }));
         }
     });
 }
@@ -158,7 +158,7 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
             return inOrgUnit ? ALLOWED : denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
         }
         if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
-        return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.spaceName }));
+        return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.tenantName }));
     });
 }
 

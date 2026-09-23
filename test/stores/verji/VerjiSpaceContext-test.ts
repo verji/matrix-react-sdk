@@ -32,8 +32,8 @@ const ORG_A = "org-a";
  * of the exercise is that Verji custom events use the event type as their own state key, and only
  * the real state store proves the read matches the write.
  */
-const makeSpace = (client: MatrixClient, events: Record<string, object>): Room => {
-    const room = new Room("!space:domain.org", client, USER);
+const makeSpace = (client: MatrixClient, events: Record<string, object>, roomId = "!space:domain.org"): Room => {
+    const room = new Room(roomId, client, USER);
     jest.spyOn(room, "isSpaceRoom").mockReturnValue(true);
     room.currentState.setStateEvents(
         Object.entries(events).map(
@@ -65,39 +65,78 @@ describe("VerjiSpaceContext", () => {
 
     describe("resolveVerjiSpaceContext", () => {
         it("returns null for no space at all", () => {
-            expect(resolveVerjiSpaceContext(null, false)).toBeNull();
-            expect(resolveVerjiSpaceContext(undefined, false)).toBeNull();
+            expect(resolveVerjiSpaceContext(null, [])).toBeNull();
+            expect(resolveVerjiSpaceContext(undefined, [])).toBeNull();
         });
 
         it("returns null for a room that is not a space", () => {
             const room = makeSpace(client, TENANT_INFO);
             jest.spyOn(room, "isSpaceRoom").mockReturnValue(false);
 
-            expect(resolveVerjiSpaceContext(room, false)).toBeNull();
+            expect(resolveVerjiSpaceContext(room, [])).toBeNull();
         });
 
         it("returns null for a space with no tenant_info — not a surface this feature governs", () => {
-            expect(resolveVerjiSpaceContext(makeSpace(client, {}), false)).toBeNull();
+            expect(resolveVerjiSpaceContext(makeSpace(client, {}), [])).toBeNull();
         });
 
-        it("reads the tenant id, the org unit id and the space name", () => {
+        it("reads the tenant id and the org unit id", () => {
             const space = makeSpace(client, {
                 ...TENANT_INFO,
                 "app.verji.org_unit_info": { org_unit_id: ORG_A, org_unit_name: "Org A" },
             });
-            space.name = "Acme AS";
 
-            const ctx = resolveVerjiSpaceContext(space, false)!;
+            const ctx = resolveVerjiSpaceContext(space, [])!;
 
             expect(ctx.tenantId).toBe(TENANT);
             expect(ctx.orgUnitId).toBe(ORG_A);
-            expect(ctx.spaceName).toBe("Acme AS");
+        });
+
+        describe("the tenant name — what the hints must say", () => {
+            // Standing is decided per tenant, so a hint rendered on an OrgUnit space must name the
+            // tenant, not the OrgUnit.
+            const orgUnitSpace = (): Room => {
+                const space = makeSpace(client, {
+                    ...TENANT_INFO,
+                    "app.verji.org_unit_info": { org_unit_id: ORG_A },
+                    "app.verji.canonical_parent_space": { canonical_parent_space_id: "!category:d.org" },
+                });
+                space.name = "Org A";
+                return space;
+            };
+            const topLevel = (roomId: string, tenantId: string, name: string): Room => {
+                const space = makeSpace(client, { "app.verji.tenant_info": { tenant_id: tenantId } }, roomId);
+                space.name = name;
+                return space;
+            };
+
+            it("names the tenant after its root space, not the space being rendered", () => {
+                const roots = [
+                    topLevel("!other-root:d.org", "tenant-2", "Other AS"),
+                    topLevel("!root:d.org", TENANT, "Acme AS"),
+                ];
+
+                expect(resolveVerjiSpaceContext(orgUnitSpace(), roots)!.tenantName).toBe("Acme AS");
+            });
+
+            it("uses the space's own name when it is the tenant's root", () => {
+                const root = topLevel("!root:d.org", TENANT, "Acme AS");
+
+                expect(resolveVerjiSpaceContext(root, [root])!.tenantName).toBe("Acme AS");
+            });
+
+            it("falls back to the rendered space's name when the tenant's root is not in the space panel", () => {
+                // Never another tenant's root, however close to hand.
+                const roots = [topLevel("!other-root:d.org", "tenant-2", "Other AS")];
+
+                expect(resolveVerjiSpaceContext(orgUnitSpace(), roots)!.tenantName).toBe("Org A");
+            });
         });
 
         it("ignores an empty-string tenant id rather than treating it as a tenant", () => {
             const space = makeSpace(client, { "app.verji.tenant_info": { tenant_id: "" } });
 
-            expect(resolveVerjiSpaceContext(space, false)).toBeNull();
+            expect(resolveVerjiSpaceContext(space, [])).toBeNull();
         });
 
         it("ignores a non-string org unit id", () => {
@@ -106,7 +145,7 @@ describe("VerjiSpaceContext", () => {
                 "app.verji.org_unit_info": { org_unit_id: 42 },
             });
 
-            const ctx = resolveVerjiSpaceContext(space, false)!;
+            const ctx = resolveVerjiSpaceContext(space, [])!;
 
             expect(ctx.orgUnitId).toBeUndefined();
             expect(ctx.kind).toBe(VerjiSpaceKind.TenantRoot);
@@ -120,7 +159,7 @@ describe("VerjiSpaceContext", () => {
                     "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:d.org" },
                 });
 
-                expect(resolveVerjiSpaceContext(space, false)!.canonicalSpaceId).toBe("!sib:d.org");
+                expect(resolveVerjiSpaceContext(space, [])!.canonicalSpaceId).toBe("!sib:d.org");
             });
 
             it("falls back to the parent pointer for pre-split vintage spaces", () => {
@@ -129,7 +168,7 @@ describe("VerjiSpaceContext", () => {
                     "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:d.org" },
                 });
 
-                expect(resolveVerjiSpaceContext(space, false)!.canonicalSpaceId).toBe("!parent:d.org");
+                expect(resolveVerjiSpaceContext(space, [])!.canonicalSpaceId).toBe("!parent:d.org");
             });
         });
     });

@@ -653,7 +653,7 @@ describe("Verji Hierarchy V2 gates", () => {
 
             const button = screen.getByLabelText("Add room");
             expect(button).toHaveAttribute("aria-disabled", "true");
-            await expectHint(button, "cannot create rooms here");
+            await expectHint(button, "cannot create rooms in this space");
         });
 
         it("does not open the create-room menu when denied", async () => {
@@ -721,7 +721,7 @@ describe("Verji Hierarchy V2 gates", () => {
 
             const button = screen.getByLabelText("Add room");
             expect(button).toHaveAttribute("aria-disabled", "true");
-            await expectHint(button, "guest account in");
+            await expectHint(button, "You are a guest in");
         });
     });
 
@@ -742,7 +742,7 @@ describe("Verji Hierarchy V2 gates", () => {
         });
 
         it("enables the Rooms + for a StandardUser who is the Owner", () => {
-            mockStore(true, { ...STANDARD_USER, Owner: [ORG_A] });
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
 
             render(getComponent());
 
@@ -777,6 +777,36 @@ describe("Verji Hierarchy V2 gates", () => {
             const button = screen.getByLabelText("Add people");
             expect(button).toHaveAttribute("aria-disabled", "true");
             await expectHint(button, "so you cannot invite new users");
+        });
+
+        it("names the tenant's root space in the hint, not the OrgUnit space", async () => {
+            // Standing is decided per tenant, so the hint names the tenant even when it is shown
+            // on an OrgUnit space.
+            const root = mkSpace(client, "!tenant-root:server");
+            root.name = "Acme AS";
+            mocked(root.currentState).getStateEvents.mockImplementation(
+                mockStateEventImplementation([
+                    mkEvent({
+                        event: true,
+                        type: "app.verji.tenant_info",
+                        room: root.roomId,
+                        user: client.getSafeUserId(),
+                        skey: "app.verji.tenant_info",
+                        content: { tenant_id: TENANT },
+                        ts: Date.now(),
+                    }),
+                ]),
+            );
+            jest.spyOn(SpaceStore.instance, "spacePanelSpaces", "get").mockReturnValue([root]);
+            store.activeSpaceRoom!.name = "Org A";
+            mockStore(true, { "ClientOrganization-User#": [ORG_A] });
+
+            render(getComponent());
+
+            await expectHint(
+                screen.getByLabelText("Add people"),
+                "You are a guest in Acme AS, so you cannot invite new users to this space.",
+            );
         });
     });
 

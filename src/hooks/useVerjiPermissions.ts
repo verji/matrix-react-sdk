@@ -69,7 +69,6 @@ export function useVerjiGate(
     // Subscribe. The value itself is unused — the reads below go straight to the store.
     void useVerjiStoreVersion();
 
-    const isTopLevel = !!space && SpaceStore.instance.spacePanelSpaces.some((s) => s.roomId === space.roomId);
-    const ctx = resolveVerjiSpaceContext(space, isTopLevel);
+    const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
     return gate(ctx, VerjiPermissionsStore.instance);
 }

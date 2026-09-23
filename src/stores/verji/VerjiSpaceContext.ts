@@ -60,8 +60,12 @@ export interface VerjiSpaceContext {
     /** Sibling coalesced with parent — the platform-wide pre-split reader rule. Diagnostics. */
     canonicalSpaceId?: string;
     kind: VerjiSpaceKind;
-    /** The tenant's display name, for hint interpolation. The space's own name at a TenantRoot. */
-    spaceName: string;
+    /**
+     * The tenant's display name, for hint interpolation: the name of the tenant's root space, not
+     * of the space being rendered. Whether a user may act is decided by their standing in the
+     * tenant, so that is the name the hint must give. See {@link resolveVerjiSpaceContext}.
+     */
+    tenantName: string;
 }
 
 /** Synchronous state read. Verji custom events use the event type as their own state key. */
@@ -111,18 +115,29 @@ export function deriveVerjiSpaceKind(space: Room, isTopLevel: boolean): VerjiSpa
  * room. Callers must treat `null` as "not a surface this feature governs" and render exactly as
  * today, never as a denial.
  *
+ * Neither `tenant_info` nor the access context carries the tenant's name, so it is read off the
+ * tenant's root space: the top-level space carrying the same `tenant_id`. If that root is not among
+ * the top-level spaces the rendered space's own name stands in, which is only ever true of the root
+ * itself.
+ *
  * @param space the space room being rendered
- * @param isTopLevel whether this space is a root of the client's own space tree; used only by the
- *     pre-split kind fallback described on {@link deriveVerjiSpaceKind}
+ * @param topLevelSpaces the roots of the client's own space tree. They supply the tenant's name, and
+ *     whether `space` is one of them feeds the pre-split kind fallback described on
+ *     {@link deriveVerjiSpaceKind}
  */
 export function resolveVerjiSpaceContext(
     space: Room | null | undefined,
-    isTopLevel: boolean,
+    topLevelSpaces: readonly Room[],
 ): VerjiSpaceContext | null {
     if (!space || !space.isSpaceRoom()) return null;
 
     const tenantId = readString(space, EV_TENANT_INFO, "tenant_id");
     if (!tenantId) return null;
+
+    const isTopLevel = topLevelSpaces.some((s) => s.roomId === space.roomId);
+    const tenantRoot = isTopLevel
+        ? space
+        : topLevelSpaces.find((s) => readString(s, EV_TENANT_INFO, "tenant_id") === tenantId);
 
     return {
         tenantId,
@@ -131,6 +146,6 @@ export function resolveVerjiSpaceContext(
             readString(space, EV_CANONICAL_SIBLING_SPACE, "canonical_sibling_space_id") ??
             readString(space, EV_CANONICAL_PARENT_SPACE, "canonical_parent_space_id"),
         kind: deriveVerjiSpaceKind(space, isTopLevel),
-        spaceName: space.name,
+        tenantName: (tenantRoot ?? space).name,
     };
 }

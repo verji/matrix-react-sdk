@@ -60,7 +60,7 @@ describe("verjiRoles — the client's role contract with itops", () => {
             tenantManagerDirect: "Customer-Manager#",
             orgUnitUserDirect: "ClientOrganization-User#",
             orgUnitManagerDirect: "ClientOrganization-Manager#",
-            orgUnitOwner: "Owner",
+            orgUnitOwner: "ClientOrganization-Owner",
         });
     });
 
@@ -100,12 +100,19 @@ describe("verjiRoles — the client's role contract with itops", () => {
             expect(isOrgUnitMember(reader, TENANT, ORG_B)).toBe(false);
         });
 
-        it("asks for Owner without a '#', because itops never expands it", () => {
+        it("asks for ClientOrganization-Owner without a '#', because itops never expands it", () => {
             const { reader, asked } = recordingReader();
 
             isOrgUnitOwner(reader, TENANT, ORG_A);
 
-            expect(asked).toEqual([[TENANT, "Owner", ORG_A]]);
+            expect(asked).toEqual([[TENANT, "ClientOrganization-Owner", ORG_A]]);
+        });
+
+        it("does not read the bare Owner role as OrgUnit ownership", () => {
+            // Bare `Owner` is instance ownership of signing orders, onboarding jobs and the like.
+            // The guest-org creator's grant is module-prefixed, and only that one counts.
+            expect(isOrgUnitOwner(readerFor({ Owner: [ORG_A] }), TENANT, ORG_A)).toBe(false);
+            expect(isOrgUnitOwner(readerFor({ "ClientOrganization-Owner": [ORG_A] }), TENANT, ORG_A)).toBe(true);
         });
     });
 
@@ -143,7 +150,7 @@ describe("verjiRoles — the client's role contract with itops", () => {
                 "Customer-User#": ["X"],
                 "Customer-Manager#": ["X"],
                 "ClientOrganization-User#": ["X"],
-                "Owner": ["X"],
+                "ClientOrganization-Owner": ["X"],
             });
 
             expect(isStandardUser(reader, TENANT)).toBe(false);

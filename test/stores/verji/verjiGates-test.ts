@@ -33,7 +33,7 @@ const ctxFor = (kind: VerjiSpaceKind, orgUnitId?: string): VerjiSpaceContext => 
     tenantId: TENANT,
     orgUnitId,
     kind,
-    spaceName: "Acme AS",
+    tenantName: "Acme AS",
 });
 
 const TENANT_ROOT = ctxFor(VerjiSpaceKind.TenantRoot);
@@ -130,7 +130,7 @@ describe("verjiGates", () => {
 
             expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
             expect(isGateDisabled(decision)).toBe(true);
-            expect(decision.hint).toBe("Your account is a guest account in Acme AS, so you cannot invite new users.");
+            expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot invite new users to this space.");
         });
     });
 
@@ -145,7 +145,7 @@ describe("verjiGates", () => {
             const decision = getCreateRoomGate(TENANT_ROOT, readerFor(true, GUEST));
 
             expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
-            expect(decision.hint).toBe("Your account is a guest account in Acme AS, so you cannot create rooms here.");
+            expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot create rooms in this space.");
         });
 
         it("hides the affordance at an OrgUnitCategory for everyone", () => {
@@ -170,7 +170,7 @@ describe("verjiGates", () => {
             it("allows a StandardUser who is the Owner", () => {
                 // Room creation and space settings deliberately share the Member-or-Owner rule; a
                 // Member-only reading for room creation would be the asymmetric one.
-                const reader = readerFor(true, { ...STANDARD_USER, Owner: [ORG_A] });
+                const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
 
                 expect(getCreateRoomGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Allowed);
             });
@@ -190,9 +190,7 @@ describe("verjiGates", () => {
                 const decision = getCreateRoomGate(ORG_UNIT, reader);
 
                 expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
-                expect(decision.hint).toBe(
-                    "Your account is a guest account in Acme AS, so you cannot create rooms here.",
-                );
+                expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot create rooms in this space.");
             });
 
             it("denies the edge case: holds the mirrored structure without membership", () => {
@@ -201,7 +199,7 @@ describe("verjiGates", () => {
                 const reader = readerFor(true, {
                     ...STANDARD_USER,
                     "ClientOrganization-User#": [ORG_B],
-                    "Owner": [ORG_B],
+                    "ClientOrganization-Owner": [ORG_B],
                 });
 
                 expect(getCreateRoomGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Denied);
@@ -234,7 +232,7 @@ describe("verjiGates", () => {
         });
 
         it("uses Member-or-Owner, not PrimaryContact, at an OrgUnit", () => {
-            const owner = readerFor(true, { ...STANDARD_USER, Owner: [ORG_A] });
+            const owner = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
             const member = readerFor(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
             const neither = readerFor(true, STANDARD_USER);
 
@@ -250,7 +248,7 @@ describe("verjiGates", () => {
             const otherTenantCtx: VerjiSpaceContext = {
                 tenantId: "tenant-2",
                 kind: VerjiSpaceKind.TenantRoot,
-                spaceName: "Other AS",
+                tenantName: "Other AS",
             };
             const readerKnowingOnlyTenant1: VerjiGateReader = {
                 isCanonicalSpaceSyncEnabled: (tenantId) => tenantId === TENANT,
