@@ -19,7 +19,7 @@ import React, { ComponentProps } from "react";
 import { cleanup, queryByRole, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mocked } from "jest-mock";
-import { Room } from "matrix-js-sdk/src/matrix";
+import { MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 
 import RoomList from "../../../../src/components/views/rooms/RoomList";
 import ResizeNotifier from "../../../../src/utils/ResizeNotifier";
@@ -29,7 +29,7 @@ import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
 import dis from "../../../../src/dispatcher/dispatcher";
 import { Action } from "../../../../src/dispatcher/actions";
 import * as testUtils from "../../../test-utils";
-import { mkSpace, stubClient } from "../../../test-utils";
+import { mkEvent, mkSpace, mockStateEventImplementation, stubClient } from "../../../test-utils";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import SpaceStore from "../../../../src/stores/spaces/SpaceStore";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
@@ -37,6 +37,7 @@ import RoomListStore from "../../../../src/stores/room-list/RoomListStore";
 import { ITagMap } from "../../../../src/stores/room-list/algorithms/models";
 import { DefaultTagID } from "../../../../src/stores/room-list/models";
 import SettingsStore from "../../../../src/settings/SettingsStore";
+import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -444,6 +445,250 @@ describe("UIFeature tests part 2", () => {
             await userEvent.click(peoplePlusButton);
 
             expect(screen.queryByLabelText("Invite to space")).not.toBeInTheDocument();
+        });
+    });
+});
+
+// VERJI: Hierarchy V2 per-user gating.
+describe("Verji Hierarchy V2 gates", () => {
+    stubClient();
+    const client = MatrixClientPeg.safeGet();
+    const store = SpaceStore.instance;
+
+    const TENANT = "tenant-1";
+    const ORG_A = "org-a";
+    const spaceId = "!verji-gated-space:server";
+
+    let rooms: Room[];
+    /** Accumulated so a second stampSpace call adds to, rather than replaces, the space's state. */
+    let spaceState: MatrixEvent[];
+
+    function getComponent(props: Partial<ComponentProps<typeof RoomList>> = {}): JSX.Element {
+        return (
+            <RoomList
+                onKeyDown={jest.fn()}
+                onFocus={jest.fn()}
+                onBlur={jest.fn()}
+                onResize={jest.fn()}
+                resizeNotifier={new ResizeNotifier()}
+                isMinimized={false}
+                activeSpace={MetaSpace.Home}
+                {...props}
+            />
+        );
+    }
+
+    /**
+     * Put Verji state events on a space, exactly as itops-matrix writes them: the event type is
+     * also the state key. mkSpace's room is a mock, so this re-drives its getStateEvents mock
+     * rather than calling the real state store.
+     */
+    const stampSpace = (space: Room, events: Record<string, object>): void => {
+        for (const [type, content] of Object.entries(events)) {
+            spaceState.push(
+                mkEvent({
+                    event: true,
+                    type,
+                    room: space.roomId,
+                    user: client.getSafeUserId(),
+                    skey: type,
+                    content,
+                    ts: Date.now(),
+                }),
+            );
+        }
+        mocked(space.currentState).getStateEvents.mockImplementation(mockStateEventImplementation(spaceState));
+    };
+
+    /** Stand in for the SDK-backed store. Everything the gates read goes through these two. */
+    const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}): void => {
+        jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
+            (tenantId) => rolloutOn && tenantId === TENANT,
+        );
+        jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation((_tenantId, roleName, instanceId) =>
+            (grants[roleName] ?? []).includes(instanceId),
+        );
+    };
+
+    /**
+     * The hint is a hover tooltip, not a DOM title attribute — AccessibleButton renders `title`
+     * through compound-web's Tooltip, which mounts its label lazily. Hovering is what a user does
+     * to read it, so hovering is what the test does.
+     */
+    const expectHint = async (button: HTMLElement, expected: string): Promise<void> => {
+        await userEvent.hover(button);
+        const tooltip = await screen.findByRole("tooltip");
+        expect(tooltip.textContent).toContain(expected);
+    };
+
+    const STANDARD_USER = { "Customer-User#": [TENANT] };
+
+    beforeEach(async () => {
+        rooms = [];
+        spaceState = [];
+        const space = mkSpace(client, spaceId, rooms, []);
+        mocked(client).getRoom.mockImplementation((roomId) => rooms.find((room) => room.roomId === roomId) || null);
+        await testUtils.setupAsyncStoreWithClient(store, client);
+        store.setActiveSpace(spaceId);
+
+        mocked(shouldShowComponent).mockReturnValue(true);
+        jest.spyOn(SettingsStore, "getValue").mockImplementation(() => true);
+
+        stampSpace(space, { "app.verji.tenant_info": { tenant_id: TENANT } });
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    /**
+     * The hard product requirement: outside the beta, nothing changes. Not "deny", not "checking" —
+     * today's behaviour. A gate that regresses this silently restricts production users.
+     */
+    describe("with canonicalSpaceSyncEnabled false", () => {
+        it.each([
+            ["a Guest", {}],
+            ["a StandardUser", STANDARD_USER],
+        ])("renders Persons+ enabled for %s, exactly as today", (_who, grants) => {
+            mockStore(false, grants);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it.each([
+            ["a Guest", {}],
+            ["a StandardUser", STANDARD_USER],
+        ])("renders the Rooms + enabled for %s, exactly as today", (_who, grants) => {
+            mockStore(false, grants);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("leaves the Rooms + present at an OrgUnitCategory space", () => {
+            // With gating on this kind hides the button entirely, so this is the sharpest proof
+            // that the short-circuit runs before the space kind is ever consulted.
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+            mockStore(false, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).toBeInTheDocument();
+        });
+    });
+
+    describe("with canonicalSpaceSyncEnabled true, at a TenantRoot space", () => {
+        it("renders both controls enabled for a StandardUser", () => {
+            mockStore(true, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("renders Persons+ disabled with the hint for a Guest", async () => {
+            mockStore(true, {});
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add people");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "guest account");
+        });
+
+        it("renders the Rooms + disabled with the hint for a Guest", async () => {
+            mockStore(true, {});
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add room");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "cannot create rooms here");
+        });
+
+        it("does not open the create-room menu when denied", async () => {
+            mockStore(true, {});
+
+            render(getComponent());
+            await userEvent.click(screen.getByLabelText("Add room"));
+
+            expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("with canonicalSpaceSyncEnabled true, at an OrgUnitCategory space", () => {
+        beforeEach(() => {
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+        });
+
+        it.each([
+            ["a Guest", {}],
+            ["a StandardUser", STANDARD_USER],
+            ["the tenant PrimaryContact", { "Customer-User#": [TENANT], "Customer-Manager#": [TENANT] }],
+        ])("renders no create-room affordance for %s", (_who, grants) => {
+            mockStore(true, grants);
+
+            render(getComponent());
+
+            expect(screen.queryByLabelText("Add room")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("with canonicalSpaceSyncEnabled true, at an OrgUnit space", () => {
+        beforeEach(() => {
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.org_unit_info": { org_unit_id: ORG_A },
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+        });
+
+        it("enables the Rooms + for a StandardUser who is a Member", () => {
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("enables the Rooms + for a StandardUser who is the Owner", () => {
+            mockStore(true, { ...STANDARD_USER, Owner: [ORG_A] });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("disables it for a StandardUser who holds the structure but not membership", async () => {
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": ["some-other-org"] });
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add room");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "not a member of this organisation");
+        });
+    });
+
+    describe("tenant isolation", () => {
+        it("does not apply another tenant's rollout or roles to this space", () => {
+            // The store knows tenant-2 only. This space is tenant-1, so it must render as today.
+            jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
+                (tenantId) => tenantId === "tenant-2",
+            );
+            jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockReturnValue(false);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
         });
     });
 });

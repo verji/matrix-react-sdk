@@ -61,6 +61,14 @@ import ExtraTile from "./ExtraTile";
 import RoomSublist, { IAuxButtonProps } from "./RoomSublist";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import AccessibleButton from "../elements/AccessibleButton";
+// VERJI: Hierarchy V2 per-user gating
+import { useVerjiGate } from "../../../hooks/useVerjiPermissions";
+import {
+    getCreateRoomGate,
+    getOnboardToTenantGate,
+    isGateDisabled,
+    isGateVisible,
+} from "../../../stores/verji/verjiGates";
 
 interface IProps {
     onKeyDown: (ev: React.KeyboardEvent, state: IRovingTabIndexState) => void;
@@ -140,6 +148,12 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
     const showCreateRooms = shouldShowComponent(UIComponent.CreateRooms);
     const showInviteUsers = shouldShowComponent(UIComponent.InviteUsers);
 
+    // VERJI: onboarding a user to the tenant is for StandardUsers; a Guest sees the button
+    // disabled with a hint naming their own standing. Resolved from the space being rendered, not
+    // from a global active-tenant singleton. Verdict NotGated (the rollout switch is off for this
+    // tenant, or it has no cached record) renders exactly as today.
+    const onboardGate = useVerjiGate(activeSpace, getOnboardToTenantGate);
+
     if (activeSpace && (showCreateRooms || showInviteUsers)) {
         let contextMenu: JSX.Element | undefined;
         if (menuDisplayed && handle.current) {
@@ -183,6 +197,10 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
             );
         }
 
+        // VERJI: when denied the button still renders, disabled, and its tooltip carries the
+        // hint instead of the plain label, so the user learns why rather than finding a dead control.
+        const onboardDenied = isGateDisabled(onboardGate);
+
         return (
             <>
                 <ContextMenuTooltipButton
@@ -190,11 +208,12 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
                     onClick={openMenu}
                     className="mx_RoomSublist_auxButton"
                     aria-label={_t("action|add_people")}
-                    title={_t("action|add_people")}
+                    title={onboardDenied ? onboardGate.hint : _t("action|add_people")}
+                    disabled={onboardDenied}
                     isExpanded={menuDisplayed}
                     ref={handle}
                 />
-                {contextMenu}
+                {onboardDenied ? null : contextMenu}
             </>
         );
     } else if (showStartChatPlusMenuForMetaSpace && !activeSpace && showCreateRooms) {
@@ -223,6 +242,11 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
 
     const showCreateRoom = shouldShowComponent(UIComponent.CreateRooms);
     const showExploreRooms = shouldShowComponent(UIComponent.ExploreRooms);
+
+    // VERJI: creating a room is for StandardUsers at a TenantRoot, for StandardUsers who are
+    // a Member or the Owner at an OrgUnit, and for nobody at an OrgUnitCategory (rooms do not
+    // belong directly to a category). Verdict NotGated renders exactly as today.
+    const createRoomGate = useVerjiGate(activeSpace, getCreateRoomGate);
 
     const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
     const elementCallVideoRoomsEnabled = useFeatureEnabled("feature_element_call_video_rooms");
@@ -381,6 +405,13 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
         }
     }
 
+    // VERJI: at an OrgUnitCategory space the affordance is removed for everyone, so the
+    // button is not rendered at all. Everywhere else a denial renders it disabled with the hint.
+    if (!isGateVisible(createRoomGate)) {
+        return null;
+    }
+    const createRoomDenied = isGateDisabled(createRoomGate);
+
     if (ShowAddRoomPlusMenuForMetaSpace && (showCreateRoom || showExploreRooms)) {
         return (
             <>
@@ -389,12 +420,13 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
                     onClick={openMenu}
                     className="mx_RoomSublist_auxButton"
                     aria-label={_t("room_list|add_room_label")}
-                    title={_t("room_list|add_room_label")}
+                    title={createRoomDenied ? createRoomGate.hint : _t("room_list|add_room_label")}
+                    disabled={createRoomDenied}
                     isExpanded={menuDisplayed}
                     ref={handle}
                 />
 
-                {contextMenu}
+                {createRoomDenied ? null : contextMenu}
             </>
         );
     }
