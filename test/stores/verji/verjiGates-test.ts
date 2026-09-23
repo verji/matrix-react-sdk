@@ -42,11 +42,12 @@ const ORG_UNIT = ctxFor(VerjiSpaceKind.OrgUnit, ORG_A);
 
 /**
  * @param rolloutOn whether canonicalSpaceSyncEnabled is true for TENANT
- * @param grants role name -> instances the user holds it on
+ * @param grants role name -> instances the user holds it on, in TENANT only — so a read keyed by
+ *     the wrong tenant gets a wrong answer rather than the same one
  */
 const readerFor = (rolloutOn: boolean, grants: Record<string, string[]> = {}): VerjiGateReader => ({
     isCanonicalSpaceSyncEnabled: (tenantId) => rolloutOn && tenantId === TENANT,
-    hasRole: (_tenantId, roleName, instanceId) => (grants[roleName] ?? []).includes(instanceId),
+    hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
 });
 
 const STANDARD_USER = { "Customer-User#": [TENANT] };
@@ -110,21 +111,6 @@ describe("verjiGates", () => {
                 expect(decision.verdict).toBe(VerjiGateVerdict.NotGated);
                 expect(isGateDisabled(decision)).toBe(false);
             });
-
-            it("only consults the rollout switch for the tenant of the space being rendered", () => {
-                const asked: string[] = [];
-                const reader: VerjiGateReader = {
-                    isCanonicalSpaceSyncEnabled: (tenantId) => {
-                        asked.push(tenantId);
-                        return false;
-                    },
-                    hasRole: () => false,
-                };
-
-                gate(TENANT_ROOT, reader);
-
-                expect(asked).toEqual([TENANT]);
-            });
         });
     });
 
@@ -136,20 +122,15 @@ describe("verjiGates", () => {
             expect(isGateDisabled(decision)).toBe(false);
         });
 
-        it("denies a Guest, with a hint naming their own standing", () => {
+        it("denies a Guest, with a hint naming their own standing and no one else", () => {
+            // The exact text is the assertion: telling a Guest who the tenant's primary contact is
+            // would disclose something no other surface does, so the hint names only their own
+            // standing and the tenant.
             const decision = getOnboardToTenantGate(TENANT_ROOT, readerFor(true, GUEST));
 
             expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
             expect(isGateDisabled(decision)).toBe(true);
             expect(decision.hint).toBe("Your account is a guest account in Acme AS, so you cannot invite new users.");
-        });
-
-        it("never names another person in the hint", () => {
-            // Telling a Guest who the tenant's primary contact is would disclose something no
-            // other surface does.
-            const decision = getOnboardToTenantGate(TENANT_ROOT, readerFor(true, GUEST));
-
-            expect(decision.hint).not.toMatch(/@|contact .*is |ask /i);
         });
     });
 
@@ -281,19 +262,28 @@ describe("verjiGates", () => {
             expect(getCreateRoomGate(otherTenantCtx, readerKnowingOnlyTenant1).verdict).toBe(VerjiGateVerdict.NotGated);
         });
 
-        it("passes the rendered space's tenant id to every role read", () => {
-            const tenantsAsked = new Set<string>();
-            const reader: VerjiGateReader = {
-                isCanonicalSpaceSyncEnabled: () => true,
-                hasRole: (tenantId) => {
-                    tenantsAsked.add(tenantId);
-                    return false;
-                },
-            };
+        describe.each(ALL_GATES)("%s", (_name, gate) => {
+            it.each(ALL_CONTEXTS)("at a %s space, asks about the rendered space's tenant only", (_kindName, ctx) => {
+                const tenantsAsked: string[] = [];
+                const reader: VerjiGateReader = {
+                    // Switch on, so the gate goes past the short-circuit into its role reads.
+                    isCanonicalSpaceSyncEnabled: (tenantId) => {
+                        tenantsAsked.push(tenantId);
+                        return true;
+                    },
+                    // A StandardUser and nothing else, so the OrgUnit gates run through every
+                    // predicate they use rather than stopping at the first.
+                    hasRole: (tenantId, roleName) => {
+                        tenantsAsked.push(tenantId);
+                        return roleName === "Customer-User#";
+                    },
+                };
 
-            getCreateRoomGate(ORG_UNIT, reader);
+                gate(ctx, reader);
 
-            expect([...tenantsAsked]).toEqual([TENANT]);
+                expect(tenantsAsked).not.toHaveLength(0);
+                expect(tenantsAsked.filter((tenantId) => tenantId !== TENANT)).toEqual([]);
+            });
         });
     });
 });

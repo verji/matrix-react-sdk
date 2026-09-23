@@ -24,12 +24,30 @@ import {
     VERJI_ROLE_NAMES_FOR_TEST,
 } from "../../../src/stores/verji/verjiRoles";
 
-/** A reader backed by an explicit (role, instances) map — the shape the ACL actually returns. */
+const TENANT = "tenant-1";
+
+/**
+ * A reader backed by an explicit (role, instances) map for TENANT — the shape the ACL actually
+ * returns. Any other tenant knows nothing, so a read keyed by the wrong tenant is denied.
+ */
 const readerFor = (grants: Record<string, string[]>): VerjiRoleReader => ({
-    hasRole: (_tenantId, roleName, instanceId) => (grants[roleName] ?? []).includes(instanceId),
+    hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
 });
 
-const TENANT = "tenant-1";
+/** A reader that records every (tenant, role, instance) it is asked about, and denies all. */
+const recordingReader = (): { reader: VerjiRoleReader; asked: Array<[string, string, string]> } => {
+    const asked: Array<[string, string, string]> = [];
+    return {
+        asked,
+        reader: {
+            hasRole: (tenantId, roleName, instanceId) => {
+                asked.push([tenantId, roleName, instanceId]);
+                return false;
+            },
+        },
+    };
+};
+
 const ORG_A = "org-a";
 const ORG_B = "org-b";
 
@@ -50,28 +68,22 @@ describe("verjiRoles — the client's role contract with itops", () => {
         // This is the single most dangerous detail in the whole feature. Without the '#', a tenant
         // admin's instance-hierarchy-expanded Customer-User covers every OrgUnit in the tenant, and
         // the OrgUnit gates would open for people who are not members of those OrgUnits.
-        it("asks with the direct-grant twin, not the expanded role", () => {
-            const asked: Array<[string, string]> = [];
-            const spy: VerjiRoleReader = {
-                hasRole: (_t, roleName, instanceId) => {
-                    asked.push([roleName, instanceId]);
-                    return false;
-                },
-            };
+        it("asks with the direct-grant twin, not the expanded role, in the tenant it was given", () => {
+            const { reader, asked } = recordingReader();
 
-            isStandardUser(spy, TENANT);
-            isTenantPrimaryContact(spy, TENANT);
-            isOrgUnitMember(spy, TENANT, ORG_A);
-            isOrgUnitPrimaryContact(spy, TENANT, ORG_A);
+            isStandardUser(reader, TENANT);
+            isTenantPrimaryContact(reader, TENANT);
+            isOrgUnitMember(reader, TENANT, ORG_A);
+            isOrgUnitPrimaryContact(reader, TENANT, ORG_A);
 
             expect(asked).toEqual([
-                ["Customer-User#", TENANT],
-                ["Customer-Manager#", TENANT],
-                ["ClientOrganization-User#", ORG_A],
-                ["ClientOrganization-Manager#", ORG_A],
+                [TENANT, "Customer-User#", TENANT],
+                [TENANT, "Customer-Manager#", TENANT],
+                [TENANT, "ClientOrganization-User#", ORG_A],
+                [TENANT, "ClientOrganization-Manager#", ORG_A],
             ]);
             // Every one of them carries the suffix.
-            expect(asked.every(([role]) => role.endsWith("#"))).toBe(true);
+            expect(asked.every(([, role]) => role.endsWith("#"))).toBe(true);
         });
 
         it("denies an OrgUnit a tenant admin only reaches through expansion", () => {
@@ -89,17 +101,11 @@ describe("verjiRoles — the client's role contract with itops", () => {
         });
 
         it("asks for Owner without a '#', because itops never expands it", () => {
-            const asked: Array<[string, string]> = [];
-            const spy: VerjiRoleReader = {
-                hasRole: (_t, roleName, instanceId) => {
-                    asked.push([roleName, instanceId]);
-                    return false;
-                },
-            };
+            const { reader, asked } = recordingReader();
 
-            isOrgUnitOwner(spy, TENANT, ORG_A);
+            isOrgUnitOwner(reader, TENANT, ORG_A);
 
-            expect(asked).toEqual([["Owner", ORG_A]]);
+            expect(asked).toEqual([[TENANT, "Owner", ORG_A]]);
         });
     });
 

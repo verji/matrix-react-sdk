@@ -197,8 +197,12 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
             );
         }
 
-        // VERJI: when denied the button still renders, disabled, and its tooltip carries the
-        // hint instead of the plain label, so the user learns why rather than finding a dead control.
+        // VERJI: a Hidden verdict removes the affordance, as for the Rooms "+". When denied the
+        // button still renders, disabled, and its tooltip carries the hint instead of the plain
+        // label, so the user learns why rather than finding a dead control.
+        if (!isGateVisible(onboardGate)) {
+            return null;
+        }
         const onboardDenied = isGateDisabled(onboardGate);
 
         return (

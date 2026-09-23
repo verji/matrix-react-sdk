@@ -16,7 +16,7 @@ limitations under the License.
 */
 
 import React, { ComponentProps } from "react";
-import { cleanup, queryByRole, render, screen, within } from "@testing-library/react";
+import { act, cleanup, queryByRole, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mocked } from "jest-mock";
 import { MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
@@ -38,6 +38,7 @@ import { ITagMap } from "../../../../src/stores/room-list/algorithms/models";
 import { DefaultTagID } from "../../../../src/stores/room-list/models";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
+import * as verjiGates from "../../../../src/stores/verji/verjiGates";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -500,13 +501,17 @@ describe("Verji Hierarchy V2 gates", () => {
         mocked(space.currentState).getStateEvents.mockImplementation(mockStateEventImplementation(spaceState));
     };
 
-    /** Stand in for the SDK-backed store. Everything the gates read goes through these two. */
+    /**
+     * Stand in for the SDK-backed store. Everything the gates read goes through these two. Grants
+     * are held for TENANT only, so a read keyed by the wrong tenant gets a wrong answer rather than
+     * the same one.
+     */
     const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}): void => {
         jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
             (tenantId) => rolloutOn && tenantId === TENANT,
         );
-        jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation((_tenantId, roleName, instanceId) =>
-            (grants[roleName] ?? []).includes(instanceId),
+        jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation(
+            (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
         );
     };
 
@@ -582,6 +587,30 @@ describe("Verji Hierarchy V2 gates", () => {
         });
     });
 
+    /**
+     * No mockStore here: this is the store production has before the first access context lands,
+     * or when itops is unconfigured or its init threw. Every other test in this block stubs the
+     * store's reads, so without these the fail-safe default is proven only for the stub.
+     */
+    describe("against the real, uninitialised store", () => {
+        it("renders both controls enabled at a TenantRoot", () => {
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("leaves the Rooms + present at an OrgUnitCategory space", () => {
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+    });
+
     describe("with canonicalSpaceSyncEnabled true, at a TenantRoot space", () => {
         it("renders both controls enabled for a StandardUser", () => {
             mockStore(true, STANDARD_USER);
@@ -599,7 +628,22 @@ describe("Verji Hierarchy V2 gates", () => {
 
             const button = screen.getByLabelText("Add people");
             expect(button).toHaveAttribute("aria-disabled", "true");
-            await expectHint(button, "guest account");
+            // The invite wording, not the shared "guest account" prefix: the create-room guest hint
+            // starts the same way, so only this proves Persons+ reads its own gate.
+            await expectHint(button, "so you cannot invite new users");
+        });
+
+        it("removes Persons+ when its gate says Hidden", () => {
+            // No gate returns Hidden for Persons+ today; this pins that the surface honours the
+            // verdict anyway, so a future gate cannot render a hidden affordance enabled.
+            jest.spyOn(verjiGates, "getOnboardToTenantGate").mockReturnValue({
+                verdict: verjiGates.VerjiGateVerdict.Hidden,
+            });
+            mockStore(true, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.queryByLabelText("Add people")).not.toBeInTheDocument();
         });
 
         it("renders the Rooms + disabled with the hint for a Guest", async () => {
@@ -640,6 +684,45 @@ describe("Verji Hierarchy V2 gates", () => {
 
             expect(screen.queryByLabelText("Add room")).not.toBeInTheDocument();
         });
+
+        it("keeps Persons+ enabled for a StandardUser", () => {
+            // Onboarding follows the tenant, not depth: the category's kind must not reach it.
+            mockStore(true, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+        });
+    });
+
+    describe("with canonicalSpaceSyncEnabled true, at a top-level space carrying a parent pointer", () => {
+        // A pre-split tenant-root personal space mirrors its canonical under canonical_parent_space.
+        // Only its being a root of the space tree tells it apart from an OrgUnitCategory, and the
+        // hook is what supplies that fact.
+        beforeEach(() => {
+            jest.spyOn(SpaceStore.instance, "spacePanelSpaces", "get").mockReturnValue([store.activeSpaceRoom!]);
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+        });
+
+        it("reads it as a TenantRoot, so the Rooms + stays for a StandardUser", () => {
+            mockStore(true, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("still denies a Guest there, with the guest hint", async () => {
+            mockStore(true, {});
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add room");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "guest account in");
+        });
     });
 
     describe("with canonicalSpaceSyncEnabled true, at an OrgUnit space", () => {
@@ -674,6 +757,50 @@ describe("Verji Hierarchy V2 gates", () => {
             const button = screen.getByLabelText("Add room");
             expect(button).toHaveAttribute("aria-disabled", "true");
             await expectHint(button, "not a member of this organisation");
+        });
+
+        it("keeps Persons+ enabled for that same StandardUser", () => {
+            // The two surfaces disagree here, which is what proves each reads its own gate.
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": ["some-other-org"] });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add room")).toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("disables Persons+ for a Guest with the invite hint", async () => {
+            mockStore(true, { "ClientOrganization-User#": [ORG_A] });
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add people");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "so you cannot invite new users");
+        });
+    });
+
+    describe("reactivity", () => {
+        it("re-renders the gates when an access context lands after first paint", async () => {
+            // The cold-cache first paint is NotGated. When the context arrives the store emits,
+            // and that emission is the only thing that re-renders the gates.
+            let landed = false;
+            jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
+                (tenantId) => landed && tenantId === TENANT,
+            );
+            jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockReturnValue(false);
+
+            render(getComponent());
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+
+            landed = true;
+            act(() => {
+                VerjiPermissionsStore.instance["bumpVersion"]();
+            });
+
+            await waitFor(() => expect(screen.getByLabelText("Add room")).toHaveAttribute("aria-disabled", "true"));
+            expect(screen.getByLabelText("Add people")).toHaveAttribute("aria-disabled", "true");
         });
     });
 
