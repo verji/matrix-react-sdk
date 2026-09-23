@@ -126,16 +126,16 @@ describe("useVerjiGate", () => {
         });
 
         it("stops listening once unmounted", () => {
-            const gate = jest.fn().mockReturnValue(NOT_GATED);
-            const { unmount } = renderHook(() => useVerjiGate(null, gate));
+            // Asserted on the store's listener set: a state update on an unmounted component is
+            // silently dropped, so watching the gate would pass whether or not the hook unsubscribed.
+            const listeners = VerjiPermissionsStore.instance["changeListeners"];
+            const before = listeners.size;
+            const { unmount } = renderHook(() => useVerjiGate(null, jest.fn().mockReturnValue(NOT_GATED)));
+            expect(listeners.size).toBe(before + 1);
+
             unmount();
-            const callsAtUnmount = gate.mock.calls.length;
 
-            act(() => {
-                VerjiPermissionsStore.instance["bumpVersion"]();
-            });
-
-            expect(gate).toHaveBeenCalledTimes(callsAtUnmount);
+            expect(listeners.size).toBe(before);
         });
     });
 });
