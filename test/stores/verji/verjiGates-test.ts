@@ -168,8 +168,8 @@ describe("verjiGates", () => {
             });
 
             it("allows a StandardUser who is the Owner", () => {
-                // Rev 1 read the decided text as Member-only for room creation; confirmed on the
-                // PR that the asymmetry was unintended.
+                // Room creation and space settings deliberately share the Member-or-Owner rule; a
+                // Member-only reading for room creation would be the asymmetric one.
                 const reader = readerFor(true, { ...STANDARD_USER, Owner: [ORG_A] });
 
                 expect(getCreateRoomGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Allowed);

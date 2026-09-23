@@ -84,7 +84,7 @@ describe("useVerjiGate", () => {
         // A space with a canonical parent pointer is an OrgUnitCategory, unless it is a root of the
         // client's space tree, in which case it is a pre-split tenant-root mirror.
         const withParentPointer = (): Room =>
-            makeSpace(client, "!mirror:domain.org", {
+            makeSpace(client, "!personal-space:domain.org", {
                 "app.verji.tenant_info": { tenant_id: "tenant-A" },
                 "app.verji.canonical_parent_space": { canonical_parent_space_id: "!canonical:domain.org" },
             });

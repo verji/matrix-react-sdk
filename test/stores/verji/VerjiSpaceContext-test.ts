@@ -169,7 +169,7 @@ describe("VerjiSpaceContext", () => {
             // at the tenant root. Propagating the kind from the backend deletes this branch.
             const space = makeSpace(client, {
                 ...TENANT_INFO,
-                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!mirrored-canonical:d.org" },
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!canonical:d.org" },
             });
 
             expect(deriveVerjiSpaceKind(space, true)).toBe(VerjiSpaceKind.TenantRoot);
