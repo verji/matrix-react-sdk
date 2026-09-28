@@ -109,8 +109,9 @@ describe("verjiRoles — the client's role contract with itops", () => {
         });
 
         it("does not read the bare Owner role as OrgUnit ownership", () => {
-            // Bare `Owner` is instance ownership of signing orders, onboarding jobs and the like.
-            // The guest-org creator's grant is module-prefixed, and only that one counts.
+            // A bare `Owner` row can sit on the guest org itself — the group policy writes one for
+            // the person its groups were synced from, who need not be its owner. Only the row the
+            // owner sync writes, `ClientOrganization-Owner`, is the owner signal.
             expect(isOrgUnitOwner(readerFor({ Owner: [ORG_A] }), TENANT, ORG_A)).toBe(false);
             expect(isOrgUnitOwner(readerFor({ "ClientOrganization-Owner": [ORG_A] }), TENANT, ORG_A)).toBe(true);
         });
@@ -143,20 +144,35 @@ describe("verjiRoles — the client's role contract with itops", () => {
             expect(isOrgUnitPrimaryContact(reader, TENANT, ORG_A)).toBe(false);
             expect(isOrgUnitOwner(reader, TENANT, ORG_A)).toBe(false);
         });
+    });
 
-        it("denies a superuser, who holds the wildcard instance 'X'", () => {
-            // Deliberate: superusers get no client branch.
-            const reader = readerFor({
-                "Customer-User#": ["X"],
-                "Customer-Manager#": ["X"],
-                "ClientOrganization-User#": ["X"],
-                "ClientOrganization-Owner": ["X"],
-            });
+    describe("superusers — no client branch", () => {
+        // A superuser's own grants live in a separate `superuser` domain and never reach a tenant's
+        // access context; `isSuperuser` is the only trace. The predicates read roles alone, so a
+        // superuser reads as their standing in the tenant — nothing more, nothing less. The reader
+        // below carries that trace, so a superuser branch added to any predicate shows up here.
+        const asSuperuser = (reader: VerjiRoleReader): VerjiRoleReader =>
+            ({ ...reader, isSuperuser: () => true }) as VerjiRoleReader;
 
-            expect(isStandardUser(reader, TENANT)).toBe(false);
-            expect(isTenantPrimaryContact(reader, TENANT)).toBe(false);
-            expect(isOrgUnitMember(reader, TENANT, ORG_A)).toBe(false);
-            expect(isOrgUnitOwner(reader, TENANT, ORG_A)).toBe(false);
+        /** Every predicate's answer, in contract order. */
+        const standingOf = (reader: VerjiRoleReader): boolean[] => [
+            isStandardUser(reader, TENANT),
+            isTenantPrimaryContact(reader, TENANT),
+            isOrgUnitMember(reader, TENANT, ORG_A),
+            isOrgUnitPrimaryContact(reader, TENANT, ORG_A),
+            isOrgUnitOwner(reader, TENANT, ORG_A),
+        ];
+
+        it("reads a superuser with no standing in the tenant as denied at every predicate", () => {
+            // What production serves: an empty roles list for the tenant.
+            expect(standingOf(asSuperuser(readerFor({})))).toEqual([false, false, false, false, false]);
+        });
+
+        it("reads a superuser who is also a StandardUser exactly as that StandardUser", () => {
+            const rows = { "Customer-User#": [TENANT], "ClientOrganization-User#": [ORG_A] };
+
+            expect(standingOf(asSuperuser(readerFor(rows)))).toEqual(standingOf(readerFor(rows)));
+            expect(standingOf(asSuperuser(readerFor(rows)))).toEqual([true, false, true, false, false]);
         });
     });
 });

@@ -24,20 +24,25 @@ limitations under the License.
  * ## The trailing `#` is load-bearing
  *
  * itops emits, for every role, both the instance-hierarchy-expanded instance list and a `{role}#`
- * twin holding only the instances the user was **directly** granted. A tenant admin's plain
- * `Customer-User` covers every OrgUnit in the tenant, so asking with it would open the OrgUnit
- * gates for people who are not members of those OrgUnits. Always ask with the `#` twin.
+ * twin holding only the instances the user was **directly** granted. A plain role mixes the two: a
+ * tenant user's plain `Customer-User` also lists the OrgUnits it reaches by inheritance, so asking
+ * with it would open the OrgUnit gates for people who are not members of those OrgUnits. Always ask
+ * with the `#` twin — never gate on a plain role, nor read one's instances.
  *
  * `ClientOrganization-Owner` is the exception: itops never recurses an `…Owner` role, so it is
- * inherently direct and correctly has no `#` twin. It is module-prefixed like every other role —
- * the bare `Owner` is a different grant (instance ownership of signing orders, onboarding jobs and
- * the like) and says nothing about an OrgUnit.
+ * inherently direct and correctly has no `#` twin. It is the row the owner sync writes for the
+ * owner recorded on the guest org. A bare `Owner` row can also sit on a guest org (the group
+ * policy writes one for the person the org's groups were synced from, who need not be its
+ * owner), so the bare role is not the owner signal.
  *
- * ## Superusers read denied
+ * ## Superusers read as their tenant standing
  *
- * Superusers hold their roles on the wildcard instance `"X"`, which matches no real tenant or
- * OrgUnit id, so every predicate below is false for them. That is deliberate and must not be
- * special-cased: superuser access is internal and limited, and the concept is being phased out.
+ * A superuser's own grants live in a separate `superuser` domain and never appear in a tenant's
+ * access context: it lists only what they hold in that tenant, like anyone else's, and
+ * `isSuperuser` is the only trace. A superuser with no standing in the tenant therefore reads
+ * denied at every predicate below; one who is also, say, a StandardUser reads exactly as that.
+ * Deliberately not special-cased: superuser access is internal and limited, and the concept is
+ * being phased out.
  */
 
 /** Directly granted `Customer-User` — the StandardUser signal. Instance is the tenant id. */
@@ -49,8 +54,8 @@ const ROLE_ORG_UNIT_USER_DIRECT = "ClientOrganization-User#";
 /** Directly granted `ClientOrganization-Manager` — the OrgUnit's PrimaryContact. */
 const ROLE_ORG_UNIT_MANAGER_DIRECT = "ClientOrganization-Manager#";
 /**
- * The OrgUnit's Owner — the tenant user who created it; the account service grants it to the
- * caller when it creates a guest org. Never recursed, so no `#` twin.
+ * The OrgUnit's Owner — the owner recorded on the guest org, written by the owner sync. Never
+ * recursed, so no `#` twin.
  */
 const ROLE_ORG_UNIT_OWNER = "ClientOrganization-Owner";
 
