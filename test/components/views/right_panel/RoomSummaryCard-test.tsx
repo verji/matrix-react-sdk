@@ -407,4 +407,33 @@ describe("<RoomSummaryCard />", () => {
             expect(baseElement.innerHTML).not.toContain("Add widgets");
         });
     });
+
+    // VERJI: inviting a third person into a DM is not a supported use of Verji, so the
+    // invite item is removed inside a DM rather than merely disabled.
+    describe("invite affordance in DMs", () => {
+        it("renders the invite item in a non-DM room", () => {
+            jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue(undefined);
+
+            const { queryByText } = getComponent();
+
+            expect(queryByText(_t("action|invite"))).toBeInTheDocument();
+        });
+
+        it("does not render the invite item in a DM", () => {
+            jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue("@bob:domain.org");
+
+            const { queryByText } = getComponent();
+
+            expect(queryByText(_t("action|invite"))).not.toBeInTheDocument();
+        });
+
+        it("still renders the other menu items in a DM", () => {
+            jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue("@bob:domain.org");
+
+            const { queryByText } = getComponent();
+
+            // The removal must be surgical: settings, a sibling MenuItem, is untouched.
+            expect(queryByText(_t("common|settings"))).toBeInTheDocument();
+        });
+    });
 });

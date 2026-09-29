@@ -35,6 +35,7 @@ import {
 } from "../../../test-utils";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
 import defaultDispatcher from "../../../../src/dispatcher/dispatcher";
+import DMRoomMap from "../../../../src/utils/DMRoomMap";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -433,6 +434,43 @@ describe("MemberList", () => {
                 expect(defaultDispatcher.dispatch).toHaveBeenCalledWith({
                     action: "view_invite",
                     roomId,
+                });
+            });
+
+            // VERJI: inviting a third person into a DM is not a supported use of Verji.
+            describe("in a DM", () => {
+                const setDmMap = (userIdForRoom: string | undefined): void => {
+                    DMRoomMap.setShared({
+                        getUserIdForRoomId: jest.fn().mockReturnValue(userIdForRoom),
+                    } as unknown as DMRoomMap);
+                };
+
+                afterEach(() => {
+                    // The shared instance is process-global; leaving a DM stub behind would make
+                    // every later suite in this file see its room as a DM.
+                    DMRoomMap.setShared(undefined as unknown as DMRoomMap);
+                });
+
+                it("renders the invite button when the room is not a DM", async () => {
+                    setDmMap(undefined);
+                    jest.spyOn(room, "getMyMembership").mockReturnValue(KnownMembership.Join);
+                    jest.spyOn(room, "canInvite").mockReturnValue(true);
+
+                    renderComponent();
+                    await flushPromises();
+
+                    expect(screen.queryByText("Invite to this room")).toBeInTheDocument();
+                });
+
+                it("does not render the invite button when the room is a DM", async () => {
+                    setDmMap("@bob:server.org");
+                    jest.spyOn(room, "getMyMembership").mockReturnValue(KnownMembership.Join);
+                    jest.spyOn(room, "canInvite").mockReturnValue(true);
+
+                    renderComponent();
+                    await flushPromises();
+
+                    expect(screen.queryByText("Invite to this room")).not.toBeInTheDocument();
                 });
             });
         });

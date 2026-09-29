@@ -40,6 +40,9 @@ import { shouldShowComponent } from "../../../customisations/helpers/UIComponent
 import { UIComponent, UIFeature } from "../../../settings/UIFeature";
 import PosthogTrackers from "../../../PosthogTrackers";
 import { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
+// VERJI: Hierarchy V2 per-user gating
+import { useVerjiGate } from "../../../hooks/useVerjiPermissions";
+import { getCreateRoomGate, isGateDisabled, isGateVisible } from "../../../stores/verji/verjiGates";
 
 interface IProps extends IContextMenuProps {
     space?: Room;
@@ -51,6 +54,9 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     const userId = cli.getSafeUserId();
     const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
     const elementCallVideoRoomsEnabled = useFeatureEnabled("feature_element_call_video_rooms");
+    // VERJI: the same create-room rule as the Rooms sublist "+", resolved for the space this menu
+    // belongs to. Called before the early return below — it is a hook.
+    const createRoomGate = useVerjiGate(space, getCreateRoomGate);
 
     if (!space) return null;
 
@@ -139,7 +145,12 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     }
 
     const hasPermissionToAddSpaceChild = space.currentState.maySendStateEvent(EventType.SpaceChild, userId);
-    const canAddRooms = hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateRooms);
+    // VERJI: a Hidden create-room verdict removes the room options, as it removes the Rooms "+";
+    // a denial keeps them, disabled, with the hint as their tooltip.
+    const canAddRooms =
+        hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateRooms) && isGateVisible(createRoomGate);
+    const createRoomDenied = isGateDisabled(createRoomGate);
+    const createRoomHint = createRoomDenied ? createRoomGate.hint : undefined;
     const canAddVideoRooms = canAddRooms && videoRoomsEnabled;
     const canAddSubSpaces = hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateSpaces);
 
@@ -181,6 +192,8 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
                         iconClassName="mx_SpacePanel_iconPlus"
                         label={_t("common|room")}
                         onClick={onNewRoomClick}
+                        disabled={createRoomDenied}
+                        title={createRoomHint}
                     />
                 )}
                 {canAddVideoRooms && (
@@ -189,6 +202,8 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
                         iconClassName="mx_SpacePanel_iconPlus"
                         label={_t("common|video_room")}
                         onClick={onNewVideoRoomClick}
+                        disabled={createRoomDenied}
+                        title={createRoomHint}
                     >
                         <BetaPill />
                     </IconizedContextMenuOption>

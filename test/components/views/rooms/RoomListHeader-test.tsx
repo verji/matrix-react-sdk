@@ -27,6 +27,7 @@ import { stubClient, mkSpace } from "../../../test-utils";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import SettingsStore from "../../../../src/settings/SettingsStore";
+import { SETTINGS } from "../../../../src/settings/Settings";
 import { SettingLevel } from "../../../../src/settings/SettingLevel";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
 import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
@@ -332,6 +333,67 @@ describe("RoomListHeader", () => {
             await setupPlusMenu(client, testSpace);
 
             expect(screen.queryByText("Add space")).not.toBeInTheDocument();
+        });
+    });
+
+    // VERJI: the plus-menu button is hidden on every space type, not just meta-spaces.
+    describe("UIFeature.ShowRoomListPlusMenu", () => {
+        const renderForSpace = async (): Promise<void> => {
+            const testSpace = setupSpace(client);
+            await testUtils.setupAsyncStoreWithClient(SpaceStore.instance, client);
+            act(() => {
+                SpaceStore.instance.setActiveSpace(testSpace.roomId);
+            });
+            render(<RoomListHeader />);
+        };
+
+        const renderForHome = (): void => {
+            act(() => {
+                SpaceStore.instance.setActiveSpace(MetaSpace.Home);
+            });
+            render(<RoomListHeader />);
+        };
+
+        it("= true: renders the plus button on a space (today's behaviour)", async () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.ShowRoomListPlusMenu) return true;
+                return "default";
+            });
+
+            await renderForSpace();
+
+            expect(screen.queryByLabelText("Add")).toBeInTheDocument();
+        });
+
+        it("= false: hides the plus button on a space", async () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.ShowRoomListPlusMenu) return false;
+                return "default";
+            });
+
+            await renderForSpace();
+
+            expect(screen.queryByLabelText("Add")).not.toBeInTheDocument();
+        });
+
+        it("= false: hides the plus button on a meta-space too", () => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.ShowRoomListPlusMenu) return false;
+                // ShowPlusMenuForMetaSpace left permissive, so only the new flag can hide it here
+                if (name === UIFeature.ShowPlusMenuForMetaSpace) return true;
+                return "default";
+            });
+
+            renderForHome();
+
+            expect(screen.queryByLabelText("Add")).not.toBeInTheDocument();
+        });
+
+        it("defaults to true, so an unconfigured deployment is unaffected", () => {
+            // Read the declared default rather than going through SettingsStore, whose getValue is
+            // spied on across this suite. Verji's config.verji-*.json is what turns this off;
+            // upstream and any other deployment must keep today's behaviour.
+            expect(SETTINGS[UIFeature.ShowRoomListPlusMenu].default).toBe(true);
         });
     });
 });

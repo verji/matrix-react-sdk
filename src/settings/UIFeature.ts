@@ -37,6 +37,10 @@ export const enum UIFeature {
     ShowLeaveSpaceInContextMenu = "UIFeature.showLeaveSpaceInContextMenu",
     ShowMembersListForSpaces = "UIFeature.showMembersListForSpaces",
     ShowPlusMenuForMetaSpace = "UIFeature.showPlusMenuForMetaSpace",
+    // VERJI: hides the room-list header "+" plus-menu on *every* space, not just meta-spaces.
+    // Its only surviving option ("Explore rooms") does nothing useful for Verji users, since
+    // subspace creation and space invites are already disabled by the flags above.
+    ShowRoomListPlusMenu = "UIFeature.showRoomListPlusMenu",
     ShowStartChatPlusMenuForMetaSpace = "UIFeature.showStartChatPlusMenuForMetaSpace",
     ShowAddRoomPlusMenuForMetaSpace = "UIFeature.showAddRoomPlusMenuForMetaSpace",
     ShowExploreRoomsButton = "UIFeature.showExploreRoomsButton",

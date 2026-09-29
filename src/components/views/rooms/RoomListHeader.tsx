@@ -411,6 +411,11 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
         }
     }
 
+    // VERJI: hide the plus-menu button on every space type, not just meta-spaces.
+    // Checked here rather than folded into `showPlusMenuForMetaSpace` so the two flags stay
+    // independent: the meta-space flag keeps its existing, narrower meaning.
+    const showRoomListPlusMenu = SettingsStore.getValue(UIFeature.ShowRoomListPlusMenu);
+
     let showPlusMenuForMetaSpace = true;
     if (!SettingsStore.getValue(UIFeature.ShowPlusMenuForMetaSpace)) {
         switch (spaceKey) {
@@ -434,7 +439,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                     <InlineSpinner />
                 </Tooltip>
             ) : null}
-            {showPlusMenuForMetaSpace && canShowPlusMenu && (
+            {showRoomListPlusMenu && showPlusMenuForMetaSpace && canShowPlusMenu && (
                 <ContextMenuTooltipButton
                     ref={plusMenuHandle}
                     onClick={openPlusMenu}
