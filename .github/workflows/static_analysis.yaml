@@ -25,6 +25,9 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   cache: "yarn"
+                  # VERJI: @verji packages come from GitHub Packages; the install step supplies the token
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@verji"
             # VERJI SPECIFIC - yarn link FOR matrix-react-sdk-module-api on verji-main branch
             #- name: "Veri - Clone Github Repo Action - Download verji-main of module-api"
             #  # You may pin to the exact commit or the version.
@@ -52,6 +55,9 @@ jobs:
             #END VERJI SPECIFIC
             - name: Install Deps
               run: "./scripts/ci/install-deps.sh --ignore-scripts"
+              env:
+                  # VERJI: read access to the @verji packages on GitHub Packages
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               # VERJI
             # - name: "Verji - yarn link matrix-react-sdk-module-api/verji-main into matrix-react-sdk"
             #   uses: Azure/powershell@v2
@@ -118,10 +124,16 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   cache: "yarn"
+                  # VERJI: @verji packages come from GitHub Packages; the install step supplies the token
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@verji"
 
             # Does not need branch matching as only analyses this layer
             - name: Install Deps
               run: "yarn install"
+              env:
+                  # VERJI: read access to the @verji packages on GitHub Packages
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Run Linter
               run: "yarn run lint:js"
@@ -135,10 +147,16 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   cache: "yarn"
+                  # VERJI: @verji packages come from GitHub Packages; the install step supplies the token
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@verji"
 
             # Does not need branch matching as only analyses this layer
             - name: Install Deps
               run: "yarn install"
+              env:
+                  # VERJI: read access to the @verji packages on GitHub Packages
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Run Linter
               run: "yarn run lint:style"
@@ -152,10 +170,16 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   cache: "yarn"
+                  # VERJI: @verji packages come from GitHub Packages; the install step supplies the token
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@verji"
 
             # Does not need branch matching as only analyses this layer
             - name: Install Deps
               run: "yarn install --frozen-lockfile"
+              env:
+                  # VERJI: read access to the @verji packages on GitHub Packages
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Run Linter
               run: "yarn lint:workflows"

@@ -45,11 +45,16 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   cache: "yarn"
+                  # VERJI: @verji packages come from GitHub Packages; the install step supplies the token
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@verji"
 
             - name: Install Deps
               run: "./scripts/ci/install-deps.sh --ignore-scripts"
               env:
                   JS_SDK_GITHUB_BASE_REF: ${{ inputs.matrix-js-sdk-sha }}
+                  # VERJI: read access to the @verji packages on GitHub Packages
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Jest Cache
               uses: actions/cache@v4
