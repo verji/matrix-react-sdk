@@ -25,6 +25,7 @@ import {
     MatrixClient,
     MemoryStore,
     PendingEventOrdering,
+    Room,
     RoomNameState,
     RoomNameType,
     TokenRefreshFunction,
@@ -53,6 +54,7 @@ import { formatList } from "./utils/FormattingUtils";
 import SdkConfig from "./SdkConfig";
 import { Features } from "./settings/Settings";
 import { PhasedRolloutFeature } from "./utils/PhasedRolloutFeature";
+import { getOrgUnitCategoryDisplayName } from "./stores/verji/verjiSpaceNames"; // VERJI
 
 export interface IMatrixClientCreds {
     homeserverUrl: string;
@@ -441,8 +443,11 @@ class MatrixClientPegClass implements IMatrixClientPeg {
             // These are always installed regardless of the labs flag so that cross-signing features
             // can toggle on without reloading and also be accessed immediately after login.
             cryptoCallbacks: { ...crossSigningCallbacks },
-            roomNameGenerator: (_: string, state: RoomNameState) => {
+            roomNameGenerator: (_: string, state: RoomNameState, room?: Room) => {
                 switch (state.type) {
+                    // VERJI: an OrgUnitCategory space's stored name is the backend's English default; translate it
+                    case RoomNameType.Actual:
+                        return room ? getOrgUnitCategoryDisplayName(room, state.name) : null;
                     case RoomNameType.Generated:
                         switch (state.subtype) {
                             case "Inviting":

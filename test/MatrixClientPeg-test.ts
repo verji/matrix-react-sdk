@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { logger } from "matrix-js-sdk/src/logger";
+import { EventType, MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 import fetchMockJest from "fetch-mock-jest";
 import EventEmitter from "events";
 import {
@@ -30,6 +31,7 @@ import PlatformPeg from "../src/PlatformPeg";
 import { SettingLevel } from "../src/settings/SettingLevel";
 import { Features } from "../src/settings/Settings";
 import { ModuleRunner } from "../src/modules/ModuleRunner";
+import * as verjiSpaceNames from "../src/stores/verji/verjiSpaceNames";
 
 jest.useFakeTimers();
 
@@ -151,6 +153,46 @@ describe("MatrixClientPeg", () => {
                 );
                 expect(dehydrationKey).toEqual(Uint8Array.from([0x11, 0x22, 0x33]));
             });
+        });
+    });
+
+    // VERJI
+    describe("roomNameGenerator", () => {
+        const nameRoom = (client: MatrixClient, name: string): Room => {
+            const room = new Room("!space:example.com", client, "@user:example.com");
+            room.currentState.setStateEvents([
+                new MatrixEvent({ type: EventType.RoomName, state_key: "", room_id: room.roomId, content: { name } }),
+            ]);
+            room.recalculate();
+            return room;
+        };
+
+        let client: MatrixClient;
+
+        beforeEach(() => {
+            const testPeg: IMatrixClientPeg = new PegClass();
+            fetchMockJest.get("http://example.com/_matrix/client/versions", {});
+            testPeg.replaceUsingCreds({
+                accessToken: "SEKRET",
+                homeserverUrl: "http://example.com",
+                userId: "@user:example.com",
+                deviceId: "TEST_DEVICE_ID",
+            });
+            client = testPeg.safeGet();
+        });
+
+        it("shows an OrgUnitCategory space's translated name", () => {
+            const displayName = jest
+                .spyOn(verjiSpaceNames, "getOrgUnitCategoryDisplayName")
+                .mockReturnValue("Gjesteorganisasjoner");
+            const room = nameRoom(client, "Guest Organizations");
+            expect(displayName).toHaveBeenCalledWith(room, "Guest Organizations");
+            expect(room.name).toBe("Gjesteorganisasjoner");
+        });
+
+        it("keeps any other room's stored name", () => {
+            jest.spyOn(verjiSpaceNames, "getOrgUnitCategoryDisplayName").mockReturnValue(null);
+            expect(nameRoom(client, "Guest Organizations").name).toBe("Guest Organizations");
         });
     });
 

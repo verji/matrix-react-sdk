@@ -7,6 +7,11 @@
             "settings_denied_not_primary_contact": "You are not the primary contact for %(tenant)s, so you cannot change these settings.",
             "settings_denied_not_org_member_or_owner": "You are neither a member nor an owner of this organisation, so you cannot change these settings."
         },
+        "org_unit_category": {
+            "guest_organizations": "Guest Organizations",
+            "cases": "Cases",
+            "projects": "Projects"
+        },
         "auto_logout": "Automatic signout",
         "turned_off": "Turned off",
         "30_seconds": "30 Seconds",
