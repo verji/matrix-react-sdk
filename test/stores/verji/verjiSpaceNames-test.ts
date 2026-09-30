@@ -18,6 +18,7 @@ import fetchMock from "fetch-mock-jest";
 import { ClientEvent, MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 
 import nb from "../../../src/i18n/strings/nb_NO.json";
+import sv from "../../../src/i18n/strings/sv.json";
 import { setLanguage } from "../../../src/languageHandler";
 import {
     getOrgUnitCategoryDisplayName,
@@ -50,8 +51,13 @@ describe("verjiSpaceNames", () => {
 
     beforeAll(() => {
         fetchMock
-            .get("/i18n/languages.json", { "en": "en_EN.json", "nb-no": "nb_NO.json" }, { overwriteRoutes: true })
-            .get("end:nb_NO.json", nb);
+            .get(
+                "/i18n/languages.json",
+                { "en": "en_EN.json", "nb-no": "nb_NO.json", "sv": "sv.json" },
+                { overwriteRoutes: true },
+            )
+            .get("end:nb_NO.json", nb)
+            .get("end:sv.json", sv);
     });
 
     beforeEach(() => {
@@ -72,6 +78,15 @@ describe("verjiSpaceNames", () => {
             ["Projects", "Prosjekter"],
         ])("translates %s into Norwegian", async (stored, translated) => {
             await setLanguage("nb-no");
+            expect(getOrgUnitCategoryDisplayName(category(), stored)).toBe(translated);
+        });
+
+        it.each([
+            ["Guest Organizations", "Gästorganisationer"],
+            ["Cases", "Ärenden"],
+            ["Projects", "Projekt"],
+        ])("translates %s into Swedish", async (stored, translated) => {
+            await setLanguage("sv");
             expect(getOrgUnitCategoryDisplayName(category(), stored)).toBe(translated);
         });
 
