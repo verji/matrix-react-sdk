@@ -4006,6 +4006,9 @@
             "wordByItself": "Enstaka ord är enkla att gissa"
         }
     },
+    "Guest Organizations": "Gästorganisationer",
+    "Cases": "Ärenden",
+    "Projects": "Projekt",
     "verji": {
         "dm_fetch_error_message": "Något gick fel vid hämtning av dina direktmeddelanden för denna klient.",
         "dm_fetch_error_timeout": "Tidsgränsen överskreds",

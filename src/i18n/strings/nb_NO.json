@@ -1,4 +1,7 @@
 {
+    "Guest Organizations": "Gjesteorganisasjoner",
+    "Cases": "Saker",
+    "Projects": "Prosjekter",
     "verji": {
         "gate": {
             "onboard_denied_guest": "Du er gjest i %(tenant)s, så du kan ikke invitere nye brukere til dette området.",

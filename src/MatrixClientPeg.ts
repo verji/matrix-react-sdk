@@ -53,6 +53,7 @@ import { formatList } from "./utils/FormattingUtils";
 import SdkConfig from "./SdkConfig";
 import { Features } from "./settings/Settings";
 import { PhasedRolloutFeature } from "./utils/PhasedRolloutFeature";
+import { getOrgUnitCategoryDisplayName, renameOrgUnitCategorySpacesOnceStored } from "./stores/verji/verjiSpaceNames"; // VERJI
 
 export interface IMatrixClientCreds {
     homeserverUrl: string;
@@ -441,8 +442,13 @@ class MatrixClientPegClass implements IMatrixClientPeg {
             // These are always installed regardless of the labs flag so that cross-signing features
             // can toggle on without reloading and also be accessed immediately after login.
             cryptoCallbacks: { ...crossSigningCallbacks },
-            roomNameGenerator: (_: string, state: RoomNameState) => {
+            roomNameGenerator: (roomId: string, state: RoomNameState) => {
                 switch (state.type) {
+                    // VERJI: an OrgUnitCategory space's stored name is the backend's English default; translate it
+                    case RoomNameType.Actual: {
+                        const room = this.matrixClient?.getRoom(roomId);
+                        return room ? getOrgUnitCategoryDisplayName(room, state.name) : null;
+                    }
                     case RoomNameType.Generated:
                         switch (state.subtype) {
                             case "Inviting":
@@ -477,6 +483,7 @@ class MatrixClientPegClass implements IMatrixClientPeg {
 
         this.matrixClient = createMatrixClient(opts);
         this.matrixClient.setGuest(Boolean(creds.guest));
+        renameOrgUnitCategorySpacesOnceStored(this.matrixClient); // VERJI: see roomNameGenerator above
 
         const notifTimelineSet = new EventTimelineSet(undefined, {
             timelineSupport: true,
