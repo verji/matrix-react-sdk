@@ -1,4 +1,7 @@
 {
+    "Guest Organizations": "Guest Organizations",
+    "Cases": "Cases",
+    "Projects": "Projects",
     "verji": {
         "gate": {
             "onboard_denied_guest": "You are a guest in %(tenant)s, so you cannot invite new users to this space.",
@@ -6,11 +9,6 @@
             "create_room_denied_not_org_member": "You are not a member of this organisation, so you cannot create rooms here.",
             "settings_denied_not_primary_contact": "You are not the primary contact for %(tenant)s, so you cannot change these settings.",
             "settings_denied_not_org_member_or_owner": "You are neither a member nor an owner of this organisation, so you cannot change these settings."
-        },
-        "org_unit_category": {
-            "guest_organizations": "Guest Organizations",
-            "cases": "Cases",
-            "projects": "Projects"
         },
         "auto_logout": "Automatic signout",
         "turned_off": "Turned off",

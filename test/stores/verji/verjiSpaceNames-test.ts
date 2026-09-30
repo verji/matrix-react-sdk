@@ -15,11 +15,15 @@ limitations under the License.
 */
 
 import fetchMock from "fetch-mock-jest";
-import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+import { ClientEvent, MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 
 import nb from "../../../src/i18n/strings/nb_NO.json";
 import { setLanguage } from "../../../src/languageHandler";
-import { getOrgUnitCategoryDisplayName } from "../../../src/stores/verji/verjiSpaceNames";
+import {
+    getOrgUnitCategoryDisplayName,
+    getOrgUnitCategoryName,
+    renameOrgUnitCategorySpacesOnceStored,
+} from "../../../src/stores/verji/verjiSpaceNames";
 import { getMockClientWithEventEmitter, mockClientMethodsUser } from "../../test-utils";
 
 const USER = "@alice:domain.org";
@@ -41,7 +45,7 @@ const TENANT_INFO = { "app.verji.tenant_info": { tenant_id: "tenant-1" } };
 const PARENT = { "app.verji.canonical_parent_space": { canonical_parent_space_id: "!canonical-root:domain.org" } };
 const ORG_UNIT = { "app.verji.org_unit_info": { org_unit_id: "org-a" } };
 
-describe("getOrgUnitCategoryDisplayName", () => {
+describe("verjiSpaceNames", () => {
     let client: MatrixClient;
 
     beforeAll(() => {
@@ -75,15 +79,20 @@ describe("getOrgUnitCategoryDisplayName", () => {
             expect(getOrgUnitCategoryDisplayName(category(), "Guest Organizations")).toBe("Guest Organizations");
         });
 
-        it("leaves a name with no translation to the stored name", async () => {
+        it("shows a name we have no translation for as stored", async () => {
             await setLanguage("nb-no");
-            expect(getOrgUnitCategoryDisplayName(category(), "Suppliers")).toBeNull();
+            expect(getOrgUnitCategoryDisplayName(category(), "Suppliers")).toBe("Suppliers");
+            // only listed names go through `_t`, so a name that is also a group of translation keys is safe
+            expect(getOrgUnitCategoryDisplayName(category(), "common")).toBe("common");
+            expect(getOrgUnitCategoryDisplayName(category(), "guest organizations")).toBe("guest organizations");
         });
+    });
 
-        it("matches the stored name exactly", async () => {
+    describe("getOrgUnitCategoryName", () => {
+        it("translates a listed name and returns any other name as given", async () => {
             await setLanguage("nb-no");
-            expect(getOrgUnitCategoryDisplayName(category(), "guest organizations")).toBeNull();
-            expect(getOrgUnitCategoryDisplayName(category(), "constructor")).toBeNull();
+            expect(getOrgUnitCategoryName("Guest Organizations")).toBe("Gjesteorganisasjoner");
+            expect(getOrgUnitCategoryName("Suppliers")).toBe("Suppliers");
         });
     });
 
@@ -109,6 +118,24 @@ describe("getOrgUnitCategoryDisplayName", () => {
         it("a room that is not a space", () => {
             const room = makeSpace(client, { ...TENANT_INFO, ...PARENT }, false);
             expect(getOrgUnitCategoryDisplayName(room, "Cases")).toBeNull();
+        });
+    });
+
+    describe("renameOrgUnitCategorySpacesOnceStored", () => {
+        it("renames an OrgUnitCategory space when the client stores it", () => {
+            renameOrgUnitCategorySpacesOnceStored(client);
+            const room = makeSpace(client, { ...TENANT_INFO, ...PARENT });
+            const recalculate = jest.spyOn(room, "recalculate");
+            client.emit(ClientEvent.Room, room);
+            expect(recalculate).toHaveBeenCalled();
+        });
+
+        it("leaves every other room alone", () => {
+            renameOrgUnitCategorySpacesOnceStored(client);
+            const orgUnit = makeSpace(client, { ...TENANT_INFO, ...PARENT, ...ORG_UNIT });
+            const recalculate = jest.spyOn(orgUnit, "recalculate");
+            client.emit(ClientEvent.Room, orgUnit);
+            expect(recalculate).not.toHaveBeenCalled();
         });
     });
 });

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { logger } from "matrix-js-sdk/src/logger";
-import { EventType, MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+import { ClientEvent, EventType, MatrixClient, MatrixEvent, Room, RoomType } from "matrix-js-sdk/src/matrix";
 import fetchMockJest from "fetch-mock-jest";
 import EventEmitter from "events";
 import {
@@ -31,7 +31,8 @@ import PlatformPeg from "../src/PlatformPeg";
 import { SettingLevel } from "../src/settings/SettingLevel";
 import { Features } from "../src/settings/Settings";
 import { ModuleRunner } from "../src/modules/ModuleRunner";
-import * as verjiSpaceNames from "../src/stores/verji/verjiSpaceNames";
+import { setLanguage } from "../src/languageHandler";
+import nb from "../src/i18n/strings/nb_NO.json";
 
 jest.useFakeTimers();
 
@@ -157,42 +158,66 @@ describe("MatrixClientPeg", () => {
     });
 
     // VERJI
-    describe("roomNameGenerator", () => {
-        const nameRoom = (client: MatrixClient, name: string): Room => {
-            const room = new Room("!space:example.com", client, "@user:example.com");
+    describe("OrgUnitCategory space names", () => {
+        const USER = "@user:example.com";
+        const stateEvent = (room: Room, type: string, content: object, stateKey = type): MatrixEvent =>
+            new MatrixEvent({ type, state_key: stateKey, room_id: room.roomId, sender: USER, content });
+
+        /** A space with a stored name, named the way sync does it: before the client stores the room. */
+        const syncSpace = (client: MatrixClient, name: string, extra: Record<string, object> = {}): Room => {
+            const room = new Room("!space:example.com", client, USER);
             room.currentState.setStateEvents([
-                new MatrixEvent({ type: EventType.RoomName, state_key: "", room_id: room.roomId, content: { name } }),
+                stateEvent(room, EventType.RoomCreate, { type: RoomType.Space }, ""),
+                stateEvent(room, EventType.RoomName, { name }, ""),
+                stateEvent(room, "app.verji.tenant_info", { tenant_id: "tenant-1" }),
+                stateEvent(room, "app.verji.canonical_parent_space", {
+                    canonical_parent_space_id: "!root:example.com",
+                }),
+                ...Object.entries(extra).map(([type, content]) => stateEvent(room, type, content)),
             ]);
             room.recalculate();
             return room;
         };
+        const store = (client: MatrixClient, room: Room): void => {
+            client.store.storeRoom(room);
+            client.emit(ClientEvent.Room, room);
+        };
 
         let client: MatrixClient;
 
-        beforeEach(() => {
+        beforeEach(async () => {
+            fetchMockJest
+                .get("/i18n/languages.json", { "en": "en_EN.json", "nb-no": "nb_NO.json" }, { overwriteRoutes: true })
+                .get("end:nb_NO.json", nb);
+            await setLanguage("nb-no");
+
             const testPeg: IMatrixClientPeg = new PegClass();
             fetchMockJest.get("http://example.com/_matrix/client/versions", {});
             testPeg.replaceUsingCreds({
                 accessToken: "SEKRET",
                 homeserverUrl: "http://example.com",
-                userId: "@user:example.com",
+                userId: USER,
                 deviceId: "TEST_DEVICE_ID",
             });
             client = testPeg.safeGet();
         });
 
-        it("shows an OrgUnitCategory space's translated name", () => {
-            const displayName = jest
-                .spyOn(verjiSpaceNames, "getOrgUnitCategoryDisplayName")
-                .mockReturnValue("Gjesteorganisasjoner");
-            const room = nameRoom(client, "Guest Organizations");
-            expect(displayName).toHaveBeenCalledWith(room, "Guest Organizations");
-            expect(room.name).toBe("Gjesteorganisasjoner");
+        afterEach(async () => {
+            await setLanguage("en");
         });
 
-        it("keeps any other room's stored name", () => {
-            jest.spyOn(verjiSpaceNames, "getOrgUnitCategoryDisplayName").mockReturnValue(null);
-            expect(nameRoom(client, "Guest Organizations").name).toBe("Guest Organizations");
+        it("translates a category's name once sync has stored the space", () => {
+            const room = syncSpace(client, "Guest Organizations");
+            expect(room.name).toBe("Guest Organizations"); // not in the store yet
+            store(client, room);
+            expect(room.name).toBe("Gjesteorganisasjoner");
+            expect(room.normalizedName).toBe("gjesteorganisasjoner");
+        });
+
+        it("keeps the name of a guest organization named like a category", () => {
+            const room = syncSpace(client, "Projects", { "app.verji.org_unit_info": { org_unit_id: "org-a" } });
+            store(client, room);
+            expect(room.name).toBe("Projects");
         });
     });
 

@@ -1,4 +1,7 @@
 {
+    "Guest Organizations": "Gjesteorganisasjoner",
+    "Cases": "Saker",
+    "Projects": "Prosjekter",
     "verji": {
         "gate": {
             "onboard_denied_guest": "Du er gjest i %(tenant)s, så du kan ikke invitere nye brukere til dette området.",
@@ -6,11 +9,6 @@
             "create_room_denied_not_org_member": "Du er ikke medlem av denne organisasjonen, så du kan ikke opprette rom her.",
             "settings_denied_not_primary_contact": "Du er ikke primærkontakt for %(tenant)s, så du kan ikke endre disse innstillingene.",
             "settings_denied_not_org_member_or_owner": "Du er verken medlem eller eier av denne organisasjonen, så du kan ikke endre disse innstillingene."
-        },
-        "org_unit_category": {
-            "guest_organizations": "Gjesteorganisasjoner",
-            "cases": "Saker",
-            "projects": "Prosjekter"
         },
         "auto_logout": "Automatisk utlogging",
         "turned_off": "Slått av",
