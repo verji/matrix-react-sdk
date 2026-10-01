@@ -146,7 +146,8 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
 
     const hasPermissionToAddSpaceChild = space.currentState.maySendStateEvent(EventType.SpaceChild, userId);
     // VERJI: a Hidden create-room verdict removes the room options, as it removes the Rooms "+";
-    // a denial keeps them, disabled, with the hint as their tooltip.
+    // a denial keeps them, disabled, with the hint as their tooltip, and so does a Checking verdict
+    // while the access context is re-fetched (verji/verji-src#1507).
     const canAddRooms =
         hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateRooms) && isGateVisible(createRoomGate);
     const createRoomDenied = isGateDisabled(createRoomGate);

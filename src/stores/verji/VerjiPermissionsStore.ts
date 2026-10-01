@@ -24,7 +24,7 @@ import defaultDispatcher, { MatrixDispatcher } from "../../dispatcher/dispatcher
 import { ReadyWatchingStore } from "../ReadyWatchingStore";
 import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
-import { VerjiRoleReader } from "./verjiRoles";
+import { VerjiGateReader } from "./verjiGates";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -48,8 +48,19 @@ import { VerjiRoleReader } from "./verjiRoles";
  * up, and `onNotReady` on logout, on a non-viable client, and — crucially — when the synced client
  * changes identity, which is the user-switch case. `clearAll()` is called on those edges and
  * **never** on a tenant switch: caching tenants side by side is the entire point of the cache.
+ *
+ * ## Freshness after priming
+ *
+ * Priming fetches each tenant's context once per page load, and the SDK's read path never fetches,
+ * so without more a permission change mid-session would go unseen until a reload
+ * (verji/verji-src#1507). Two requests close that, both made by `useVerjiGate` from an effect after
+ * the render that read a gate — never by a gate, never during render:
+ * - {@link requestOrgUnitRefresh}: a bounded re-fetch while a gate is Checking an OrgUnit the
+ *   context has never heard of, the guest-org-created-after-page-load case;
+ * - {@link revalidateIfStale}: a background revalidation once a tenant's copy is older than the
+ *   SDK's TTL, which caps every other kind of staleness at about the TTL.
  */
-export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiRoleReader {
+export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGateReader {
     private static readonly internalInstance = (() => {
         const instance = new VerjiPermissionsStore(defaultDispatcher);
         instance.start();
@@ -71,6 +82,10 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiRo
     private initialisedForUserId?: string;
     private primedForUserId?: string;
     private warnedMissingStore = false;
+    /** One bounded re-fetch per (tenant, OrgUnit) pair — running or used up — keyed by {@link orgUnitKey}. */
+    private orgUnitRefreshes = new Map<string, OrgUnitRefresh>();
+    /** When the stale backstop last revalidated each tenant, for its throttle. */
+    private staleRevalidatedAt = new Map<string, number>();
 
     public constructor(dispatcher: MatrixDispatcher) {
         super(dispatcher);
@@ -98,6 +113,123 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiRo
     /** Load state of a tenant's access context — distinguishes "not loaded" from "denied". */
     public peekContext(tenantId: string): AccessContextSnapshot {
         return this.permissions?.peekContext(tenantId) ?? { status: "uninitialized" };
+    }
+
+    /**
+     * Is `instanceId` in any role's instance list in the tenant's cached context? False when the
+     * tenant has no cached context. Ask through `isOrgUnitInContext` in `verjiRoles`.
+     */
+    public isInstanceReferenced(tenantId: string, instanceId: string): boolean {
+        const roles = this.permissions?.peekContext(tenantId).record?.roles;
+        if (!roles) return false;
+        return Object.values(roles).some((instances) => Array.isArray(instances) && instances.includes(instanceId));
+    }
+
+    /** See `VerjiGateReader.isOrgUnitRefreshExhausted`. */
+    public isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean {
+        return this.orgUnitRefreshes.get(orgUnitKey(tenantId, orgUnitId))?.exhausted ?? false;
+    }
+
+    // ---------------------------------------------------------------- freshness (from effects only)
+
+    /**
+     * Re-fetch the tenant's access context on a short backoff ({@link ORG_UNIT_REFRESH_DELAYS_MS})
+     * until it mentions `orgUnitId`, then stop. If it never does, mark the pair exhausted, which
+     * moves its gate from Checking to Denied.
+     *
+     * One schedule per (tenant, OrgUnit) pair until logout or user switch: a call for a pair that is
+     * running or used up does nothing, which is what makes it safe to call after every render and
+     * rules out a loop. Concurrent fetches for one tenant are deduplicated by the SDK.
+     */
+    public requestOrgUnitRefresh(tenantId: string, orgUnitId: string): void {
+        if (!this.permissions) return;
+        const key = orgUnitKey(tenantId, orgUnitId);
+        if (this.orgUnitRefreshes.has(key)) return;
+
+        const refresh: OrgUnitRefresh = { exhausted: false };
+        this.orgUnitRefreshes.set(key, refresh);
+        this.scheduleOrgUnitAttempt(refresh, tenantId, orgUnitId, 0);
+    }
+
+    /**
+     * Revalidate the tenant's access context in the background if the cached copy is older than the
+     * SDK's TTL. A tenant with no copy is left alone: it reads NotGated, as it does today.
+     *
+     * Throttled per tenant, because a failed revalidation leaves the copy stale and every render
+     * would otherwise send another request.
+     */
+    public revalidateIfStale(tenantId: string): void {
+        const permissions = this.permissions;
+        if (!permissions || permissions.peekContext(tenantId).status !== "stale") return;
+
+        const now = Date.now();
+        const last = this.staleRevalidatedAt.get(tenantId);
+        if (last !== undefined && now - last < STALE_REVALIDATION_THROTTLE_MS) return;
+        this.staleRevalidatedAt.set(tenantId, now);
+
+        // A stale copy is returned at once and revalidated in the background; the SDK logs a failed
+        // revalidation itself. This catch is for the call itself failing.
+        permissions.ensureContextFresh(tenantId).catch((error) => {
+            // eslint-disable-next-line no-console
+            console.warn("[Verji.Permissions] Failed to revalidate the access context for tenant", tenantId, error);
+        });
+    }
+
+    private scheduleOrgUnitAttempt(
+        refresh: OrgUnitRefresh,
+        tenantId: string,
+        orgUnitId: string,
+        attempt: number,
+    ): void {
+        refresh.timer = setTimeout(() => {
+            refresh.timer = undefined;
+            void this.runOrgUnitAttempt(refresh, tenantId, orgUnitId, attempt);
+        }, ORG_UNIT_REFRESH_DELAYS_MS[attempt]);
+    }
+
+    private async runOrgUnitAttempt(
+        refresh: OrgUnitRefresh,
+        tenantId: string,
+        orgUnitId: string,
+        attempt: number,
+    ): Promise<void> {
+        const key = orgUnitKey(tenantId, orgUnitId);
+        const permissions = this.permissions;
+        if (!permissions || this.orgUnitRefreshes.get(key) !== refresh) return;
+
+        // Another fetch may have brought the OrgUnit in since this attempt was scheduled.
+        if (!this.isInstanceReferenced(tenantId, orgUnitId)) {
+            try {
+                await permissions.refreshContext(tenantId);
+            } catch (error) {
+                // A failed attempt still counts against the budget; the next one may succeed.
+                // eslint-disable-next-line no-console
+                console.warn("[Verji.Permissions] Failed to refresh the access context for tenant", tenantId, error);
+            }
+            // Logout or a user switch while the request was in flight: this schedule is void.
+            if (this.orgUnitRefreshes.get(key) !== refresh) return;
+        }
+
+        if (this.isInstanceReferenced(tenantId, orgUnitId)) {
+            // Found. The fetch that brought it changed the context, so the SDK has already emitted
+            // and the gate has re-rendered with the real answer.
+            refresh.exhausted = true;
+            return;
+        }
+        if (attempt + 1 < ORG_UNIT_REFRESH_DELAYS_MS.length) {
+            this.scheduleOrgUnitAttempt(refresh, tenantId, orgUnitId, attempt + 1);
+            return;
+        }
+        refresh.exhausted = true;
+        // Nothing in the context changed, so the SDK stayed silent: this is what moves the gate from
+        // Checking to Denied.
+        this.bumpVersion();
+    }
+
+    private resetFreshnessRequests(): void {
+        for (const refresh of this.orgUnitRefreshes.values()) clearTimeout(refresh.timer);
+        this.orgUnitRefreshes.clear();
+        this.staleRevalidatedAt.clear();
     }
 
     // ---------------------------------------------------------------- reactivity
@@ -200,6 +332,8 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiRo
         this.permissions = undefined;
         this.initialisedForUserId = undefined;
         this.primedForUserId = undefined;
+        // The re-fetch budget and the throttle belong to the user who spent them.
+        this.resetFreshnessRequests();
         this.bumpVersion();
 
         if (!permissions) return;
@@ -285,5 +419,27 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiRo
 
 /** Mirrors the SDK's own `PREFETCH_ALL_CONCURRENCY`. */
 const PRIME_CONCURRENCY = 4;
+
+/**
+ * The wait before each re-fetch of {@link VerjiPermissionsStore.requestOrgUnitRefresh}: one at
+ * once, then backing off, about a minute in all. Sized for the backend as deployed before
+ * verji/verji-src#1495, where the Owner row of a new guest org lands about 40–50 s after its space
+ * appears; with #1495 the first re-fetch finds it.
+ */
+export const ORG_UNIT_REFRESH_DELAYS_MS: readonly number[] = [0, 2_000, 5_000, 10_000, 20_000, 30_000];
+
+/** The least time between two stale-backstop revalidations of one tenant. */
+export const STALE_REVALIDATION_THROTTLE_MS = 30_000;
+
+/** The state of one (tenant, OrgUnit) re-fetch. */
+interface OrgUnitRefresh {
+    /** The pending attempt; undefined while an attempt is in flight and once the schedule ends. */
+    timer?: ReturnType<typeof setTimeout>;
+    /** The schedule has ended, by running out of attempts or by finding the OrgUnit. */
+    exhausted: boolean;
+}
+
+/** Tenant and OrgUnit ids are GUIDs, so JSON keeps the pair unambiguous at no cost. */
+const orgUnitKey = (tenantId: string, orgUnitId: string): string => JSON.stringify([tenantId, orgUnitId]);
 
 export default VerjiPermissionsStore;

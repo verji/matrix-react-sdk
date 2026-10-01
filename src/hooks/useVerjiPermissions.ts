@@ -20,7 +20,7 @@ import { Room } from "matrix-js-sdk/src/matrix";
 import SpaceStore from "../stores/spaces/SpaceStore";
 import { VerjiPermissionsStore } from "../stores/verji/VerjiPermissionsStore";
 import { resolveVerjiSpaceContext, VerjiSpaceContext } from "../stores/verji/VerjiSpaceContext";
-import { VerjiGateDecision, VerjiGateReader } from "../stores/verji/verjiGates";
+import { VerjiGateDecision, VerjiGateReader, VerjiGateVerdict } from "../stores/verji/verjiGates";
 
 /**
  * VERJI: React access to the Hierarchy V2 access-context store.
@@ -59,6 +59,12 @@ function useVerjiStoreVersion(): number {
  * map lookups plus one room-state read, and computing it fresh removes a whole class of staleness
  * bug — a memo keyed on the store version would not notice the space's own state changing.
  *
+ * Having read the gate, the hook tells the store what it saw, from an effect: that the tenant was
+ * read (so a stale copy gets revalidated) and, on Checking, which OrgUnit the context has not heard
+ * of (so it gets re-fetched). Never from the gate or during render — a gate is a pure function and
+ * the SDK's read path never fetches. Both requests are idempotent in the store, so the effect runs
+ * after every render, which is also when the copy's age is worth looking at again.
+ *
  * @param space the space being rendered, or null when there is none
  * @param gate one of the gate functions in `stores/verji/verjiGates`
  */
@@ -70,5 +76,16 @@ export function useVerjiGate(
     void useVerjiStoreVersion();
 
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
-    return gate(ctx, VerjiPermissionsStore.instance);
+    const decision = gate(ctx, VerjiPermissionsStore.instance);
+
+    const tenantId = ctx?.tenantId;
+    const checkingOrgUnitId = decision.verdict === VerjiGateVerdict.Checking ? ctx?.orgUnitId : undefined;
+    useEffect(() => {
+        if (!tenantId) return;
+        const store = VerjiPermissionsStore.instance;
+        store.revalidateIfStale(tenantId);
+        if (checkingOrgUnitId) store.requestOrgUnitRefresh(tenantId, checkingOrgUnitId);
+    });
+
+    return decision;
 }

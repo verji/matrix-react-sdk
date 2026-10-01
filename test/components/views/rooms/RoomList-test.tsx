@@ -19,8 +19,14 @@ import React, { ComponentProps } from "react";
 import { act, cleanup, queryByRole, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mocked } from "jest-mock";
-import { MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+// VERJI START: verji/verji-src#1507 drives a real SDK access-context cache behind the real store.
+import { getVerjiApiSdk, initVerjiApiSdkAsync } from "@verji/verji-api-sdk/lib/asyncInit";
+import { createPermissionStore, PermissionPersistence } from "@verji/verji-api-sdk/lib/permissions";
 
+import type { PermissionStore } from "@verji/verji-api-sdk";
+import type { AcContextResponse } from "@verji/verji-api-sdk/lib/services/itopsService/types";
+// VERJI END
 import RoomList from "../../../../src/components/views/rooms/RoomList";
 import ResizeNotifier from "../../../../src/utils/ResizeNotifier";
 import { MetaSpace } from "../../../../src/stores/spaces";
@@ -39,9 +45,17 @@ import { DefaultTagID } from "../../../../src/stores/room-list/models";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
 import * as verjiGates from "../../../../src/stores/verji/verjiGates";
+import SdkConfig from "../../../../src/SdkConfig"; // VERJI: verji/verji-src#1507 configures itops for one block
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
+}));
+
+// VERJI: verji/verji-src#1507 hands the store a real SDK cache without initialising the whole SDK.
+// Nothing else in this file reaches the store's init: itops is not configured outside that block.
+jest.mock("@verji/verji-api-sdk/lib/asyncInit", () => ({
+    initVerjiApiSdkAsync: jest.fn(),
+    getVerjiApiSdk: jest.fn(),
 }));
 
 jest.mock("../../../../src/dispatcher/dispatcher");
@@ -502,16 +516,25 @@ describe("Verji Hierarchy V2 gates", () => {
     };
 
     /**
-     * Stand in for the SDK-backed store. Everything the gates read goes through these two. Grants
-     * are held for TENANT only, so a read keyed by the wrong tenant gets a wrong answer rather than
-     * the same one.
+     * Stand in for the SDK-backed store. Everything the gates read goes through these. Grants are
+     * held for TENANT only, so a read keyed by the wrong tenant gets a wrong answer rather than the
+     * same one.
+     *
+     * @param exhausted OrgUnits whose re-fetch the store has used up (verji/verji-src#1507)
      */
-    const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}): void => {
+    const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}, exhausted: string[] = []): void => {
         jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
             (tenantId) => rolloutOn && tenantId === TENANT,
         );
         jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation(
             (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+        );
+        jest.spyOn(VerjiPermissionsStore.instance, "isInstanceReferenced").mockImplementation(
+            (tenantId, instanceId) =>
+                tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
+        );
+        jest.spyOn(VerjiPermissionsStore.instance, "isOrgUnitRefreshExhausted").mockImplementation(
+            (tenantId, orgUnitId) => tenantId === TENANT && exhausted.includes(orgUnitId),
         );
     };
 
@@ -527,6 +550,11 @@ describe("Verji Hierarchy V2 gates", () => {
     };
 
     const STANDARD_USER = { "Customer-User#": [TENANT] };
+    /**
+     * What the backend writes for a non-member who joined one of ORG_A's rooms: ORG_A is in their
+     * context, but not as membership, so a "no" for them is a genuine no.
+     */
+    const JOINED_A_ROOM_IN_ORG_A = { "ClientOrganization-SmsRoomMember": [ORG_A] };
 
     beforeEach(async () => {
         rooms = [];
@@ -750,7 +778,11 @@ describe("Verji Hierarchy V2 gates", () => {
         });
 
         it("disables it for a StandardUser who holds the structure but not membership", async () => {
-            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": ["some-other-org"] });
+            mockStore(true, {
+                ...STANDARD_USER,
+                ...JOINED_A_ROOM_IN_ORG_A,
+                "ClientOrganization-User#": ["some-other-org"],
+            });
 
             render(getComponent());
 
@@ -761,7 +793,11 @@ describe("Verji Hierarchy V2 gates", () => {
 
         it("keeps Persons+ enabled for that same StandardUser", () => {
             // The two surfaces disagree here, which is what proves each reads its own gate.
-            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": ["some-other-org"] });
+            mockStore(true, {
+                ...STANDARD_USER,
+                ...JOINED_A_ROOM_IN_ORG_A,
+                "ClientOrganization-User#": ["some-other-org"],
+            });
 
             render(getComponent());
 
@@ -807,6 +843,158 @@ describe("Verji Hierarchy V2 gates", () => {
                 screen.getByLabelText("Add people"),
                 "You are a guest in Acme AS, so you cannot invite new users to this space.",
             );
+        });
+
+        // VERJI: verji/verji-src#1507 — the cached context has never heard of the OrgUnit.
+        describe("when the cached context has never heard of the OrgUnit", () => {
+            it("renders the Rooms + disabled with the checking hint, and opens no menu", async () => {
+                mockStore(true, STANDARD_USER);
+
+                render(getComponent());
+
+                const button = screen.getByLabelText("Add room");
+                expect(button).toHaveAttribute("aria-disabled", "true");
+                await expectHint(button, "Checking your access");
+                await userEvent.click(button);
+                expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+            });
+
+            it("settles on the not-a-member hint once the store's re-fetch is used up", async () => {
+                mockStore(true, STANDARD_USER, [ORG_A]);
+
+                render(getComponent());
+
+                const button = screen.getByLabelText("Add room");
+                expect(button).toHaveAttribute("aria-disabled", "true");
+                await expectHint(button, "not a member of this organisation");
+            });
+
+            it("renders the Rooms + enabled, exactly as today, when the rollout switch is off", () => {
+                mockStore(false, STANDARD_USER);
+
+                render(getComponent());
+
+                expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+            });
+        });
+    });
+
+    /**
+     * verji/verji-src#1507 end to end, with no read stubbed between the button and the network: the
+     * real hook and gates read the real bridge store, which reads a real SDK access-context cache,
+     * which a fake itops feeds. Every other create-room test here stubs the store's reads, so this
+     * is the one that proves the wiring — the re-fetch is requested by the render, and the response
+     * re-renders the button.
+     */
+    describe("against the real store and a real SDK cache, when the guest org is newer than the cache", () => {
+        /** What itops would answer now. Changed by a test to play the backend writing a row. */
+        let serverRoles: Record<string, string[]>;
+        /** While set, itops holds its responses until it settles. */
+        let holdResponses: Promise<void> | undefined;
+        let contextFetcher: jest.Mock<Promise<AcContextResponse>, [unknown, string]>;
+        let sdkPermissions: PermissionStore;
+
+        /** The SDK's IndexedDB persistence, minus IndexedDB: this test is about memory and events. */
+        const noPersistence = (): PermissionPersistence => ({
+            open: async () => {},
+            isEnabled: () => false,
+            readOwner: async () => undefined,
+            writeOwner: async () => {},
+            clearOwner: async () => {},
+            loadAll: async () => [],
+            put: async () => {},
+            deleteRecord: async () => {},
+            loadAllContexts: async () => [],
+            putContext: async () => {},
+            deleteContext: async () => {},
+            clearTenant: async () => {},
+            clearAllRecords: async () => {},
+            close: () => {},
+        });
+
+        beforeEach(async () => {
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.org_unit_info": { org_unit_id: ORG_A },
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+            serverRoles = { ...STANDARD_USER };
+            holdResponses = undefined;
+            contextFetcher = jest.fn(async (_token: unknown, tenantId: string): Promise<AcContextResponse> => {
+                await holdResponses;
+                return {
+                    userId: client.getSafeUserId(),
+                    tenantId,
+                    aclDomain: tenantId,
+                    isSuperuser: false,
+                    canonicalSpaceSyncEnabled: true,
+                    roles: Object.entries(serverRoles).map(([name, instances]) => ({ name, instances })),
+                };
+            });
+            sdkPermissions = createPermissionStore(jest.fn(), contextFetcher, { persistence: noPersistence() });
+
+            SdkConfig.put({ verjiItopsUrl: "https://itops.test" } as never);
+            mocked(initVerjiApiSdkAsync).mockResolvedValue(undefined as never);
+            mocked(getVerjiApiSdk).mockResolvedValue({
+                permissions: sdkPermissions,
+                api: { identityService: { getAccessToken: jest.fn().mockResolvedValue("verji-access-token") } },
+            } as never);
+
+            // The store's own init path, as on login. It reads only these two off the client.
+            const verjiStore = VerjiPermissionsStore.instance;
+            verjiStore.useUnitTestClient({
+                getUserId: () => client.getSafeUserId(),
+                getAccessToken: () => "macaroon",
+            } as unknown as MatrixClient);
+            await verjiStore["onReady"]();
+            // The page-load fetch, from before the guest org existed.
+            await sdkPermissions.ensureContextFresh(TENANT);
+        });
+
+        afterEach(async () => {
+            // As on logout: cancels any re-fetch still scheduled and drops the SDK cache.
+            await VerjiPermissionsStore.instance["onNotReady"]();
+            VerjiPermissionsStore.instance["matrixClient"] = null;
+            SdkConfig.reset();
+        });
+
+        it("checks, re-fetches on its own, and enables the Rooms + when the Owner row arrives", async () => {
+            // The backend has written the Owner row since page load. Hold the response so the
+            // Checking state can be observed before it lands.
+            serverRoles = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
+            let respond!: () => void;
+            holdResponses = new Promise((resolve) => (respond = resolve));
+            const fetchesBefore = contextFetcher.mock.calls.length;
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add room");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "Checking your access");
+            // Nothing in this test asked for it: the render did.
+            await waitFor(() => expect(contextFetcher).toHaveBeenCalledTimes(fetchesBefore + 1));
+            expect(contextFetcher).toHaveBeenLastCalledWith(expect.anything(), TENANT, undefined);
+
+            respond();
+
+            // The same button, re-rendered: the tooltip still open from the hover now also reads
+            // "Add room", so a fresh query by label would be ambiguous.
+            await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled", "true"));
+            await userEvent.click(button);
+            expect(await screen.findByRole("menu")).toBeInTheDocument();
+        });
+
+        it("keeps the not-a-member denial, without re-fetching, for a user the context already knows", async () => {
+            // A non-member who joined a room in ORG_A: the cached context is current about ORG_A.
+            serverRoles = { ...STANDARD_USER, ...JOINED_A_ROOM_IN_ORG_A };
+            await sdkPermissions.refreshContext(TENANT);
+            const fetchesBefore = contextFetcher.mock.calls.length;
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add room");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "not a member of this organisation");
+            expect(contextFetcher).toHaveBeenCalledTimes(fetchesBefore);
         });
     });
 

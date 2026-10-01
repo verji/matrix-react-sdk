@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import React from "react";
+import { renderToString } from "react-dom/server";
 import { act, renderHook } from "@testing-library/react-hooks/dom";
 import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 
@@ -136,6 +138,97 @@ describe("useVerjiGate", () => {
             unmount();
 
             expect(listeners.size).toBe(before);
+        });
+    });
+
+    /**
+     * verji/verji-src#1507. A gate is a pure function evaluated during render and the SDK's read
+     * path never fetches, so the hook's requests to the store must come from an effect, after the
+     * render that read the gate.
+     */
+    describe("freshness requests", () => {
+        const TENANT = "tenant-A";
+        const ORG_A = "org-a";
+        const CHECKING: VerjiGateDecision = { verdict: VerjiGateVerdict.Checking, hint: "checking" };
+
+        const orgUnitSpace = (): Room =>
+            makeSpace(client, "!org-unit:domain.org", {
+                "app.verji.tenant_info": { tenant_id: TENANT },
+                "app.verji.org_unit_info": { org_unit_id: ORG_A },
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!category:domain.org" },
+            });
+
+        const Probe: React.FC<{ space: Room | null; gate: jest.Mock }> = ({ space, gate }) => {
+            useVerjiGate(space, gate);
+            return null;
+        };
+
+        /**
+         * Server rendering runs the render pass alone, with no effect after it — so whatever the
+         * store is asked here, it was asked during render.
+         */
+        const renderOnly = (space: Room | null, gate: jest.Mock): void => {
+            renderToString(<Probe space={space} gate={gate} />);
+            expect(gate).toHaveBeenCalled();
+        };
+
+        let refresh: jest.SpyInstance;
+        let revalidate: jest.SpyInstance;
+
+        beforeEach(() => {
+            refresh = jest.spyOn(VerjiPermissionsStore.instance, "requestOrgUnitRefresh").mockImplementation(() => {});
+            revalidate = jest.spyOn(VerjiPermissionsStore.instance, "revalidateIfStale").mockImplementation(() => {});
+        });
+
+        it("asks for a re-fetch of the OrgUnit after a render that reads Checking, never during it", () => {
+            const space = orgUnitSpace();
+            const gate = jest.fn().mockReturnValue(CHECKING);
+
+            renderOnly(space, gate);
+            expect(refresh).not.toHaveBeenCalled();
+
+            renderHook(() => useVerjiGate(space, gate));
+            expect(refresh).toHaveBeenCalledWith(TENANT, ORG_A);
+        });
+
+        it.each([
+            ["NotGated", { verdict: VerjiGateVerdict.NotGated }],
+            ["Allowed", { verdict: VerjiGateVerdict.Allowed }],
+            ["Denied", { verdict: VerjiGateVerdict.Denied, hint: "no" }],
+            ["Hidden", { verdict: VerjiGateVerdict.Hidden }],
+        ])("asks for no re-fetch when the gate reads %s", (_name, decision) => {
+            renderHook(() => useVerjiGate(orgUnitSpace(), jest.fn().mockReturnValue(decision)));
+
+            expect(refresh).not.toHaveBeenCalled();
+        });
+
+        it("asks to revalidate the rendered space's tenant after render, never during it", () => {
+            const space = orgUnitSpace();
+            const gate = jest.fn().mockReturnValue(NOT_GATED);
+
+            renderOnly(space, gate);
+            expect(revalidate).not.toHaveBeenCalled();
+
+            renderHook(() => useVerjiGate(space, gate));
+            expect(revalidate).toHaveBeenCalledWith(TENANT);
+        });
+
+        it("asks again after a later render, since the copy may have aged since the last one", () => {
+            renderHook(() => useVerjiGate(orgUnitSpace(), jest.fn().mockReturnValue(NOT_GATED)));
+            const callsAfterMount = revalidate.mock.calls.length;
+
+            act(() => {
+                VerjiPermissionsStore.instance["bumpVersion"]();
+            });
+
+            expect(revalidate.mock.calls.length).toBeGreaterThan(callsAfterMount);
+        });
+
+        it("asks for nothing when the rendered room is not a Verji space", () => {
+            renderHook(() => useVerjiGate(null, jest.fn().mockReturnValue(CHECKING)));
+
+            expect(refresh).not.toHaveBeenCalled();
+            expect(revalidate).not.toHaveBeenCalled();
         });
     });
 });

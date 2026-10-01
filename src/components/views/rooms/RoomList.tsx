@@ -410,7 +410,9 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
     }
 
     // VERJI: at an OrgUnitCategory space the affordance is removed for everyone, so the
-    // button is not rendered at all. Everywhere else a denial renders it disabled with the hint.
+    // button is not rendered at all. Everywhere else a denial renders it disabled with the hint,
+    // and so does a Checking verdict while the access context is re-fetched (verji/verji-src#1507):
+    // `createRoomDenied` covers both.
     if (!isGateVisible(createRoomGate)) {
         return null;
     }
