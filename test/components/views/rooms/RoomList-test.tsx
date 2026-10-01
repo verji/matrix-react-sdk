@@ -19,11 +19,13 @@ import React, { ComponentProps } from "react";
 import { act, cleanup, queryByRole, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mocked } from "jest-mock";
-import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix"; // VERJI: MatrixClient for verji/verji-src#1507
 // VERJI START: verji/verji-src#1507 drives a real SDK access-context cache behind the real store.
 import { getVerjiApiSdk, initVerjiApiSdkAsync } from "@verji/verji-api-sdk/lib/asyncInit";
 import { createPermissionStore, PermissionPersistence } from "@verji/verji-api-sdk/lib/permissions";
+// VERJI END
 
+// VERJI START: types for the same, verji/verji-src#1507.
 import type { PermissionStore } from "@verji/verji-api-sdk";
 import type { AcContextResponse } from "@verji/verji-api-sdk/lib/services/itopsService/types";
 // VERJI END
@@ -951,6 +953,8 @@ describe("Verji Hierarchy V2 gates", () => {
         });
 
         afterEach(async () => {
+            // Unmount first, so tearing the store down does not re-render the list outside act().
+            cleanup();
             // As on logout: cancels any re-fetch still scheduled and drops the SDK cache.
             await VerjiPermissionsStore.instance["onNotReady"]();
             VerjiPermissionsStore.instance["matrixClient"] = null;

@@ -53,12 +53,12 @@ import { VerjiGateReader } from "./verjiGates";
  *
  * Priming fetches each tenant's context once per page load, and the SDK's read path never fetches,
  * so without more a permission change mid-session would go unseen until a reload
- * (verji/verji-src#1507). Two requests close that, both made by `useVerjiGate` from an effect after
- * the render that read a gate — never by a gate, never during render:
+ * (verji/verji-src#1507). Two requests close that, both made by `useVerjiGate` from an effect —
+ * never by a gate, never during render:
  * - {@link requestOrgUnitRefresh}: a bounded re-fetch while a gate is Checking an OrgUnit the
  *   context has never heard of, the guest-org-created-after-page-load case;
- * - {@link revalidateIfStale}: a background revalidation once a tenant's copy is older than the
- *   SDK's TTL, which caps every other kind of staleness at about the TTL.
+ * - {@link watchTenant}: while a gate reading a tenant is mounted, its copy is revalidated once it
+ *   is older than the SDK's TTL, which caps every other kind of staleness at about the TTL.
  */
 export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGateReader {
     private static readonly internalInstance = (() => {
@@ -86,6 +86,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     private orgUnitRefreshes = new Map<string, OrgUnitRefresh>();
     /** When the stale backstop last revalidated each tenant, for its throttle. */
     private staleRevalidatedAt = new Map<string, number>();
+    /** How many mounted gates read each tenant. While any do, {@link staleCheckTimer} runs. */
+    private watchedTenants = new Map<string, number>();
+    private staleCheckTimer?: ReturnType<typeof setInterval>;
 
     public constructor(dispatcher: MatrixDispatcher) {
         super(dispatcher);
@@ -152,13 +155,45 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     }
 
     /**
+     * Keep the tenant's copy within about the SDK's TTL until the returned function is called:
+     * check it now and every {@link STALE_CHECK_INTERVAL_MS}, and revalidate it in the background
+     * once it is stale. `useVerjiGate` holds one for the tenant of the space it renders.
+     *
+     * A timer, not a check on render: a gate that nothing re-renders — a quiet room list, whose
+     * sublists skip updates — would otherwise trust a stale copy for as long as the tab is open.
+     * The timer runs only while some gate is mounted, and costs a request only once a copy is stale.
+     */
+    public watchTenant(tenantId: string): () => void {
+        this.watchedTenants.set(tenantId, (this.watchedTenants.get(tenantId) ?? 0) + 1);
+        this.staleCheckTimer ??= setInterval(this.revalidateWatchedTenants, STALE_CHECK_INTERVAL_MS);
+        this.revalidateIfStale(tenantId);
+
+        let watching = true;
+        return () => {
+            if (!watching) return;
+            watching = false;
+            const readers = (this.watchedTenants.get(tenantId) ?? 1) - 1;
+            if (readers > 0) this.watchedTenants.set(tenantId, readers);
+            else this.watchedTenants.delete(tenantId);
+            if (this.watchedTenants.size === 0) {
+                clearInterval(this.staleCheckTimer);
+                this.staleCheckTimer = undefined;
+            }
+        };
+    }
+
+    private revalidateWatchedTenants = (): void => {
+        for (const tenantId of this.watchedTenants.keys()) this.revalidateIfStale(tenantId);
+    };
+
+    /**
      * Revalidate the tenant's access context in the background if the cached copy is older than the
      * SDK's TTL. A tenant with no copy is left alone: it reads NotGated, as it does today.
      *
-     * Throttled per tenant, because a failed revalidation leaves the copy stale and every render
+     * Throttled per tenant, because a failed revalidation leaves the copy stale and every check
      * would otherwise send another request.
      */
-    public revalidateIfStale(tenantId: string): void {
+    private revalidateIfStale(tenantId: string): void {
         const permissions = this.permissions;
         if (!permissions || permissions.peekContext(tenantId).status !== "stale") return;
 
@@ -194,8 +229,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         attempt: number,
     ): Promise<void> {
         const key = orgUnitKey(tenantId, orgUnitId);
+        // A reset clears pending timers along with the store, so a timer that fires has both.
         const permissions = this.permissions;
-        if (!permissions || this.orgUnitRefreshes.get(key) !== refresh) return;
+        if (!permissions) return;
 
         // Another fetch may have brought the OrgUnit in since this attempt was scheduled.
         if (!this.isInstanceReferenced(tenantId, orgUnitId)) {
@@ -212,7 +248,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
 
         if (this.isInstanceReferenced(tenantId, orgUnitId)) {
             // Found. The fetch that brought it changed the context, so the SDK has already emitted
-            // and the gate has re-rendered with the real answer.
+            // and the gate has re-rendered with the real answer. Marking the pair used up all the
+            // same is what keeps a later drop — the user leaves their last room there — at Denied,
+            // rather than back at a Checking that no schedule would ever settle.
             refresh.exhausted = true;
             return;
         }
@@ -226,6 +264,10 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.bumpVersion();
     }
 
+    /**
+     * The tenants mounted gates read are left as they are: the gates belong to mounted components,
+     * not to the user, and the same interval checks the next user's copies once their store is up.
+     */
     private resetFreshnessRequests(): void {
         for (const refresh of this.orgUnitRefreshes.values()) clearTimeout(refresh.timer);
         this.orgUnitRefreshes.clear();
@@ -427,6 +469,13 @@ const PRIME_CONCURRENCY = 4;
  * appears; with #1495 the first re-fetch finds it.
  */
 export const ORG_UNIT_REFRESH_DELAYS_MS: readonly number[] = [0, 2_000, 5_000, 10_000, 20_000, 30_000];
+
+/**
+ * How often {@link VerjiPermissionsStore.watchTenant} looks at the copies of the tenants mounted
+ * gates read. A look is a map read; it costs a request only once a copy is past the SDK's TTL, so
+ * a copy is trusted for at most the TTL plus this.
+ */
+export const STALE_CHECK_INTERVAL_MS = 30_000;
 
 /** The least time between two stale-backstop revalidations of one tenant. */
 export const STALE_REVALIDATION_THROTTLE_MS = 30_000;

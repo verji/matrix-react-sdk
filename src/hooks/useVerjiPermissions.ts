@@ -59,11 +59,13 @@ function useVerjiStoreVersion(): number {
  * map lookups plus one room-state read, and computing it fresh removes a whole class of staleness
  * bug — a memo keyed on the store version would not notice the space's own state changing.
  *
- * Having read the gate, the hook tells the store what it saw, from an effect: that the tenant was
- * read (so a stale copy gets revalidated) and, on Checking, which OrgUnit the context has not heard
- * of (so it gets re-fetched). Never from the gate or during render — a gate is a pure function and
- * the SDK's read path never fetches. Both requests are idempotent in the store, so the effect runs
- * after every render, which is also when the copy's age is worth looking at again.
+ * The hook also keeps what the gate read fresh, from effects — never from the gate or during
+ * render, because a gate is a pure function and the SDK's read path never fetches:
+ * - while it is mounted, it holds a watch on the rendered space's tenant, so the store revalidates
+ *   that tenant's copy once it is past the TTL, whether or not anything re-renders;
+ * - after a render that reads Checking, it asks the store to re-fetch for that OrgUnit. The store
+ *   runs one schedule per OrgUnit and ignores repeats, so asking after every render is safe, and
+ *   it means a gate still at Checking after a logout and login asks the new user's store again.
  *
  * @param space the space being rendered, or null when there is none
  * @param gate one of the gate functions in `stores/verji/verjiGates`
@@ -82,9 +84,12 @@ export function useVerjiGate(
     const checkingOrgUnitId = decision.verdict === VerjiGateVerdict.Checking ? ctx?.orgUnitId : undefined;
     useEffect(() => {
         if (!tenantId) return;
-        const store = VerjiPermissionsStore.instance;
-        store.revalidateIfStale(tenantId);
-        if (checkingOrgUnitId) store.requestOrgUnitRefresh(tenantId, checkingOrgUnitId);
+        return VerjiPermissionsStore.instance.watchTenant(tenantId);
+    }, [tenantId]);
+    useEffect(() => {
+        if (tenantId && checkingOrgUnitId) {
+            VerjiPermissionsStore.instance.requestOrgUnitRefresh(tenantId, checkingOrgUnitId);
+        }
     });
 
     return decision;
