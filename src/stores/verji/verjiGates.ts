@@ -18,8 +18,7 @@ import { _t } from "../../languageHandler";
 import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
     isOrgUnitInContext,
-    isOrgUnitMember,
-    isOrgUnitOwner,
+    isOrgUnitMemberOrOwner,
     isStandardUser,
     isTenantPrimaryContact,
     VerjiRoleReader,
@@ -95,8 +94,9 @@ export interface VerjiGateReader extends VerjiRoleReader {
     isCanonicalSpaceSyncEnabled(tenantId: string): boolean;
     /**
      * Is the store's one bounded re-fetch for this OrgUnit used up — out of attempts, or ended
-     * early because the OrgUnit turned up? Once it is, an OrgUnit the context still does not mention
-     * reads as denied, so a wrong staleness guess cannot hold an affordance at "checking" forever.
+     * early because the user turned out to be its Member or Owner? Once it is, an OrgUnit the
+     * context does not mention reads as denied, so a wrong staleness guess cannot hold an affordance
+     * at "checking" forever.
      */
     isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean;
 }
@@ -143,8 +143,8 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
  * - the context mentions the OrgUnit under some other role, so it is current about it: Denied.
  *   This is the awkward case — a user who holds the mirrored room structure without membership,
  *   whose room grant puts the OrgUnit in their context;
- * - the context mentions it nowhere, so it most likely predates it: Checking, until the store's
- *   re-fetch either finds it or is used up, after which the same situation is Denied.
+ * - the context mentions it nowhere, so it most likely predates it: Checking, while the store
+ *   re-fetches. Once the re-fetch is used up the same situation is Denied.
  */
 export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
@@ -163,9 +163,7 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
                     // one if the kind is ever derived some other way.
                     return denied(_t("verji|gate|create_room_denied_not_org_member"));
                 }
-                const inOrgUnit =
-                    isOrgUnitMember(reader, c.tenantId, c.orgUnitId) || isOrgUnitOwner(reader, c.tenantId, c.orgUnitId);
-                if (inOrgUnit) return ALLOWED;
+                if (isOrgUnitMemberOrOwner(reader, c.tenantId, c.orgUnitId)) return ALLOWED;
                 // A context that has never heard of the OrgUnit is no evidence either way, so ask
                 // again before saying no, unless the re-fetch has already been used up.
                 if (
@@ -199,9 +197,9 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
             if (!isStandardUser(reader, c.tenantId) || !c.orgUnitId) {
                 return denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
             }
-            const inOrgUnit =
-                isOrgUnitMember(reader, c.tenantId, c.orgUnitId) || isOrgUnitOwner(reader, c.tenantId, c.orgUnitId);
-            return inOrgUnit ? ALLOWED : denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
+            return isOrgUnitMemberOrOwner(reader, c.tenantId, c.orgUnitId)
+                ? ALLOWED
+                : denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
         }
         if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
         return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.tenantName }));

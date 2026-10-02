@@ -416,7 +416,7 @@ describe("VerjiPermissionsStore", () => {
             expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
         });
 
-        it("stops as soon as a re-fetch brings the OrgUnit in", async () => {
+        it("stops as soon as a re-fetch brings the Owner row in", async () => {
             const store = await startedStore();
             permissions.refreshContext.mockImplementation(async () => {
                 // The second fetch is the one that lands after the backend wrote the Owner row.
@@ -431,19 +431,55 @@ describe("VerjiPermissionsStore", () => {
             expect(permissions.refreshContext).toHaveBeenCalledTimes(2);
         });
 
-        it("counts a pair whose OrgUnit turned up as used up, so a later drop reads Denied, not Checking", async () => {
-            // Found through a room the user joined there. When they later leave their last room, a
-            // revalidation drops the row; the gate must then deny, because nothing would ever ask
-            // for this pair again to settle a Checking.
+        it("keeps going when another row names the OrgUnit first, until the Owner row lands", async () => {
+            // Before #1495 the group sync's bare Owner row, or the PrimaryContact's manager roles,
+            // can name a new guest org before its Owner row exists. The gate reads Denied in
+            // between; stopping there would leave it at Denied until the stale backstop.
             const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                const call = permissions.refreshContext.mock.calls.length;
+                if (call === 2) permissions.context.roles["Owner"] = [ORG_A];
+                if (call === 4) permissions.context.roles["ClientOrganization-Owner"] = [ORG_A];
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(4);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+        });
+
+        it("runs the whole budget for a user the OrgUnit only names, then counts it used up", async () => {
+            // A non-member who joined one of its rooms after page load: named at once, never a
+            // Member or the Owner. Bounded all the same.
+            const store = await startedStore();
+            const listener = jest.fn();
+            store.subscribe(listener);
             permissions.refreshContext.mockImplementation(async () => {
                 permissions.context.roles["ClientOrganization-SmsRoomMember"] = [ORG_A];
             });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            expect(listener).toHaveBeenCalledTimes(1);
+        });
+
+        it("counts a settled pair as used up, so a later drop reads Denied, not Checking", async () => {
+            // Settled as a Member. When they are later removed and a revalidation leaves the context
+            // without the OrgUnit, the gate must deny: nothing would ever ask for this pair again to
+            // settle a Checking.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                permissions.context.roles["ClientOrganization-User#"] = [ORG_A];
+            });
             store.requestOrgUnitRefresh(TENANT, ORG_A);
             await jest.advanceTimersByTimeAsync(0);
-            expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(true);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
 
-            delete permissions.context.roles["ClientOrganization-SmsRoomMember"];
+            delete permissions.context.roles["ClientOrganization-User#"];
 
             expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(false);
             expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
@@ -469,7 +505,7 @@ describe("VerjiPermissionsStore", () => {
             expect(permissions.refreshContext).toHaveBeenCalledWith("tenant-2");
         });
 
-        it("skips the fetch when another one already brought the OrgUnit in", async () => {
+        it("skips the fetch when another one already made the user a Member", async () => {
             const store = await startedStore();
             const listener = jest.fn();
             store.subscribe(listener);

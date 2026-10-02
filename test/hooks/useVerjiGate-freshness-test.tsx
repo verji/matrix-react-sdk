@@ -190,20 +190,39 @@ describe("useVerjiGate over time, on the create-room gate", () => {
         expect(current()).toBe(VerjiGateVerdict.Denied);
     });
 
-    it("settles on Denied, never back at Checking, when an OrgUnit it found later drops out", async () => {
+    it("reaches Allowed when another row names the org before its Owner row lands", async () => {
+        render(<Probe space={space} />);
+        await advance(0);
+        expect(current()).toBe(VerjiGateVerdict.Checking);
+
+        // By the +2 s attempt the group sync's bare Owner row names the org, before #1495 writes
+        // the Owner row: known, but no standing yet, so the gate reads Denied in between.
+        serverRoles = { ...STANDARD_USER, Owner: [ORG] };
+        await advance(2_000);
+        expect(current()).toBe(VerjiGateVerdict.Denied);
+
+        // The Owner row lands at +40 s, inside the budget; the schedule is still running for it.
+        await advance(38_000);
+        serverRoles = { ...STANDARD_USER, "Owner": [ORG], "ClientOrganization-Owner": [ORG] };
+        await advance(30_000);
+        expect(current()).toBe(VerjiGateVerdict.Allowed);
+    });
+
+    it("settles on Denied, never back at Checking, when an OrgUnit it settled later drops out", async () => {
         render(<Probe space={space} />);
         expect(current()).toBe(VerjiGateVerdict.Checking);
 
-        // The first re-fetch finds the org through a room the user joined there.
-        serverRoles = { ...STANDARD_USER, "ClientOrganization-SmsRoomMember": [ORG] };
+        // The first re-fetch finds the user a Member, which ends the schedule.
+        serverRoles = { ...STANDARD_USER, "ClientOrganization-User#": [ORG] };
         await advance(0);
-        expect(current()).toBe(VerjiGateVerdict.Denied);
+        expect(current()).toBe(VerjiGateVerdict.Allowed);
         const settledAt = verdicts.length - 1;
 
-        // They leave their last room there; past the TTL the watch revalidates and the row is gone.
+        // They are removed from it; past the TTL the watch revalidates and the org is gone from
+        // their context altogether.
         serverRoles = { ...STANDARD_USER };
         await advance(6 * 60_000);
-        expect(sdkPermissions.peekContext(TENANT).record?.roles["ClientOrganization-SmsRoomMember"]).toBeUndefined();
+        expect(sdkPermissions.peekContext(TENANT).record?.roles["ClientOrganization-User#"]).toBeUndefined();
 
         expect(current()).toBe(VerjiGateVerdict.Denied);
         expect(verdicts.slice(settledAt)).not.toContain(VerjiGateVerdict.Checking);

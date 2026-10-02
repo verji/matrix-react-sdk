@@ -113,6 +113,14 @@ export function isOrgUnitOwner(roles: VerjiRoleReader, tenantId: string, orgUnit
 }
 
 /**
+ * Is the user a Member or the Owner of this OrgUnit — the standing a StandardUser needs to act in
+ * it? Two separate rows, either of which will do: the Owner is not counted as a Member.
+ */
+export function isOrgUnitMemberOrOwner(roles: VerjiRoleReader, tenantId: string, orgUnitId: string): boolean {
+    return isOrgUnitMember(roles, tenantId, orgUnitId) || isOrgUnitOwner(roles, tenantId, orgUnitId);
+}
+
+/**
  * Has the tenant's cached access context heard of this OrgUnit at all, under any role?
  *
  * Not a permission, and never a reason to allow: it is how a gate tells a genuine "no" from a copy

@@ -17,6 +17,7 @@ limitations under the License.
 import {
     isOrgUnitInContext,
     isOrgUnitMember,
+    isOrgUnitMemberOrOwner,
     isOrgUnitOwner,
     isOrgUnitPrimaryContact,
     isStandardUser,
@@ -121,6 +122,29 @@ describe("verjiRoles — the client's role contract with itops", () => {
             // owner sync writes, `ClientOrganization-Owner`, is the owner signal.
             expect(isOrgUnitOwner(readerFor({ Owner: [ORG_A] }), TENANT, ORG_A)).toBe(false);
             expect(isOrgUnitOwner(readerFor({ "ClientOrganization-Owner": [ORG_A] }), TENANT, ORG_A)).toBe(true);
+        });
+    });
+
+    describe("isOrgUnitMemberOrOwner — the standing to act in an OrgUnit", () => {
+        it.each([
+            ["a Member", { "ClientOrganization-User#": [ORG_A] }, true],
+            ["the Owner", { "ClientOrganization-Owner": [ORG_A] }, true],
+            ["a bare Owner row, which is not the owner signal", { Owner: [ORG_A] }, false],
+            ["a non-member who joined one of its rooms", { "ClientOrganization-SmsRoomMember": [ORG_A] }, false],
+            ["a Member of another OrgUnit", { "ClientOrganization-User#": [ORG_B] }, false],
+        ])("reads %s as %s", (_who, grants, expected) => {
+            expect(isOrgUnitMemberOrOwner(readerFor(grants), TENANT, ORG_A)).toBe(expected);
+        });
+
+        it("asks exactly the Member and Owner predicates, in the tenant it was given", () => {
+            const { reader, asked } = recordingReader();
+
+            isOrgUnitMemberOrOwner(reader, TENANT, ORG_A);
+
+            expect(asked).toEqual([
+                [TENANT, "ClientOrganization-User#", ORG_A],
+                [TENANT, "ClientOrganization-Owner", ORG_A],
+            ]);
         });
     });
 

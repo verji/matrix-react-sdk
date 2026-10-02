@@ -25,6 +25,7 @@ import { ReadyWatchingStore } from "../ReadyWatchingStore";
 import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
+import { isOrgUnitMemberOrOwner } from "./verjiRoles";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -137,8 +138,8 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
 
     /**
      * Re-fetch the tenant's access context on a short backoff ({@link ORG_UNIT_REFRESH_DELAYS_MS})
-     * until it mentions `orgUnitId`, then stop. If it never does, mark the pair exhausted, which
-     * moves its gate from Checking to Denied.
+     * until it shows the user as a Member or the Owner of `orgUnitId`, then stop. If it never does,
+     * mark the pair exhausted, which settles a gate still at Checking on Denied.
      *
      * One schedule per (tenant, OrgUnit) pair until logout or user switch: a call for a pair that is
      * running or used up does nothing, which is what makes it safe to call after every render and
@@ -233,8 +234,8 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         const permissions = this.permissions;
         if (!permissions) return;
 
-        // Another fetch may have brought the OrgUnit in since this attempt was scheduled.
-        if (!this.isInstanceReferenced(tenantId, orgUnitId)) {
+        // Another fetch may have settled it since this attempt was scheduled.
+        if (!isOrgUnitMemberOrOwner(this, tenantId, orgUnitId)) {
             try {
                 await permissions.refreshContext(tenantId);
             } catch (error) {
@@ -246,21 +247,25 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
             if (this.orgUnitRefreshes.get(key) !== refresh) return;
         }
 
-        if (this.isInstanceReferenced(tenantId, orgUnitId)) {
-            // Found. The fetch that brought it changed the context, so the SDK has already emitted
-            // and the gate has re-rendered with the real answer. Marking the pair used up all the
-            // same is what keeps a later drop — the user leaves their last room there — at Denied,
+        if (isOrgUnitMemberOrOwner(this, tenantId, orgUnitId)) {
+            // Settled. The fetch that brought the row changed the context, so the SDK has already
+            // emitted and the gate has re-rendered as Allowed. Marking the pair used up all the
+            // same is what keeps a later drop — the user is removed from the OrgUnit — at Denied,
             // rather than back at a Checking that no schedule would ever settle.
             refresh.exhausted = true;
             return;
         }
+        // Not settled merely because the OrgUnit is now in the context under some other role: the
+        // gate already reads Denied for that, but before verji/verji-src#1495 a row other than the
+        // Owner row — the tenant PrimaryContact's manager roles, the group sync's ownership row —
+        // can name a new guest org before its Owner row lands. So keep going to the end of the budget.
         if (attempt + 1 < ORG_UNIT_REFRESH_DELAYS_MS.length) {
             this.scheduleOrgUnitAttempt(refresh, tenantId, orgUnitId, attempt + 1);
             return;
         }
         refresh.exhausted = true;
-        // Nothing in the context changed, so the SDK stayed silent: this is what moves the gate from
-        // Checking to Denied.
+        // The last fetch may have changed nothing, leaving the SDK silent: this is what moves a gate
+        // still at Checking to Denied.
         this.bumpVersion();
     }
 
@@ -484,7 +489,7 @@ export const STALE_REVALIDATION_THROTTLE_MS = 30_000;
 interface OrgUnitRefresh {
     /** The pending attempt; undefined while an attempt is in flight and once the schedule ends. */
     timer?: ReturnType<typeof setTimeout>;
-    /** The schedule has ended, by running out of attempts or by finding the OrgUnit. */
+    /** The schedule has ended, by running out of attempts or by finding the user a Member or the Owner. */
     exhausted: boolean;
 }
 
