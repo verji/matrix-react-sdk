@@ -182,8 +182,11 @@ describe("useVerjiGate over time, on the create-room gate", () => {
 
         await advance(30 * 60_000);
 
-        // Thirty minutes at a five-minute TTL: about six revalidations, never one per 30 s check.
-        expect(contextFetcher.mock.calls.length - fetchesWhenSettled).toBeLessThanOrEqual(6);
+        // Thirty minutes at a five-minute TTL: about one revalidation per TTL — some, so the
+        // backstop runs, and never one per 30 s check.
+        const revalidations = contextFetcher.mock.calls.length - fetchesWhenSettled;
+        expect(revalidations).toBeGreaterThanOrEqual(4);
+        expect(revalidations).toBeLessThanOrEqual(6);
         expect(current()).toBe(VerjiGateVerdict.Denied);
     });
 

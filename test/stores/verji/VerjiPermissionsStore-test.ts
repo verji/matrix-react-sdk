@@ -66,6 +66,7 @@ const makePermissions = () => {
         ),
         ensureContextFresh: jest.fn().mockResolvedValue(undefined),
         refreshContext: jest.fn().mockResolvedValue(undefined),
+        getCachedTenants: jest.fn((): string[] => [TENANT]),
         subscribe: jest.fn((listener: PermissionChangeListener) => {
             listeners.add(listener);
             return unsubscribe;
@@ -680,6 +681,23 @@ describe("VerjiPermissionsStore", () => {
             expect(jest.getTimerCount()).toBe(timersBefore);
             jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
             expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+        });
+
+        it("checks only the tenants mounted gates read, not every tenant it has a copy of", async () => {
+            // Two stale copies, one on screen: the other costs nothing until a gate reads it.
+            permissions.peekContext.mockImplementation((tenantId: string) => ({
+                status: "stale",
+                record: { roles: { "Customer-User#": [tenantId] } },
+            }));
+            permissions.getCachedTenants.mockReturnValue([TENANT, "tenant-2"]);
+            const store = await startedStore();
+
+            const unwatch = store.watchTenant(TENANT);
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+
+            expect(permissions.ensureContextFresh).toHaveBeenCalledWith(TENANT);
+            expect(permissions.ensureContextFresh).not.toHaveBeenCalledWith("tenant-2");
+            unwatch();
         });
 
         it("leaves a tenant with no copy alone, so a cold cache stays outside the beta", async () => {
