@@ -140,9 +140,11 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
  *
  * At an OrgUnit a StandardUser who is neither gets one of two answers, because "not a Member or
  * Owner" covers two different situations:
- * - the context mentions the OrgUnit under some other role, so it is current about it: Denied.
+ * - the context mentions the OrgUnit under some other role, so it has at least heard of it: Denied.
  *   This is the awkward case — a user who holds the mirrored room structure without membership,
- *   whose room grant puts the OrgUnit in their context;
+ *   whose room grant puts the OrgUnit in their context. A re-fetch already running for the
+ *   OrgUnit can still turn it into Allowed, since another row can name a new guest org before
+ *   its Owner row lands;
  * - the context mentions it nowhere, so it most likely predates it: Checking, while the store
  *   re-fetches. Once the re-fetch is used up the same situation is Denied.
  */

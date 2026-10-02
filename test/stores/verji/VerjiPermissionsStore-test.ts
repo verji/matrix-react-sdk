@@ -464,6 +464,9 @@ describe("VerjiPermissionsStore", () => {
 
             expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
             expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            // The end-of-budget bump fires even here, where the gate already reads Denied and nothing
+            // visible changes: kept unconditional, because when the OrgUnit is still unknown at the
+            // end it is the only thing that moves a gate from Checking to Denied.
             expect(listener).toHaveBeenCalledTimes(1);
         });
 
