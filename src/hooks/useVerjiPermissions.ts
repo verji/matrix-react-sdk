@@ -20,7 +20,7 @@ import { Room } from "matrix-js-sdk/src/matrix";
 import SpaceStore from "../stores/spaces/SpaceStore";
 import { VerjiPermissionsStore } from "../stores/verji/VerjiPermissionsStore";
 import { resolveVerjiSpaceContext, VerjiSpaceContext } from "../stores/verji/VerjiSpaceContext";
-import { VerjiGateDecision, VerjiGateReader } from "../stores/verji/verjiGates";
+import { VerjiGateDecision, VerjiGateReader, VerjiGateVerdict } from "../stores/verji/verjiGates";
 
 /**
  * VERJI: React access to the Hierarchy V2 access-context store.
@@ -59,6 +59,14 @@ function useVerjiStoreVersion(): number {
  * map lookups plus one room-state read, and computing it fresh removes a whole class of staleness
  * bug — a memo keyed on the store version would not notice the space's own state changing.
  *
+ * The hook also keeps what the gate read fresh, from effects — never from the gate or during
+ * render, because a gate is a pure function and the SDK's read path never fetches:
+ * - while it is mounted, it holds a watch on the rendered space's tenant, so the store revalidates
+ *   that tenant's copy once it is past the TTL, whether or not anything re-renders;
+ * - after a render that reads Checking, it asks the store to re-fetch for that OrgUnit. The store
+ *   runs one schedule per OrgUnit and ignores repeats, so asking after every render is safe, and
+ *   it means a gate still at Checking after a logout and login asks the new user's store again.
+ *
  * @param space the space being rendered, or null when there is none
  * @param gate one of the gate functions in `stores/verji/verjiGates`
  */
@@ -70,5 +78,19 @@ export function useVerjiGate(
     void useVerjiStoreVersion();
 
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
-    return gate(ctx, VerjiPermissionsStore.instance);
+    const decision = gate(ctx, VerjiPermissionsStore.instance);
+
+    const tenantId = ctx?.tenantId;
+    const checkingOrgUnitId = decision.verdict === VerjiGateVerdict.Checking ? ctx?.orgUnitId : undefined;
+    useEffect(() => {
+        if (!tenantId) return;
+        return VerjiPermissionsStore.instance.watchTenant(tenantId);
+    }, [tenantId]);
+    useEffect(() => {
+        if (tenantId && checkingOrgUnitId) {
+            VerjiPermissionsStore.instance.requestOrgUnitRefresh(tenantId, checkingOrgUnitId);
+        }
+    });
+
+    return decision;
 }

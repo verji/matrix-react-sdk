@@ -62,8 +62,8 @@ const ROLE_ORG_UNIT_OWNER = "ClientOrganization-Owner";
 /**
  * The slice of `sdk.permissions` these predicates need.
  *
- * Narrowed to one method on purpose: it keeps this module free of any dependency on the bridge
- * store or the SDK, so the contract can be unit-tested against a two-line stub.
+ * Narrowed to the two role-map reads on purpose: it keeps this module free of any dependency on
+ * the bridge store or the SDK, so the contract can be unit-tested against a few-line stub.
  */
 export interface VerjiRoleReader {
     /**
@@ -71,6 +71,14 @@ export interface VerjiRoleReader {
      * unknown role, or a context that has not loaded.
      */
     hasRole(tenantId: string, roleName: string, instanceId: string): boolean;
+    /**
+     * Is `instanceId` in the instance list of **any** role in the tenant's cached context, whatever
+     * the role? False for an unknown tenant or a context that has not loaded.
+     *
+     * Never a grant. It answers "has this context heard of the instance at all" — see
+     * {@link isOrgUnitInContext} for why that is worth asking.
+     */
+    isInstanceReferenced(tenantId: string, instanceId: string): boolean;
 }
 
 /**
@@ -102,6 +110,35 @@ export function isOrgUnitPrimaryContact(roles: VerjiRoleReader, tenantId: string
 /** Is the user the Owner of this OrgUnit — the tenant user who created it? */
 export function isOrgUnitOwner(roles: VerjiRoleReader, tenantId: string, orgUnitId: string): boolean {
     return roles.hasRole(tenantId, ROLE_ORG_UNIT_OWNER, orgUnitId);
+}
+
+/**
+ * Is the user a Member or the Owner of this OrgUnit — the standing a StandardUser needs to act in
+ * it? Two separate rows, either of which will do: the Owner is not counted as a Member.
+ */
+export function isOrgUnitMemberOrOwner(roles: VerjiRoleReader, tenantId: string, orgUnitId: string): boolean {
+    return isOrgUnitMember(roles, tenantId, orgUnitId) || isOrgUnitOwner(roles, tenantId, orgUnitId);
+}
+
+/**
+ * Has the tenant's cached access context heard of this OrgUnit at all, under any role?
+ *
+ * Not a permission, and never a reason to allow: it is how a gate tells a genuine "no" from a copy
+ * of the context that predates the OrgUnit (verji/verji-src#1507). Anyone who can see an OrgUnit's
+ * space has its id somewhere in a current context — as a Member, as the Owner, as the tenant
+ * PrimaryContact through the expanded manager roles, or as a non-member who joined one of its rooms
+ * (`ClientOrganization-SmsRoomMember`). So a context that mentions it nowhere most likely predates
+ * it, as when a guest org is created after page load.
+ *
+ * Most likely, not certainly: a user who just left their last room in it keeps the space for a
+ * moment after their grant is gone. Hence the re-fetch this triggers is bounded, and a gate falls
+ * back to denial once it is used up.
+ *
+ * Deliberately role-agnostic, so the roles that put an OrgUnit into a context can change on the
+ * backend without a change here.
+ */
+export function isOrgUnitInContext(roles: VerjiRoleReader, tenantId: string, orgUnitId: string): boolean {
+    return roles.isInstanceReferenced(tenantId, orgUnitId);
 }
 
 /**

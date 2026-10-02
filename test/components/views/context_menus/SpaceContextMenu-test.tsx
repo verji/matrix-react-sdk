@@ -17,7 +17,7 @@ limitations under the License.
 import React from "react";
 import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
 import { Mocked, mocked } from "jest-mock";
-import { prettyDOM, render, RenderResult, screen } from "@testing-library/react";
+import { act, prettyDOM, render, RenderResult, screen, waitFor } from "@testing-library/react"; // VERJI: act, waitFor for verji/verji-src#1507
 import userEvent from "@testing-library/user-event";
 
 import SpaceContextMenu from "../../../../src/components/views/context_menus/SpaceContextMenu";
@@ -255,13 +255,30 @@ describe("<SpaceContextMenu />", () => {
         const TENANT_INFO = { "app.verji.tenant_info": { tenant_id: TENANT } };
         const PARENT = { "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" } };
 
-        const mockStore = (rolloutOn: boolean, grants: Record<string, string[]> = {}): void => {
+        /**
+         * Grants are read at call time, so a test can change them and bump the store to play a
+         * fetch that brought new roles.
+         *
+         * @param exhausted OrgUnits whose re-fetch the store has used up (verji/verji-src#1507)
+         */
+        const mockStore = (
+            rolloutOn: boolean,
+            grants: Record<string, string[]> = {},
+            exhausted: string[] = [],
+        ): void => {
             jest.spyOn(VerjiPermissionsStore.instance, "isCanonicalSpaceSyncEnabled").mockImplementation(
                 (tenantId) => rolloutOn && tenantId === TENANT,
             );
             jest.spyOn(VerjiPermissionsStore.instance, "hasRole").mockImplementation(
                 (tenantId, roleName, instanceId) =>
                     tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+            );
+            jest.spyOn(VerjiPermissionsStore.instance, "isInstanceReferenced").mockImplementation(
+                (tenantId, instanceId) =>
+                    tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
+            );
+            jest.spyOn(VerjiPermissionsStore.instance, "isOrgUnitRefreshExhausted").mockImplementation(
+                (tenantId, orgUnitId) => tenantId === TENANT && exhausted.includes(orgUnitId),
             );
         };
 
@@ -317,6 +334,54 @@ describe("<SpaceContextMenu />", () => {
             });
 
             expect(screen.getByTestId("new-room-option")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        // VERJI: verji/verji-src#1507 — a guest org created after the access context was fetched.
+        describe("at an OrgUnit the cached context has never heard of", () => {
+            const ORG_UNIT_INFO = { "app.verji.org_unit_info": { org_unit_id: ORG_A } };
+
+            it("disables the room options with the checking hint, then enables them when the Owner row lands", async () => {
+                // Video rooms on, so the "Video room" option renders too: it reads the same gate.
+                jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => name === "feature_video_rooms");
+                const grants: Record<string, string[]> = { ...STANDARD_USER };
+                mockStore(true, grants);
+                const space = makeVerjiSpace({ ...TENANT_INFO, ...PARENT, ...ORG_UNIT_INFO });
+                renderComponent({ space });
+
+                const room = screen.getByTestId("new-room-option");
+                const videoRoom = screen.getByTestId("new-video-room-option");
+                expect(room).toHaveAttribute("aria-disabled", "true");
+                expect(videoRoom).toHaveAttribute("aria-disabled", "true");
+                await userEvent.hover(room);
+                expect((await screen.findByRole("tooltip")).textContent).toContain("Checking your access");
+                await userEvent.click(room);
+                expect(showCreateNewRoom).not.toHaveBeenCalled();
+
+                // A re-fetch brought the Owner row: the SDK emits, and the store re-renders its readers.
+                grants["ClientOrganization-Owner"] = [ORG_A];
+                act(() => {
+                    VerjiPermissionsStore.instance["bumpVersion"]();
+                });
+
+                // Re-queried: with no hint left to show, the option drops its tooltip wrapper, so
+                // React mounts a new element in place of the one held above.
+                await waitFor(() =>
+                    expect(screen.getByTestId("new-room-option")).not.toHaveAttribute("aria-disabled", "true"),
+                );
+                expect(screen.getByTestId("new-video-room-option")).not.toHaveAttribute("aria-disabled", "true");
+                await userEvent.click(screen.getByTestId("new-room-option"));
+                expect(showCreateNewRoom).toHaveBeenCalledWith(space);
+            });
+
+            it("settles on the not-a-member hint once the store's re-fetch is used up", async () => {
+                mockStore(true, STANDARD_USER, [ORG_A]);
+                renderComponent({ space: makeVerjiSpace({ ...TENANT_INFO, ...PARENT, ...ORG_UNIT_INFO }) });
+
+                const option = screen.getByTestId("new-room-option");
+                expect(option).toHaveAttribute("aria-disabled", "true");
+                await userEvent.hover(option);
+                expect((await screen.findByRole("tooltip")).textContent).toContain("not a member of this organisation");
+            });
         });
     });
 

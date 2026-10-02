@@ -16,7 +16,13 @@ limitations under the License.
 
 import { _t } from "../../languageHandler";
 import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
-import { isOrgUnitMember, isOrgUnitOwner, isStandardUser, isTenantPrimaryContact, VerjiRoleReader } from "./verjiRoles";
+import {
+    isOrgUnitInContext,
+    isOrgUnitMemberOrOwner,
+    isStandardUser,
+    isTenantPrimaryContact,
+    VerjiRoleReader,
+} from "./verjiRoles";
 
 /**
  * VERJI: the Hierarchy V2 gate decisions.
@@ -38,6 +44,16 @@ import { isOrgUnitMember, isOrgUnitOwner, isStandardUser, isTenantPrimaryContact
  * Inverting either is a serious bug, so both live here, behind {@link evaluateGate}, which is the
  * single short-circuit every gate in this file passes through. Add a fifth surface and it inherits
  * the switch for free; that is the point of the shape.
+ *
+ * # One bounded exception: an OrgUnit the context has never heard of
+ *
+ * The access context is a cached copy. When it does not mention the rendered OrgUnit under any
+ * role, the likeliest reason is that it predates the OrgUnit (verji/verji-src#1507), so the
+ * create-room gate answers {@link VerjiGateVerdict.Checking} rather than "no", and the store
+ * re-fetches on a short backoff. It is still disabled, so the deny direction holds. Once the
+ * re-fetch is used up, the same situation reads as an ordinary denial: "checking" is never a
+ * resting state. None of this applies outside the beta or on a cold cache — those stay
+ * {@link VerjiGateVerdict.NotGated}.
  */
 
 export enum VerjiGateVerdict {
@@ -49,11 +65,20 @@ export enum VerjiGateVerdict {
     Denied = "denied",
     /** Gating is on and the affordance is removed for everyone at this surface. */
     Hidden = "hidden",
+    /**
+     * Gating is on, but the cached context has not heard of the OrgUnit, so it cannot say yet.
+     * Render disabled with {@link VerjiGateDecision.hint}, exactly as for a denial; `useVerjiGate`
+     * asks the store to re-fetch, which settles the gate on Allowed or Denied.
+     */
+    Checking = "checking",
 }
 
 export interface VerjiGateDecision {
     verdict: VerjiGateVerdict;
-    /** Hover hint, present only when the verdict is {@link VerjiGateVerdict.Denied}. */
+    /**
+     * Hover hint, present only when the verdict is {@link VerjiGateVerdict.Denied} or
+     * {@link VerjiGateVerdict.Checking}.
+     */
     hint?: string;
 }
 
@@ -62,10 +87,18 @@ const ALLOWED: VerjiGateDecision = { verdict: VerjiGateVerdict.Allowed };
 const HIDDEN: VerjiGateDecision = { verdict: VerjiGateVerdict.Hidden };
 
 const denied = (hint: string): VerjiGateDecision => ({ verdict: VerjiGateVerdict.Denied, hint });
+const checking = (): VerjiGateDecision => ({ verdict: VerjiGateVerdict.Checking, hint: _t("verji|gate|checking") });
 
-/** The store slice a gate needs: the rollout switch plus role reads. */
+/** The store slice a gate needs: the rollout switch, role reads, and the state of a re-fetch. */
 export interface VerjiGateReader extends VerjiRoleReader {
     isCanonicalSpaceSyncEnabled(tenantId: string): boolean;
+    /**
+     * Is the store's one bounded re-fetch for this OrgUnit used up — out of attempts, or ended
+     * early because the user turned out to be its Member or Owner? Once it is, an OrgUnit the
+     * context does not mention reads as denied, so a wrong staleness guess cannot hold an affordance
+     * at "checking" forever.
+     */
+    isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean;
 }
 
 /**
@@ -105,9 +138,15 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
  * - OrgUnitCategory: removed for everyone. Rooms do not belong directly to a category.
  * - OrgUnit: StandardUser **and** (Member **or** Owner) of that OrgUnit.
  *
- * The awkward case falls out for free: a user who holds the mirrored room structure
- * without OrgUnit membership reads `org_unit_id` off the space, finds it in none of their instance
- * lists, and is denied. No special case.
+ * At an OrgUnit a StandardUser who is neither gets one of two answers, because "not a Member or
+ * Owner" covers two different situations:
+ * - the context mentions the OrgUnit under some other role, so it has at least heard of it: Denied.
+ *   This is the awkward case — a user who holds the mirrored room structure without membership,
+ *   whose room grant puts the OrgUnit in their context. A re-fetch already running for the
+ *   OrgUnit can still turn it into Allowed, since another row can name a new guest org before
+ *   its Owner row lands;
+ * - the context mentions it nowhere, so it most likely predates it: Checking, while the store
+ *   re-fetches. Once the re-fetch is used up the same situation is Denied.
  */
 export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
@@ -126,9 +165,16 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
                     // one if the kind is ever derived some other way.
                     return denied(_t("verji|gate|create_room_denied_not_org_member"));
                 }
-                const inOrgUnit =
-                    isOrgUnitMember(reader, c.tenantId, c.orgUnitId) || isOrgUnitOwner(reader, c.tenantId, c.orgUnitId);
-                return inOrgUnit ? ALLOWED : denied(_t("verji|gate|create_room_denied_not_org_member"));
+                if (isOrgUnitMemberOrOwner(reader, c.tenantId, c.orgUnitId)) return ALLOWED;
+                // A context that has never heard of the OrgUnit is no evidence either way, so ask
+                // again before saying no, unless the re-fetch has already been used up.
+                if (
+                    !isOrgUnitInContext(reader, c.tenantId, c.orgUnitId) &&
+                    !reader.isOrgUnitRefreshExhausted(c.tenantId, c.orgUnitId)
+                ) {
+                    return checking();
+                }
+                return denied(_t("verji|gate|create_room_denied_not_org_member"));
             }
 
             case VerjiSpaceKind.TenantRoot:
@@ -153,9 +199,9 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
             if (!isStandardUser(reader, c.tenantId) || !c.orgUnitId) {
                 return denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
             }
-            const inOrgUnit =
-                isOrgUnitMember(reader, c.tenantId, c.orgUnitId) || isOrgUnitOwner(reader, c.tenantId, c.orgUnitId);
-            return inOrgUnit ? ALLOWED : denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
+            return isOrgUnitMemberOrOwner(reader, c.tenantId, c.orgUnitId)
+                ? ALLOWED
+                : denied(_t("verji|gate|settings_denied_not_org_member_or_owner"));
         }
         if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
         return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.tenantName }));
@@ -168,10 +214,11 @@ export function isGateVisible(decision: VerjiGateDecision): boolean {
 }
 
 /**
- * Should the affordance render disabled?
+ * Should the affordance render disabled? True for a denial and while a check is in progress, both
+ * of which carry a hint.
  *
  * Note that `NotGated` is **not** disabled — that is the whole point of the rollout switch.
  */
 export function isGateDisabled(decision: VerjiGateDecision): boolean {
-    return decision.verdict === VerjiGateVerdict.Denied;
+    return decision.verdict === VerjiGateVerdict.Denied || decision.verdict === VerjiGateVerdict.Checking;
 }

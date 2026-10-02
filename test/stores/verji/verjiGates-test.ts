@@ -44,15 +44,29 @@ const ORG_UNIT = ctxFor(VerjiSpaceKind.OrgUnit, ORG_A);
  * @param rolloutOn whether canonicalSpaceSyncEnabled is true for TENANT
  * @param grants role name -> instances the user holds it on, in TENANT only — so a read keyed by
  *     the wrong tenant gets a wrong answer rather than the same one
+ * @param exhausted OrgUnits of TENANT whose re-fetch the store has used up
  */
-const readerFor = (rolloutOn: boolean, grants: Record<string, string[]> = {}): VerjiGateReader => ({
+const readerFor = (
+    rolloutOn: boolean,
+    grants: Record<string, string[]> = {},
+    exhausted: string[] = [],
+): VerjiGateReader => ({
     isCanonicalSpaceSyncEnabled: (tenantId) => rolloutOn && tenantId === TENANT,
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+    isInstanceReferenced: (tenantId, instanceId) =>
+        tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
+    isOrgUnitRefreshExhausted: (tenantId, orgUnitId) => tenantId === TENANT && exhausted.includes(orgUnitId),
 });
 
 const STANDARD_USER = { "Customer-User#": [TENANT] };
 const GUEST = {};
 const PRIMARY_CONTACT = { "Customer-User#": [TENANT], "Customer-Manager#": [TENANT] };
+/**
+ * Puts ORG_A in the context without making the user a Member or the Owner — what the backend
+ * writes for a non-member who joined one of the org's rooms. A context carrying it is current
+ * about ORG_A, so a "no" is a genuine no.
+ */
+const JOINED_A_ROOM_IN_ORG_A = { "ClientOrganization-SmsRoomMember": [ORG_A] };
 
 const ALL_GATES = [
     ["onboard to tenant", getOnboardToTenantGate],
@@ -91,18 +105,26 @@ describe("verjiGates", () => {
                 });
             });
 
-            it("renders today's behaviour when the tenant has no cached record at all", () => {
-                // A cold cache reports the switch as false, which is exactly what must NOT gate.
-                const coldCache: VerjiGateReader = {
-                    isCanonicalSpaceSyncEnabled: () => false,
-                    hasRole: () => false,
-                };
+            it.each(ALL_CONTEXTS)(
+                "renders today's behaviour at a %s space when the tenant has no cached record at all",
+                (_kindName, ctx) => {
+                    // A cold cache reports the switch as false, which is exactly what must NOT gate.
+                    // At an OrgUnit it also has not heard of the OrgUnit, which must not read as
+                    // "checking" either: the cold-cache "checking…" state is deliberately not built.
+                    const coldCache: VerjiGateReader = {
+                        isCanonicalSpaceSyncEnabled: () => false,
+                        hasRole: () => false,
+                        isInstanceReferenced: () => false,
+                        isOrgUnitRefreshExhausted: () => false,
+                    };
 
-                const decision = gate(TENANT_ROOT, coldCache);
+                    const decision = gate(ctx, coldCache);
 
-                expect(decision.verdict).toBe(VerjiGateVerdict.NotGated);
-                expect(isGateDisabled(decision)).toBe(false);
-            });
+                    expect(decision.verdict).toBe(VerjiGateVerdict.NotGated);
+                    expect(decision.hint).toBeUndefined();
+                    expect(isGateDisabled(decision)).toBe(false);
+                },
+            );
 
             it("renders today's behaviour when the room is not a Verji space", () => {
                 // Switch reported on, but there is no context — must still not gate.
@@ -176,7 +198,10 @@ describe("verjiGates", () => {
             });
 
             it("denies a StandardUser who is neither, with the not-a-member hint", () => {
-                const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, STANDARD_USER));
+                const decision = getCreateRoomGate(
+                    ORG_UNIT,
+                    readerFor(true, { ...STANDARD_USER, ...JOINED_A_ROOM_IN_ORG_A }),
+                );
 
                 expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
                 expect(decision.hint).toBe(
@@ -194,10 +219,11 @@ describe("verjiGates", () => {
             });
 
             it("denies the edge case: holds the mirrored structure without membership", () => {
-                // Member of a different org entirely. No special case is needed — the id simply is
-                // not in any of their instance lists.
+                // Member and Owner of a different org; in ORG_A only through a room they joined.
+                // No special case is needed — ORG_A is in their context, just not as membership.
                 const reader = readerFor(true, {
                     ...STANDARD_USER,
+                    ...JOINED_A_ROOM_IN_ORG_A,
                     "ClientOrganization-User#": [ORG_B],
                     "ClientOrganization-Owner": [ORG_B],
                 });
@@ -210,6 +236,65 @@ describe("verjiGates", () => {
                 const decision = getCreateRoomGate(ctxFor(VerjiSpaceKind.OrgUnit, undefined), reader);
 
                 expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+            });
+
+            /**
+             * verji/verji-src#1507. "Not a Member or Owner" covers two situations, and only one is a
+             * genuine no: a cached context that has never heard of the OrgUnit most likely predates
+             * it, as when a guest org is created after page load.
+             */
+            describe("when the cached context has never heard of the OrgUnit", () => {
+                it("reads Checking for a StandardUser: still disabled, with the checking hint", () => {
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, STANDARD_USER));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Checking);
+                    expect(decision.hint).toBe("Checking your access…");
+                    expect(isGateVisible(decision)).toBe(true);
+                    expect(isGateDisabled(decision)).toBe(true);
+                });
+
+                it("settles on the not-a-member denial once the store's re-fetch is used up", () => {
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, STANDARD_USER, [ORG_A]));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                    expect(decision.hint).toBe(
+                        "You are not a member of this organisation, so you cannot create rooms here.",
+                    );
+                });
+
+                it("keeps checking when only another OrgUnit's re-fetch is used up", () => {
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, STANDARD_USER, [ORG_B]));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Checking);
+                });
+
+                it.each([
+                    ["while the re-fetch runs", []],
+                    ["after it is used up", [ORG_A]],
+                ])("allows once a fetch brings the Owner row, %s", (_when, exhausted) => {
+                    const reader = readerFor(
+                        true,
+                        { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] },
+                        exhausted,
+                    );
+
+                    expect(getCreateRoomGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Allowed);
+                });
+
+                it("denies a Guest with the guest hint rather than checking", () => {
+                    // A Guest may not create rooms anywhere in the tenant, whatever the OrgUnit.
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, GUEST));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                    expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot create rooms in this space.");
+                });
+
+                it("never reads Checking outside the beta", () => {
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(false, STANDARD_USER));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.NotGated);
+                    expect(isGateDisabled(decision)).toBe(false);
+                });
             });
         });
     });
@@ -240,6 +325,14 @@ describe("verjiGates", () => {
             expect(getSpaceSettingsGate(ORG_UNIT, member).verdict).toBe(VerjiGateVerdict.Allowed);
             expect(getSpaceSettingsGate(ORG_UNIT, neither).verdict).toBe(VerjiGateVerdict.Denied);
         });
+
+        it("denies, rather than checks, at an OrgUnit the context has never heard of", () => {
+            // Pinned on purpose: with no surface there is no hook to drive a re-fetch, so a Checking
+            // verdict here could never settle. Revisit when the surface lands.
+            const decision = getSpaceSettingsGate(ORG_UNIT, readerFor(true, STANDARD_USER));
+
+            expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+        });
     });
 
     describe("tenant isolation — the classic bug in this shape", () => {
@@ -254,6 +347,8 @@ describe("verjiGates", () => {
                 isCanonicalSpaceSyncEnabled: (tenantId) => tenantId === TENANT,
                 hasRole: (tenantId, roleName, instanceId) =>
                     tenantId === TENANT && roleName === "Customer-User#" && instanceId === TENANT,
+                isInstanceReferenced: (tenantId, instanceId) => tenantId === TENANT && instanceId === TENANT,
+                isOrgUnitRefreshExhausted: () => false,
             };
 
             // Tenant 2 is simply not gated — it must not inherit tenant 1's rollout or roles.
@@ -274,6 +369,14 @@ describe("verjiGates", () => {
                     hasRole: (tenantId, roleName) => {
                         tenantsAsked.push(tenantId);
                         return roleName === "Customer-User#";
+                    },
+                    isInstanceReferenced: (tenantId) => {
+                        tenantsAsked.push(tenantId);
+                        return false;
+                    },
+                    isOrgUnitRefreshExhausted: (tenantId) => {
+                        tenantsAsked.push(tenantId);
+                        return false;
                     },
                 };
 

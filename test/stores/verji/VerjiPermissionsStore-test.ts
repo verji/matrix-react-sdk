@@ -19,7 +19,12 @@ import { MatrixClient, MatrixEvent, Room, SyncState } from "matrix-js-sdk/src/ma
 import { getVerjiApiSdk, initVerjiApiSdkAsync } from "@verji/verji-api-sdk/lib/asyncInit";
 
 import type { PermissionChangeListener, PermissionStore } from "@verji/verji-api-sdk";
-import { VerjiPermissionsStore } from "../../../src/stores/verji/VerjiPermissionsStore";
+import {
+    ORG_UNIT_REFRESH_DELAYS_MS,
+    STALE_CHECK_INTERVAL_MS,
+    STALE_REVALIDATION_THROTTLE_MS,
+    VerjiPermissionsStore,
+} from "../../../src/stores/verji/VerjiPermissionsStore";
 import { MatrixDispatcher } from "../../../src/dispatcher/dispatcher";
 import { Action } from "../../../src/dispatcher/actions";
 import SdkConfig from "../../../src/SdkConfig";
@@ -34,6 +39,8 @@ jest.mock("@verji/verji-api-sdk/lib/asyncInit", () => ({
 
 const USER = "@alice:domain.org";
 const TENANT = "tenant-1";
+const ORG_A = "org-a";
+const ORG_B = "org-b";
 
 /**
  * A stand-in for `sdk.permissions` that knows TENANT: the rollout switch is on there and the user
@@ -42,15 +49,24 @@ const TENANT = "tenant-1";
 const makePermissions = () => {
     const listeners = new Set<PermissionChangeListener>();
     const unsubscribe = jest.fn();
+    /** TENANT's cached context. Tests change it to play a fetch that brought new content. */
+    const context: { status: "fresh" | "stale"; roles: Record<string, string[]> } = {
+        status: "fresh",
+        roles: { "Customer-User#": [TENANT] },
+    };
     return {
         init: jest.fn().mockResolvedValue(undefined),
         isCanonicalSpaceSyncEnabled: jest.fn((tenantId: string) => tenantId === TENANT),
         hasRole: jest.fn(
             (tenantId: string, roleName: string, instanceId: string) =>
-                tenantId === TENANT && roleName === "Customer-User#" && instanceId === TENANT,
+                tenantId === TENANT && (context.roles[roleName] ?? []).includes(instanceId),
         ),
-        peekContext: jest.fn((tenantId: string) => ({ status: tenantId === TENANT ? "fresh" : "missing" })),
+        peekContext: jest.fn((tenantId: string) =>
+            tenantId === TENANT ? { status: context.status, record: { roles: context.roles } } : { status: "missing" },
+        ),
         ensureContextFresh: jest.fn().mockResolvedValue(undefined),
+        refreshContext: jest.fn().mockResolvedValue(undefined),
+        getCachedTenants: jest.fn((): string[] => [TENANT]),
         subscribe: jest.fn((listener: PermissionChangeListener) => {
             listeners.add(listener);
             return unsubscribe;
@@ -60,6 +76,7 @@ const makePermissions = () => {
         /** Test hook: emit a change the way the SDK store does. */
         emit: (): void => listeners.forEach((listener) => listener({ type: "contextUpdated", tenantId: TENANT })),
         unsubscribe,
+        context,
     };
 };
 type FakePermissions = ReturnType<typeof makePermissions>;
@@ -144,6 +161,8 @@ describe("VerjiPermissionsStore", () => {
             expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(false);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(false);
             expect(store.peekContext(TENANT)).toEqual({ status: "uninitialized" });
+            expect(store.isInstanceReferenced(TENANT, TENANT)).toBe(false);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
         };
 
         it("reads outside the beta before any client is ready", () => {
@@ -181,7 +200,16 @@ describe("VerjiPermissionsStore", () => {
             expect(store.isCanonicalSpaceSyncEnabled("tenant-2")).toBe(false);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(true);
             expect(permissions.hasRole).toHaveBeenCalledWith(TENANT, "Customer-User#", TENANT);
-            expect(store.peekContext(TENANT)).toEqual({ status: "fresh" });
+            expect(store.peekContext(TENANT).status).toBe("fresh");
+        });
+
+        it("finds an instance under any role, in the tenant asked about only", async () => {
+            permissions.context.roles["ClientOrganization-SmsRoomMember"] = [ORG_A];
+            const store = await startedStore();
+
+            expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(true);
+            expect(store.isInstanceReferenced(TENANT, ORG_B)).toBe(false);
+            expect(store.isInstanceReferenced("tenant-2", ORG_A)).toBe(false);
         });
 
         it("initialises the SDK store for the signed-in user", async () => {
@@ -333,6 +361,428 @@ describe("VerjiPermissionsStore", () => {
 
             expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
             expect(permissions.ensureContextFresh).toHaveBeenCalledWith(TENANT);
+        });
+    });
+
+    /**
+     * verji/verji-src#1507: the bounded re-fetch behind the create-room gate's Checking verdict. The
+     * two properties that matter are that it finds an OrgUnit created after page load, and that it
+     * always ends — a gate must never sit at "checking", or poll itops, for the life of the tab.
+     */
+    describe("the re-fetch for an OrgUnit the context has never heard of", () => {
+        /** Long enough for any schedule to have run its course several times over. */
+        const LONG_AFTER = 10 * 60_000;
+
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it("re-fetches at once, then backs off, then gives up and re-renders the gates", async () => {
+            const store = await startedStore();
+            const listener = jest.fn();
+            store.subscribe(listener);
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            // Never synchronously: the caller is an effect, and the fetch goes out from a timer.
+            expect(permissions.refreshContext).not.toHaveBeenCalled();
+
+            // The first attempt goes out on the next tick.
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+
+            // Each later one waits its full delay after the previous one, and not a moment less.
+            for (const [index, delay] of ORG_UNIT_REFRESH_DELAYS_MS.slice(1).entries()) {
+                const attemptsSoFar = index + 1;
+                expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
+
+                await jest.advanceTimersByTimeAsync(delay - 1);
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(attemptsSoFar);
+                await jest.advanceTimersByTimeAsync(1);
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(attemptsSoFar + 1);
+                expect(permissions.refreshContext).toHaveBeenLastCalledWith(TENANT);
+            }
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            // The context never changed, so the SDK never emitted: this bump is the only thing that
+            // moves the gate from Checking to Denied.
+            expect(listener).toHaveBeenCalledTimes(1);
+
+            // No loop: asking again for a used-up pair does nothing, however long it stays on screen.
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
+        });
+
+        it("stops as soon as a re-fetch brings the Owner row in", async () => {
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                // The second fetch is the one that lands after the backend wrote the Owner row.
+                if (permissions.refreshContext.mock.calls.length === 2) {
+                    permissions.context.roles["ClientOrganization-Owner"] = [ORG_A];
+                }
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(2);
+        });
+
+        it("keeps going when another row names the OrgUnit first, until the Owner row lands", async () => {
+            // Before #1495 the group sync's bare Owner row, or the PrimaryContact's manager roles,
+            // can name a new guest org before its Owner row exists. The gate reads Denied in
+            // between; stopping there would leave it at Denied until the stale backstop.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                const call = permissions.refreshContext.mock.calls.length;
+                if (call === 2) permissions.context.roles["Owner"] = [ORG_A];
+                if (call === 4) permissions.context.roles["ClientOrganization-Owner"] = [ORG_A];
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(4);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+        });
+
+        it("runs the whole budget for a user the OrgUnit only names, then counts it used up", async () => {
+            // A non-member who joined one of its rooms after page load: named at once, never a
+            // Member or the Owner. Bounded all the same.
+            const store = await startedStore();
+            const listener = jest.fn();
+            store.subscribe(listener);
+            permissions.refreshContext.mockImplementation(async () => {
+                permissions.context.roles["ClientOrganization-SmsRoomMember"] = [ORG_A];
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            // The end-of-budget bump fires even here, where the gate already reads Denied and nothing
+            // visible changes: kept unconditional, because when the OrgUnit is still unknown at the
+            // end it is the only thing that moves a gate from Checking to Denied.
+            expect(listener).toHaveBeenCalledTimes(1);
+        });
+
+        it("counts a settled pair as used up, so a later drop reads Denied, not Checking", async () => {
+            // Settled as a Member. When they are later removed and a revalidation leaves the context
+            // without the OrgUnit, the gate must deny: nothing would ever ask for this pair again to
+            // settle a Checking.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                permissions.context.roles["ClientOrganization-User#"] = [ORG_A];
+            });
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+
+            delete permissions.context.roles["ClientOrganization-User#"];
+
+            expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(false);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+        });
+
+        it("waits 0, 2, 5, 10, 20 and 30 s — sized to outlast the Owner row before #1495", () => {
+            // Pinned literally: the loop above walks whatever the constant holds, so only this
+            // catches a budget shrunk below the 40–50 s the Owner row took on staging.
+            expect(ORG_UNIT_REFRESH_DELAYS_MS).toEqual([0, 2_000, 5_000, 10_000, 20_000, 30_000]);
+        });
+
+        it("keys a schedule by tenant as well as OrgUnit", async () => {
+            const store = await startedStore();
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+
+            // The same OrgUnit id under another tenant is another pair, with a budget of its own.
+            expect(store.isOrgUnitRefreshExhausted("tenant-2", ORG_A)).toBe(false);
+            permissions.refreshContext.mockClear();
+            store.requestOrgUnitRefresh("tenant-2", ORG_A);
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledWith("tenant-2");
+        });
+
+        it("skips the fetch when another one already made the user a Member", async () => {
+            const store = await startedStore();
+            const listener = jest.fn();
+            store.subscribe(listener);
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            permissions.context.roles["ClientOrganization-User#"] = [ORG_A];
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).not.toHaveBeenCalled();
+            // Nothing to re-render for: the fetch that changed the context was announced by the SDK.
+            expect(listener).not.toHaveBeenCalled();
+        });
+
+        it("runs one schedule per (tenant, OrgUnit), however often it is asked", async () => {
+            const store = await startedStore();
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+
+            // A second OrgUnit is a second schedule, with a budget of its own.
+            store.requestOrgUnitRefresh(TENANT, ORG_B);
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(2);
+
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(2 * ORG_UNIT_REFRESH_DELAYS_MS.length);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_B)).toBe(true);
+        });
+
+        it("keeps to the schedule when a fetch fails, and still ends", async () => {
+            const store = await startedStore();
+            permissions.refreshContext.mockRejectedValue(new Error("itops unavailable"));
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+            expect(console.warn).toHaveBeenCalled();
+        });
+
+        it("does nothing before there is an SDK store to ask", async () => {
+            const store = new VerjiPermissionsStore(dispatcher);
+            const timersBefore = jest.getTimerCount();
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+
+            expect(jest.getTimerCount()).toBe(timersBefore);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
+        });
+
+        describe("on logout or a user switch", () => {
+            /** Switch the synced client to a second user, as the sync action does. */
+            const switchUser = async (): Promise<void> => {
+                const secondClient = getMockClientWithEventEmitter({
+                    ...mockClientMethodsUser("@bob:domain.org"),
+                    getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                });
+                dispatcher.dispatch(
+                    {
+                        action: "MatrixActions.sync",
+                        prevState: SyncState.Syncing,
+                        state: SyncState.Prepared,
+                        matrixClient: secondClient,
+                    },
+                    true,
+                );
+                await jest.advanceTimersByTimeAsync(0);
+                expect(permissions.init).toHaveBeenCalledTimes(2);
+            };
+
+            it("cancels a pending attempt rather than leaving its timer behind", async () => {
+                const store = await startedStore();
+                const timersBefore = jest.getTimerCount();
+                store.requestOrgUnitRefresh(TENANT, ORG_A);
+                expect(jest.getTimerCount()).toBe(timersBefore + 1);
+
+                dispatcher.dispatch({ action: Action.OnLoggedOut }, true);
+
+                expect(jest.getTimerCount()).toBe(timersBefore);
+                await jest.advanceTimersByTimeAsync(LONG_AFTER);
+                expect(permissions.refreshContext).not.toHaveBeenCalled();
+            });
+
+            it("schedules nothing more when an attempt was in flight", async () => {
+                const store = await startedStore();
+                let land!: () => void;
+                permissions.refreshContext.mockImplementation(() => new Promise<void>((resolve) => (land = resolve)));
+                store.requestOrgUnitRefresh(TENANT, ORG_A);
+                await jest.advanceTimersByTimeAsync(0);
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+
+                dispatcher.dispatch({ action: Action.OnLoggedOut }, true);
+                land();
+                await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+                expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
+            });
+
+            it("does not resume the first user's schedule under the next user", async () => {
+                // The in-flight response lands after the second user's store is up, so the store
+                // has an SDK store to ask again: only the voided schedule must stop it.
+                const store = await startedStore();
+                let land!: () => void;
+                permissions.refreshContext.mockImplementationOnce(
+                    () => new Promise<void>((resolve) => (land = resolve)),
+                );
+                store.requestOrgUnitRefresh(TENANT, ORG_A);
+                await jest.advanceTimersByTimeAsync(0);
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+
+                await switchUser();
+                land();
+                await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+                expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
+            });
+
+            it("forgets used-up pairs, so the next user starts with a full budget", async () => {
+                const store = await startedStore();
+                store.requestOrgUnitRefresh(TENANT, ORG_A);
+                await jest.advanceTimersByTimeAsync(LONG_AFTER);
+                expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+
+                await switchUser();
+
+                expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
+                permissions.refreshContext.mockClear();
+                store.requestOrgUnitRefresh(TENANT, ORG_A);
+                await jest.advanceTimersByTimeAsync(0);
+                expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+            });
+        });
+    });
+
+    /**
+     * The backstop: while a gate reading a tenant is mounted, the tenant's copy is revalidated once
+     * it is older than the SDK's TTL. That caps every other kind of staleness — a role granted or
+     * revoked mid-session — at about the TTL, and it must not depend on anything re-rendering.
+     */
+    describe("watching a tenant", () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it("revalidates a stale copy at once, and checks again on a timer with nothing re-rendering", async () => {
+            const store = await startedStore();
+            permissions.context.status = "stale";
+
+            const unwatch = store.watchTenant(TENANT);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledWith(TENANT);
+
+            // Revalidated. A fresh copy costs nothing, however long the gate stays mounted.
+            permissions.context.status = "fresh";
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+
+            // Past the TTL again: the next check catches it, with no render involved.
+            permissions.context.status = "stale";
+            jest.advanceTimersByTime(STALE_CHECK_INTERVAL_MS);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(2);
+
+            unwatch();
+        });
+
+        it("asks at most once per throttle window while a copy stays stale", async () => {
+            // Say every revalidation fails, so the copy never turns fresh, and gates keep mounting.
+            const store = await startedStore();
+            permissions.context.status = "stale";
+
+            const unwatchFirst = store.watchTenant(TENANT);
+            jest.advanceTimersByTime(STALE_REVALIDATION_THROTTLE_MS - 1);
+            const unwatchSecond = store.watchTenant(TENANT);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+
+            jest.advanceTimersByTime(1);
+            store.watchTenant(TENANT)();
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(2);
+
+            unwatchFirst();
+            unwatchSecond();
+        });
+
+        it("stops checking once the last gate reading the tenant unmounts", async () => {
+            const store = await startedStore();
+            const timersBefore = jest.getTimerCount();
+            const unwatchFirst = store.watchTenant(TENANT);
+            const unwatchSecond = store.watchTenant(TENANT);
+            expect(jest.getTimerCount()).toBe(timersBefore + 1);
+
+            unwatchFirst();
+            unwatchFirst(); // a second call must not count the other gate out
+            permissions.context.status = "stale";
+            jest.advanceTimersByTime(STALE_CHECK_INTERVAL_MS);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+
+            unwatchSecond();
+            expect(jest.getTimerCount()).toBe(timersBefore);
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+        });
+
+        it("checks only the tenants mounted gates read, not every tenant it has a copy of", async () => {
+            // Two stale copies, one on screen: the other costs nothing until a gate reads it.
+            permissions.peekContext.mockImplementation((tenantId: string) => ({
+                status: "stale",
+                record: { roles: { "Customer-User#": [tenantId] } },
+            }));
+            permissions.getCachedTenants.mockReturnValue([TENANT, "tenant-2"]);
+            const store = await startedStore();
+
+            const unwatch = store.watchTenant(TENANT);
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+
+            expect(permissions.ensureContextFresh).toHaveBeenCalledWith(TENANT);
+            expect(permissions.ensureContextFresh).not.toHaveBeenCalledWith("tenant-2");
+            unwatch();
+        });
+
+        it("leaves a tenant with no copy alone, so a cold cache stays outside the beta", async () => {
+            const store = await startedStore();
+
+            const unwatch = store.watchTenant("tenant-2");
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+
+            expect(permissions.ensureContextFresh).not.toHaveBeenCalled();
+            unwatch();
+        });
+
+        it("does nothing before there is an SDK store to ask", () => {
+            permissions.context.status = "stale";
+
+            const unwatch = new VerjiPermissionsStore(dispatcher).watchTenant(TENANT);
+            jest.advanceTimersByTime(10 * STALE_CHECK_INTERVAL_MS);
+
+            expect(permissions.ensureContextFresh).not.toHaveBeenCalled();
+            unwatch();
+        });
+
+        it("starts the next user with a fresh throttle", async () => {
+            const store = await startedStore();
+            permissions.context.status = "stale";
+            const unwatch = store.watchTenant(TENANT);
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(1);
+
+            dispatcher.dispatch(
+                {
+                    action: "MatrixActions.sync",
+                    prevState: SyncState.Syncing,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser("@bob:domain.org"),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                },
+                true,
+            );
+            await jest.advanceTimersByTimeAsync(0);
+            // Well inside the first user's throttle window: a gate mounting for the new user asks.
+            store.watchTenant(TENANT)();
+
+            expect(permissions.ensureContextFresh).toHaveBeenCalledTimes(2);
+            unwatch();
         });
     });
 });

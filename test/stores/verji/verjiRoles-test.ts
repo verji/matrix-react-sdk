@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import {
+    isOrgUnitInContext,
     isOrgUnitMember,
+    isOrgUnitMemberOrOwner,
     isOrgUnitOwner,
     isOrgUnitPrimaryContact,
     isStandardUser,
@@ -32,6 +34,8 @@ const TENANT = "tenant-1";
  */
 const readerFor = (grants: Record<string, string[]>): VerjiRoleReader => ({
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+    isInstanceReferenced: (tenantId, instanceId) =>
+        tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
 });
 
 /** A reader that records every (tenant, role, instance) it is asked about, and denies all. */
@@ -42,6 +46,10 @@ const recordingReader = (): { reader: VerjiRoleReader; asked: Array<[string, str
         reader: {
             hasRole: (tenantId, roleName, instanceId) => {
                 asked.push([tenantId, roleName, instanceId]);
+                return false;
+            },
+            isInstanceReferenced: (tenantId, instanceId) => {
+                asked.push([tenantId, "<any role>", instanceId]);
                 return false;
             },
         },
@@ -117,6 +125,29 @@ describe("verjiRoles — the client's role contract with itops", () => {
         });
     });
 
+    describe("isOrgUnitMemberOrOwner — the standing to act in an OrgUnit", () => {
+        it.each([
+            ["a Member", { "ClientOrganization-User#": [ORG_A] }, true],
+            ["the Owner", { "ClientOrganization-Owner": [ORG_A] }, true],
+            ["a bare Owner row, which is not the owner signal", { Owner: [ORG_A] }, false],
+            ["a non-member who joined one of its rooms", { "ClientOrganization-SmsRoomMember": [ORG_A] }, false],
+            ["a Member of another OrgUnit", { "ClientOrganization-User#": [ORG_B] }, false],
+        ])("reads %s as %s", (_who, grants, expected) => {
+            expect(isOrgUnitMemberOrOwner(readerFor(grants), TENANT, ORG_A)).toBe(expected);
+        });
+
+        it("asks exactly the Member and Owner predicates, in the tenant it was given", () => {
+            const { reader, asked } = recordingReader();
+
+            isOrgUnitMemberOrOwner(reader, TENANT, ORG_A);
+
+            expect(asked).toEqual([
+                [TENANT, "ClientOrganization-User#", ORG_A],
+                [TENANT, "ClientOrganization-Owner", ORG_A],
+            ]);
+        });
+    });
+
     describe("instance scoping", () => {
         it("separates membership of one OrgUnit from another", () => {
             const reader = readerFor({ "ClientOrganization-User#": [ORG_A] });
@@ -142,6 +173,48 @@ describe("verjiRoles — the client's role contract with itops", () => {
             expect(isTenantPrimaryContact(reader, TENANT)).toBe(false);
             expect(isOrgUnitMember(reader, TENANT, ORG_A)).toBe(false);
             expect(isOrgUnitPrimaryContact(reader, TENANT, ORG_A)).toBe(false);
+            expect(isOrgUnitOwner(reader, TENANT, ORG_A)).toBe(false);
+            expect(isOrgUnitInContext(reader, TENANT, ORG_A)).toBe(false);
+        });
+    });
+
+    /**
+     * The staleness signal behind the create-room gate's "checking" verdict (verji/verji-src#1507).
+     * It must be role-agnostic: the roles that put an OrgUnit into someone's context include ones
+     * the contract above never names, and a scan limited to the five would read a non-member who
+     * joined one of its rooms as "stale" for good.
+     */
+    describe("isOrgUnitInContext — has the context heard of the OrgUnit at all", () => {
+        it.each([
+            ["a Member", "ClientOrganization-User#"],
+            ["the Owner", "ClientOrganization-Owner"],
+            ["the tenant PrimaryContact, through an expanded manager role", "ClientOrganization-Manager"],
+            ["a non-member who joined one of its rooms", "ClientOrganization-SmsRoomMember"],
+        ])("finds it for %s", (_who, roleName) => {
+            expect(
+                isOrgUnitInContext(readerFor({ "Customer-User#": [TENANT], [roleName]: [ORG_A] }), TENANT, ORG_A),
+            ).toBe(true);
+        });
+
+        it("does not find an OrgUnit no role lists", () => {
+            const reader = readerFor({ "Customer-User#": [TENANT], "ClientOrganization-User#": [ORG_B] });
+
+            expect(isOrgUnitInContext(reader, TENANT, ORG_A)).toBe(false);
+        });
+
+        it("asks about the tenant it was given and nothing else", () => {
+            const { reader, asked } = recordingReader();
+
+            isOrgUnitInContext(reader, TENANT, ORG_A);
+
+            expect(asked).toEqual([[TENANT, "<any role>", ORG_A]]);
+        });
+
+        it("is never a grant: an OrgUnit the context mentions is not membership", () => {
+            const reader = readerFor({ "ClientOrganization-SmsRoomMember": [ORG_A] });
+
+            expect(isOrgUnitInContext(reader, TENANT, ORG_A)).toBe(true);
+            expect(isOrgUnitMember(reader, TENANT, ORG_A)).toBe(false);
             expect(isOrgUnitOwner(reader, TENANT, ORG_A)).toBe(false);
         });
     });
