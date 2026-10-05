@@ -115,6 +115,9 @@ export const enum UIFeature {
     SwitchSpaceOnDMSelect = "UIFeature.switchSpaceOnDMSelect",
     ShowNsfwContentSetting = "UIFeature.showNsfwContentSetting",
     VerjiSpaceDmBadges = "UIFeature.verjiSpaceDmBadges",
+    // VERJI: whether #/new, #/dm and #/directory open their dialog straight from the URL. Verji turns
+    // this off because every button that opens those dialogs is hidden or gated (verji/verji-src#1510).
+    EnableDialogDeepLinks = "UIFeature.enableDialogDeepLinks",
 }
 
 export enum UIComponent {

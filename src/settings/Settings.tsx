@@ -1554,6 +1554,12 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: false,
     },
+    // VERJI: when false, #/new, #/dm and #/directory no longer open their dialog from the URL.
+    // Defaults to true so upstream behaviour is unchanged; Verji deployments set it false in config.
+    [UIFeature.EnableDialogDeepLinks]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: true,
+    },
 
     // Electron-specific settings, they are stored by Electron and set/read over an IPC.
     // We store them over there are they are necessary to know before the renderer process launches.

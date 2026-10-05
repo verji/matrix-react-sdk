@@ -148,6 +148,11 @@ export { default as Views } from "../../Views";
 
 const AUTH_SCREENS = ["register", "login", "forgot_password", "start_sso", "start_cas", "welcome"];
 
+// VERJI: screens that open a dialog straight from the URL (#/new, #/dm, #/directory). Verji hides or
+// gates every button that leads to these dialogs, so the URL must not open them either while
+// UIFeature.enableDialogDeepLinks is off (verji/verji-src#1510).
+const DIALOG_SCREENS = ["new", "dm", "directory"];
+
 // Actions that are redirected through the onboarding process prior to being
 // re-dispatched. NOTE: some actions are non-trivial and would require
 // re-factoring to be included in this list in future.
@@ -1429,7 +1434,16 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         if (this.screenAfterLogin && this.screenAfterLogin.screen) {
             this.showScreen(this.screenAfterLogin.screen, this.screenAfterLogin.params);
             this.screenAfterLogin = undefined;
-        } else if (localStorage && localStorage.getItem("mx_last_room_id")) {
+        } else {
+            // VERJI: moved into viewDefaultScreen so a refused dialog screen can land on the same view (#1510)
+            this.viewDefaultScreen();
+        }
+    }
+
+    // VERJI START: what an empty URL (#/) shows once logged in. Split out of showScreenAfterLogin
+    // unchanged, so a dialog screen refused by UIFeature.enableDialogDeepLinks lands on the same view.
+    private viewDefaultScreen(): void {
+        if (localStorage && localStorage.getItem("mx_last_room_id")) {
             // Before defaulting to directory, show the last viewed room
             this.viewLastRoom();
         } else {
@@ -1440,6 +1454,7 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
             }
         }
     }
+    // VERJI END
 
     private viewLastRoom(): void {
         dis.dispatch<ViewRoomPayload>({
@@ -1710,6 +1725,15 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
             dis.dispatch({ action: Action.ViewHomePage });
             return;
         }
+
+        // VERJI START: refuse the dialog screens when UIFeature.enableDialogDeepLinks is off, and show what
+        // #/ shows instead (verji/verji-src#1510). Logged out, the login view stays as it is.
+        if (DIALOG_SCREENS.includes(screen) && !SettingsStore.getValue(UIFeature.EnableDialogDeepLinks)) {
+            logger.info(`Not opening '${screen}' from the URL: UIFeature.enableDialogDeepLinks is off`);
+            if (cli) this.viewDefaultScreen();
+            return;
+        }
+        // VERJI END
 
         if (screen === "register") {
             dis.dispatch({
