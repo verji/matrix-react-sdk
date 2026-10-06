@@ -246,6 +246,10 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
 
     const showCreateRoom = shouldShowComponent(UIComponent.CreateRooms);
     const showExploreRooms = shouldShowComponent(UIComponent.ExploreRooms);
+    // VERJI: when false, this menu offers no "Explore" item at all, in a space or not. Exploring rooms does
+    // nothing useful for Verji users — the reason the room-list header "+" is hidden too (requirement R5,
+    // verji/verji-src#1198).
+    const showExploreItems = SettingsStore.getValue(UIFeature.RoomListExplorePublicRooms);
 
     // VERJI: creating a room is for StandardUsers at a TenantRoot, for StandardUsers who are
     // a Member or the Owner at an OrgUnit, and for nobody at an OrgUnitCategory (rooms do not
@@ -264,21 +268,24 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
 
         contextMenuContent = (
             <IconizedContextMenuOptionList first>
-                <IconizedContextMenuOption
-                    label={_t("action|explore_rooms")}
-                    iconClassName="mx_RoomList_iconExplore"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        closeMenu();
-                        defaultDispatcher.dispatch<ViewRoomPayload>({
-                            action: Action.ViewRoom,
-                            room_id: activeSpace.roomId,
-                            metricsTrigger: undefined, // other
-                        });
-                        PosthogTrackers.trackInteraction("WebRoomListRoomsSublistPlusMenuExploreRoomsItem", e);
-                    }}
-                />
+                {/* VERJI: hidden with the rest of the menu's "Explore" items, see showExploreItems */}
+                {showExploreItems && (
+                    <IconizedContextMenuOption
+                        label={_t("action|explore_rooms")}
+                        iconClassName="mx_RoomList_iconExplore"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            closeMenu();
+                            defaultDispatcher.dispatch<ViewRoomPayload>({
+                                action: Action.ViewRoom,
+                                room_id: activeSpace.roomId,
+                                metricsTrigger: undefined, // other
+                            });
+                            PosthogTrackers.trackInteraction("WebRoomListRoomsSublistPlusMenuExploreRoomsItem", e);
+                        }}
+                    />
+                )}
                 {showCreateRoom ? (
                     <>
                         <IconizedContextMenuOption
@@ -368,7 +375,9 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
                         )}
                     </>
                 )}
-                {SettingsStore.getValue(UIFeature.UserInfoRedactButton) && showExploreRooms ? (
+                {/* VERJI: gated by showExploreItems (UIFeature.roomListExplorePublicRooms); it checked
+                    UIFeature.userInfoRedactButton by mistake since that flag was introduced alongside it */}
+                {showExploreItems && showExploreRooms ? (
                     <IconizedContextMenuOption
                         label={_t("action|explore_public_rooms")}
                         iconClassName="mx_RoomList_iconExplore"
@@ -418,7 +427,8 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
     }
     const createRoomDenied = isGateDisabled(createRoomGate);
 
-    if (ShowAddRoomPlusMenuForMetaSpace && (showCreateRoom || showExploreRooms)) {
+    // VERJI: with the "Explore" items off, a user who may not create rooms would get an empty menu.
+    if (ShowAddRoomPlusMenuForMetaSpace && (showCreateRoom || (showExploreRooms && showExploreItems))) {
         return (
             <>
                 <ContextMenuTooltipButton
