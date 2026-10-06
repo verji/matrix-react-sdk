@@ -1040,4 +1040,78 @@ describe("Verji Hierarchy V2 gates", () => {
             expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
         });
     });
+
+    /**
+     * Requirement R5 (verji/verji-src#1198): exploring rooms does nothing useful for Verji users. The
+     * room-list header "+" is hidden for that reason; UIFeature.roomListExplorePublicRooms takes the
+     * "Explore" items out of the Rooms "+" menu too, in a space and outside one.
+     */
+    describe("the Rooms + menu's Explore items", () => {
+        /** Every setting on, as in this block's beforeEach, except the ones given. */
+        const withSettings = (overrides: Record<string, boolean>): void => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => overrides[name] ?? true);
+        };
+
+        const openRoomsPlusMenu = async (): Promise<HTMLElement> => {
+            const roomsList = screen.getByRole("group", { name: "Rooms" });
+            await userEvent.click(within(roomsList).getByRole("button", { name: "Add room" }));
+            return screen.getByRole("menu");
+        };
+
+        it("offers no 'Explore rooms' in a space when the flag is off, and keeps 'New room'", async () => {
+            withSettings({ [UIFeature.RoomListExplorePublicRooms]: false });
+
+            render(getComponent());
+            const menu = await openRoomsPlusMenu();
+
+            expect(within(menu).queryByRole("menuitem", { name: "Explore rooms" })).not.toBeInTheDocument();
+            expect(within(menu).getByRole("menuitem", { name: "New room" })).toBeInTheDocument();
+        });
+
+        it("offers 'Explore rooms' in a space when the flag is on, as upstream does", async () => {
+            withSettings({ [UIFeature.RoomListExplorePublicRooms]: true });
+
+            render(getComponent());
+            const menu = await openRoomsPlusMenu();
+
+            expect(within(menu).getByRole("menuitem", { name: "Explore rooms" })).toBeInTheDocument();
+        });
+
+        it("renders no Rooms + rather than an empty menu when the flag is off and rooms cannot be created", () => {
+            withSettings({ [UIFeature.RoomListExplorePublicRooms]: false });
+            mocked(shouldShowComponent).mockImplementation((feature) => feature !== UIComponent.CreateRooms);
+
+            render(getComponent());
+
+            const roomsList = screen.getByRole("group", { name: "Rooms" });
+            expect(within(roomsList).queryByRole("button", { name: "Add room" })).not.toBeInTheDocument();
+        });
+
+        describe("outside a space", () => {
+            beforeEach(() => {
+                store.setActiveSpace(MetaSpace.Home);
+            });
+
+            it.each([
+                ["off", false, true],
+                ["on", true, false],
+            ])(
+                "follows the flag (%s) for 'Explore public rooms', not UIFeature.userInfoRedactButton",
+                async (_state, exploreFlag, redactFlag) => {
+                    withSettings({
+                        [UIFeature.RoomListExplorePublicRooms]: exploreFlag,
+                        [UIFeature.UserInfoRedactButton]: redactFlag,
+                    });
+
+                    render(getComponent());
+                    const menu = await openRoomsPlusMenu();
+
+                    expect(within(menu).queryAllByRole("menuitem", { name: "Explore public rooms" })).toHaveLength(
+                        exploreFlag ? 1 : 0,
+                    );
+                    expect(within(menu).getByRole("menuitem", { name: "New room" })).toBeInTheDocument();
+                },
+            );
+        });
+    });
 });
