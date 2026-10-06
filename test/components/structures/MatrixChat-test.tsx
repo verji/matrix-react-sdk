@@ -62,7 +62,9 @@ import { SettingLevel } from "../../../src/settings/SettingLevel";
 import { MatrixClientPeg as peg } from "../../../src/MatrixClientPeg";
 import DMRoomMap from "../../../src/utils/DMRoomMap";
 import { ReleaseAnnouncementStore } from "../../../src/stores/ReleaseAnnouncementStore";
-import { Features } from "../../../src/settings/Settings";
+// VERJI: SETTINGS and UIFeature are for the UIFeature.EnableDialogDeepLinks tests (#1510)
+import { Features, SETTINGS } from "../../../src/settings/Settings";
+import { UIFeature } from "../../../src/settings/UIFeature";
 
 jest.mock("matrix-js-sdk/src/oidc/authorize", () => ({
     completeAuthorizationCodeGrant: jest.fn(),
@@ -857,6 +859,94 @@ describe("<MatrixChat />", () => {
                         expect(logoutClient.clearStores).toHaveBeenCalled();
                     });
                 });
+            });
+        });
+
+        // VERJI: #/new, #/dm and #/directory are refused while the flag is off (verji/verji-src#1510)
+        describe("UIFeature.EnableDialogDeepLinks", () => {
+            const realGetValue = SettingsStore.getValue.bind(SettingsStore);
+            const dialogScreens: [screen: string, action: string][] = [
+                ["new", "view_create_room"],
+                ["dm", "view_create_chat"],
+                ["directory", Action.ViewRoomDirectory],
+            ];
+
+            /** Log in, then stub the dispatcher so each test sees only what showScreen dispatches. */
+            const getReadyMatrixChat = async (): Promise<MatrixChat> => {
+                const ref = React.createRef<MatrixChat>();
+                render(<MatrixChat {...defaultProps} ref={ref} />);
+                await screen.findByText("Logout");
+                mockClient.emit(ClientEvent.Sync, SyncState.Prepared, null);
+                await screen.findByLabelText("User menu");
+                await flushPromises();
+                await flushPromises();
+
+                jest.spyOn(defaultDispatcher, "dispatch")
+                    .mockClear()
+                    .mockImplementation(() => {});
+                return ref.current!;
+            };
+
+            const setDialogDeepLinks = (enabled: boolean): void => {
+                jest.spyOn(SettingsStore, "getValue").mockImplementation(
+                    (name: string, roomId?: string | null, excludeDefault?: boolean) =>
+                        name === UIFeature.EnableDialogDeepLinks ? enabled : realGetValue(name, roomId, excludeDefault),
+                );
+            };
+
+            const dispatchedActions = (): string[] =>
+                mocked(defaultDispatcher.dispatch).mock.calls.map(([payload]) => payload.action);
+
+            afterEach(() => {
+                localStorage.removeItem("mx_last_room_id");
+            });
+
+            it("defaults to true, so only a deployment's config turns it off", () => {
+                expect(SETTINGS[UIFeature.EnableDialogDeepLinks].default).toBe(true);
+            });
+
+            it.each(dialogScreens)("= true: #/%s dispatches %s (today's behaviour)", async (screenName, action) => {
+                const matrixChat = await getReadyMatrixChat();
+                setDialogDeepLinks(true);
+
+                matrixChat.showScreen(screenName);
+
+                expect(dispatchedActions()).toContain(action);
+            });
+
+            it.each(dialogScreens)(
+                "= false: #/%s does not dispatch %s, shows home instead",
+                async (screenName, action) => {
+                    const matrixChat = await getReadyMatrixChat();
+                    setDialogDeepLinks(false);
+
+                    matrixChat.showScreen(screenName);
+
+                    expect(dispatchedActions()).not.toContain(action);
+                    expect(dispatchedActions()).toEqual([Action.ViewHomePage]);
+                },
+            );
+
+            it("= false: shows the last room viewed when there is one, as #/ does", async () => {
+                const matrixChat = await getReadyMatrixChat();
+                setDialogDeepLinks(false);
+                localStorage.setItem("mx_last_room_id", "!last:server.org");
+
+                matrixChat.showScreen("new");
+
+                expect(defaultDispatcher.dispatch).toHaveBeenCalledWith(
+                    expect.objectContaining({ action: Action.ViewRoom, room_id: "!last:server.org" }),
+                );
+                expect(dispatchedActions()).not.toContain("view_create_room");
+            });
+
+            it("= false: leaves other screens alone", async () => {
+                const matrixChat = await getReadyMatrixChat();
+                setDialogDeepLinks(false);
+
+                matrixChat.showScreen("settings");
+
+                expect(dispatchedActions()).toEqual([Action.ViewUserSettings]);
             });
         });
     });
