@@ -25,7 +25,7 @@ import { ReadyWatchingStore } from "../ReadyWatchingStore";
 import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
-import { isOrgUnitMemberOrOwner } from "./verjiRoles";
+import { isOrgUnitMemberOrOwner, isTenantPrimaryContact } from "./verjiRoles";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -138,8 +138,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
 
     /**
      * Re-fetch the tenant's access context on a short backoff ({@link ORG_UNIT_REFRESH_DELAYS_MS})
-     * until it shows the user as a Member or the Owner of `orgUnitId`, then stop. If it never does,
-     * mark the pair exhausted, which settles a gate still at Checking on Denied.
+     * until it shows the user as a Member or the Owner of `orgUnitId`, or as the tenant's
+     * PrimaryContact, then stop. If it never does, mark the pair exhausted, which settles a gate
+     * still at Checking on Denied.
      *
      * One schedule per (tenant, OrgUnit) pair until logout or user switch: a call for a pair that is
      * running or used up does nothing, which is what makes it safe to call after every render and
@@ -223,6 +224,16 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         }, ORG_UNIT_REFRESH_DELAYS_MS[attempt]);
     }
 
+    /**
+     * Does the context now show what the create-room gate allows on at this OrgUnit — the user is
+     * its Member or Owner, or the tenant's PrimaryContact? Kept to the gate's role condition, so a
+     * schedule never runs on after the gate has already settled on Allowed. The gate's StandardUser
+     * check is left out: a user who fails it is denied outright and never starts a schedule.
+     */
+    private isOrgUnitSettled(tenantId: string, orgUnitId: string): boolean {
+        return isTenantPrimaryContact(this, tenantId) || isOrgUnitMemberOrOwner(this, tenantId, orgUnitId);
+    }
+
     private async runOrgUnitAttempt(
         refresh: OrgUnitRefresh,
         tenantId: string,
@@ -235,7 +246,7 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         if (!permissions) return;
 
         // Another fetch may have settled it since this attempt was scheduled.
-        if (!isOrgUnitMemberOrOwner(this, tenantId, orgUnitId)) {
+        if (!this.isOrgUnitSettled(tenantId, orgUnitId)) {
             try {
                 await permissions.refreshContext(tenantId);
             } catch (error) {
@@ -247,7 +258,7 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
             if (this.orgUnitRefreshes.get(key) !== refresh) return;
         }
 
-        if (isOrgUnitMemberOrOwner(this, tenantId, orgUnitId)) {
+        if (this.isOrgUnitSettled(tenantId, orgUnitId)) {
             // Settled. The fetch that brought the row changed the context, so the SDK has already
             // emitted and the gate has re-rendered as Allowed. Marking the pair used up all the
             // same is what keeps a later drop — the user is removed from the OrgUnit — at Denied,
@@ -257,8 +268,8 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         }
         // Not settled merely because the OrgUnit is now in the context under some other role: the
         // gate already reads Denied for that, but before verji/verji-src#1495 a row other than the
-        // Owner row — the tenant PrimaryContact's manager roles, the group sync's ownership row —
-        // can name a new guest org before its Owner row lands. So keep going to the end of the budget.
+        // Owner row — the group sync's ownership row — can name a new guest org before its Owner row
+        // lands. So keep going to the end of the budget.
         if (attempt + 1 < ORG_UNIT_REFRESH_DELAYS_MS.length) {
             this.scheduleOrgUnitAttempt(refresh, tenantId, orgUnitId, attempt + 1);
             return;
@@ -489,7 +500,10 @@ export const STALE_REVALIDATION_THROTTLE_MS = 30_000;
 interface OrgUnitRefresh {
     /** The pending attempt; undefined while an attempt is in flight and once the schedule ends. */
     timer?: ReturnType<typeof setTimeout>;
-    /** The schedule has ended, by running out of attempts or by finding the user a Member or the Owner. */
+    /**
+     * The schedule has ended, by running out of attempts or by finding the user a Member or the
+     * Owner, or the tenant's PrimaryContact.
+     */
     exhausted: boolean;
 }
 

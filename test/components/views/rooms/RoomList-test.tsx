@@ -779,6 +779,19 @@ describe("Verji Hierarchy V2 gates", () => {
             expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
         });
 
+        it("enables the Rooms + for the tenant PrimaryContact, who is neither a Member nor the Owner", () => {
+            // verji/verji-src#1712: ORG_A reaches them only through the expanded Manager role.
+            mockStore(true, {
+                ...STANDARD_USER,
+                "Customer-Manager#": [TENANT],
+                "ClientOrganization-Manager": [TENANT, ORG_A],
+            });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
         it("disables it for a StandardUser who holds the structure but not membership", async () => {
             mockStore(true, {
                 ...STANDARD_USER,

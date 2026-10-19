@@ -251,9 +251,10 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
     // verji/verji-src#1198).
     const showExploreItems = SettingsStore.getValue(UIFeature.RoomListExplorePublicRooms);
 
-    // VERJI: creating a room is for StandardUsers at a TenantRoot, for StandardUsers who are
-    // a Member or the Owner at an OrgUnit, and for nobody at an OrgUnitCategory (rooms do not
-    // belong directly to a category). Verdict NotGated renders exactly as today.
+    // VERJI: creating a room is for StandardUsers at a TenantRoot, for StandardUsers at an OrgUnit
+    // who are its Member or Owner or the tenant's PrimaryContact, and for nobody at an
+    // OrgUnitCategory (rooms do not belong directly to a category). Verdict NotGated renders
+    // exactly as today.
     const createRoomGate = useVerjiGate(activeSpace, getCreateRoomGate);
 
     const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
