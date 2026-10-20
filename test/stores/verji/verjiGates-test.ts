@@ -231,6 +231,76 @@ describe("verjiGates", () => {
                 expect(getCreateRoomGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Denied);
             });
 
+            /**
+             * verji/verji-src#1712. The tenant's PrimaryContact gets a personal space for every guest
+             * org of the tenant without being a Member or the Owner of any, and may create rooms in
+             * all of them.
+             */
+            describe("for the tenant's PrimaryContact", () => {
+                /** What itops sends them: every guest org, through the plain, expanded Manager role. */
+                const PRIMARY_CONTACT_REACHING_ORG_A = {
+                    ...PRIMARY_CONTACT,
+                    "ClientOrganization-Manager": [TENANT, ORG_A],
+                };
+
+                it("allows them in a guest org they are neither a Member nor the Owner of", () => {
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, PRIMARY_CONTACT_REACHING_ORG_A));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
+                    expect(decision.hint).toBeUndefined();
+                });
+
+                it("allows them, rather than checking, before the context has heard of the OrgUnit", () => {
+                    // Their standing is tenant-wide, so a context that predates the guest org is no
+                    // reason to make them wait.
+                    const decision = getCreateRoomGate(ORG_UNIT, readerFor(true, PRIMARY_CONTACT));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
+                });
+
+                it("does not let the inherited guest-org Manager role stand in for it", () => {
+                    // The plain role is expanded, so it can name ORG_A without the user being anyone
+                    // in it; the gate asks with the direct Customer-Manager#, the role contract's
+                    // PrimaryContact signal.
+                    const decision = getCreateRoomGate(
+                        ORG_UNIT,
+                        readerFor(true, { ...STANDARD_USER, "ClientOrganization-Manager": [TENANT, ORG_A] }),
+                    );
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                    expect(decision.hint).toBe(
+                        "You are not a member of this organisation, so you cannot create rooms here.",
+                    );
+                });
+
+                it.each([
+                    ["an OrgUnit", ORG_UNIT],
+                    ["a TenantRoot", TENANT_ROOT],
+                ])(
+                    "asks for a StandardUser first, so the manager role alone gets the guest hint at %s",
+                    (_where, ctx) => {
+                        // The rule is StandardUser AND (Member, Owner or PrimaryContact). The backend
+                        // makes the PrimaryContact a StandardUser; a context that says otherwise is not
+                        // one to open the door on.
+                        const decision = getCreateRoomGate(ctx, readerFor(true, { "Customer-Manager#": [TENANT] }));
+
+                        expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                        expect(decision.hint).toBe(
+                            "You are a guest in Acme AS, so you cannot create rooms in this space.",
+                        );
+                    },
+                );
+
+                it("still fails closed at an OrgUnit space that carries no org unit id", () => {
+                    const decision = getCreateRoomGate(
+                        ctxFor(VerjiSpaceKind.OrgUnit, undefined),
+                        readerFor(true, PRIMARY_CONTACT_REACHING_ORG_A),
+                    );
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                });
+            });
+
             it("denies when the space claims to be an OrgUnit but carries no org unit id", () => {
                 const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
                 const decision = getCreateRoomGate(ctxFor(VerjiSpaceKind.OrgUnit, undefined), reader);
@@ -320,10 +390,17 @@ describe("verjiGates", () => {
             const owner = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
             const member = readerFor(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
             const neither = readerFor(true, STANDARD_USER);
+            // Unlike create room (verji/verji-src#1712): the tenant's PrimaryContact may not change
+            // a guest org's settings, matching the backend's own space avatar rule for an OrgUnit.
+            const primaryContact = readerFor(true, {
+                ...PRIMARY_CONTACT,
+                "ClientOrganization-Manager": [TENANT, ORG_A],
+            });
 
             expect(getSpaceSettingsGate(ORG_UNIT, owner).verdict).toBe(VerjiGateVerdict.Allowed);
             expect(getSpaceSettingsGate(ORG_UNIT, member).verdict).toBe(VerjiGateVerdict.Allowed);
             expect(getSpaceSettingsGate(ORG_UNIT, neither).verdict).toBe(VerjiGateVerdict.Denied);
+            expect(getSpaceSettingsGate(ORG_UNIT, primaryContact).verdict).toBe(VerjiGateVerdict.Denied);
         });
 
         it("denies, rather than checks, at an OrgUnit the context has never heard of", () => {

@@ -53,7 +53,9 @@ import {
  * re-fetches on a short backoff. It is still disabled, so the deny direction holds. Once the
  * re-fetch is used up, the same situation reads as an ordinary denial: "checking" is never a
  * resting state. None of this applies outside the beta or on a cold cache — those stay
- * {@link VerjiGateVerdict.NotGated}.
+ * {@link VerjiGateVerdict.NotGated}. Nor does it apply once the context shows the user as the
+ * tenant's PrimaryContact: their standing is tenant-wide, so they are allowed whether or not the
+ * context has heard of the OrgUnit.
  */
 
 export enum VerjiGateVerdict {
@@ -94,9 +96,9 @@ export interface VerjiGateReader extends VerjiRoleReader {
     isCanonicalSpaceSyncEnabled(tenantId: string): boolean;
     /**
      * Is the store's one bounded re-fetch for this OrgUnit used up — out of attempts, or ended
-     * early because the user turned out to be its Member or Owner? Once it is, an OrgUnit the
-     * context does not mention reads as denied, so a wrong staleness guess cannot hold an affordance
-     * at "checking" forever.
+     * early because the user turned out to be its Member or Owner, or the tenant's PrimaryContact?
+     * Once it is, an OrgUnit the context does not mention reads as denied, so a wrong staleness
+     * guess cannot hold an affordance at "checking" forever.
      */
     isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean;
 }
@@ -136,10 +138,14 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
  *
  * - TenantRoot: StandardUser only.
  * - OrgUnitCategory: removed for everyone. Rooms do not belong directly to a category.
- * - OrgUnit: StandardUser **and** (Member **or** Owner) of that OrgUnit.
+ * - OrgUnit: StandardUser **and** (Member **or** Owner of that OrgUnit, **or** the tenant's
+ *   PrimaryContact). The tenant's PrimaryContact reaches every guest org of the tenant, and the
+ *   backend gives them a personal space in each, so they may create rooms in any of them
+ *   (verji/verji-src#1712). Asked with the direct `Customer-Manager#`, never the
+ *   `ClientOrganization-Manager` they inherit on the OrgUnit: the plain role is expanded.
  *
- * At an OrgUnit a StandardUser who is neither gets one of two answers, because "not a Member or
- * Owner" covers two different situations:
+ * At an OrgUnit any other StandardUser who is neither gets one of two answers, because "not a
+ * Member or Owner" covers two different situations:
  * - the context mentions the OrgUnit under some other role, so it has at least heard of it: Denied.
  *   This is the awkward case — a user who holds the mirrored room structure without membership,
  *   whose room grant puts the OrgUnit in their context. A re-fetch already running for the
@@ -165,6 +171,9 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
                     // one if the kind is ever derived some other way.
                     return denied(_t("verji|gate|create_room_denied_not_org_member"));
                 }
+                // Ahead of the staleness check: the PrimaryContact's standing is tenant-wide, so
+                // whether the context has heard of this OrgUnit yet cannot change the answer.
+                if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
                 if (isOrgUnitMemberOrOwner(reader, c.tenantId, c.orgUnitId)) return ALLOWED;
                 // A context that has never heard of the OrgUnit is no evidence either way, so ask
                 // again before saying no, unless the re-fetch has already been used up.

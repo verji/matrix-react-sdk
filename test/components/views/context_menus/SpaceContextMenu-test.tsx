@@ -336,6 +336,26 @@ describe("<SpaceContextMenu />", () => {
             expect(screen.getByTestId("new-room-option")).not.toHaveAttribute("aria-disabled", "true");
         });
 
+        it("keeps the room option for the tenant's PrimaryContact at an OrgUnit they are not a Member of", async () => {
+            // verji/verji-src#1712: ORG_A reaches them only through the expanded Manager role.
+            mockStore(true, {
+                ...STANDARD_USER,
+                "Customer-Manager#": [TENANT],
+                "ClientOrganization-Manager": [TENANT, ORG_A],
+            });
+            const space = makeVerjiSpace({
+                ...TENANT_INFO,
+                ...PARENT,
+                "app.verji.org_unit_info": { org_unit_id: ORG_A },
+            });
+            renderComponent({ space });
+
+            const option = screen.getByTestId("new-room-option");
+            expect(option).not.toHaveAttribute("aria-disabled", "true");
+            await userEvent.click(option);
+            expect(showCreateNewRoom).toHaveBeenCalledWith(space);
+        });
+
         // VERJI: verji/verji-src#1507 — a guest org created after the access context was fetched.
         describe("at an OrgUnit the cached context has never heard of", () => {
             const ORG_UNIT_INFO = { "app.verji.org_unit_info": { org_unit_id: ORG_A } };

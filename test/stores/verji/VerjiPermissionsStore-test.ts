@@ -431,10 +431,54 @@ describe("VerjiPermissionsStore", () => {
             expect(permissions.refreshContext).toHaveBeenCalledTimes(2);
         });
 
+        it("stops as soon as a re-fetch shows the user is the tenant's PrimaryContact", async () => {
+            // verji/verji-src#1712: the gate allows the tenant's PrimaryContact at every OrgUnit, so
+            // this is as settled as a Member — though they are never one, and the OrgUnit reaches
+            // them only through the expanded manager role.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                permissions.context.roles["Customer-Manager#"] = [TENANT];
+                permissions.context.roles["ClientOrganization-Manager"] = [TENANT, ORG_A];
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            // Settled by the first fetch itself, not by a later attempt that finds nothing to fetch.
+            await jest.advanceTimersByTimeAsync(0);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
+        });
+
+        it("skips the fetch when another one already showed the user is the tenant's PrimaryContact", async () => {
+            const store = await startedStore();
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            permissions.context.roles["Customer-Manager#"] = [TENANT];
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).not.toHaveBeenCalled();
+        });
+
+        it("does not take the expanded manager role alone as the PrimaryContact", async () => {
+            // It names every guest org for the tenant's PrimaryContact, but the gate does not allow
+            // on it, so stopping on it would cut the wait for an Owner row short.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                permissions.context.roles["ClientOrganization-Manager"] = [TENANT, ORG_A];
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(ORG_UNIT_REFRESH_DELAYS_MS.length);
+        });
+
         it("keeps going when another row names the OrgUnit first, until the Owner row lands", async () => {
-            // Before #1495 the group sync's bare Owner row, or the PrimaryContact's manager roles,
-            // can name a new guest org before its Owner row exists. The gate reads Denied in
-            // between; stopping there would leave it at Denied until the stale backstop.
+            // Before #1495 the group sync's bare Owner row can name a new guest org before its
+            // Owner row exists. The gate reads Denied in between; stopping there would leave it at
+            // Denied until the stale backstop.
             const store = await startedStore();
             permissions.refreshContext.mockImplementation(async () => {
                 const call = permissions.refreshContext.mock.calls.length;
