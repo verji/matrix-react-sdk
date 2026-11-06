@@ -15,10 +15,13 @@ limitations under the License.
 */
 
 import {
+    getAddExistingGuestOrgGate,
+    getAddExistingRoomGate,
     getCreateRoomGate,
     getOnboardToTenantGate,
     getSpaceSettingsGate,
     isGateDisabled,
+    isGateOffered,
     isGateVisible,
     VerjiGateReader,
     VerjiGateVerdict,
@@ -367,6 +370,117 @@ describe("verjiGates", () => {
                 });
             });
         });
+    });
+
+    // VERJI: verji/verji-src#2117 — affordances that exist only in the beta, so NotGated hides them.
+    describe.each([
+        ["add existing guest org", getAddExistingGuestOrgGate, CATEGORY],
+        ["add existing room", getAddExistingRoomGate, ORG_UNIT],
+    ] as const)("%s", (_name, gate, offeredAt) => {
+        const MEMBER_AND_OWNER: Record<string, string[]> = {
+            ...STANDARD_USER,
+            "ClientOrganization-User#": [ORG_A],
+            "ClientOrganization-Owner": [ORG_A],
+        };
+        const ROLES: [string, Record<string, string[]>][] = [
+            ["a Guest", GUEST],
+            ["a StandardUser", STANDARD_USER],
+            ["the tenant PrimaryContact", PRIMARY_CONTACT],
+            ["a Member and the Owner of the OrgUnit", MEMBER_AND_OWNER],
+        ];
+
+        it("is offered to the tenant's PrimaryContact at its kind of space", () => {
+            const decision = gate(offeredAt, readerFor(true, PRIMARY_CONTACT));
+
+            expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
+            expect(isGateOffered(decision)).toBe(true);
+        });
+
+        it("does not let the inherited Manager role stand in for the PrimaryContact", () => {
+            const decision = gate(
+                offeredAt,
+                readerFor(true, {
+                    ...STANDARD_USER,
+                    "Customer-Manager": [TENANT],
+                    "ClientOrganization-Manager": [ORG_A],
+                }),
+            );
+
+            expect(isGateOffered(decision)).toBe(false);
+        });
+
+        it.each(ROLES.filter(([who]) => who !== "the tenant PrimaryContact"))(
+            "is hidden from %s at its kind of space",
+            (_who, grants) => {
+                const decision = gate(offeredAt, readerFor(true, grants));
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                expect(isGateOffered(decision)).toBe(false);
+            },
+        );
+
+        it.each(ALL_CONTEXTS.filter(([, ctx]) => ctx !== offeredAt))(
+            "is hidden from the tenant's PrimaryContact at a %s space",
+            (_kindName, ctx) => {
+                const decision = gate(ctx, readerFor(true, PRIMARY_CONTACT));
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                expect(isGateOffered(decision)).toBe(false);
+            },
+        );
+
+        describe.each(ALL_CONTEXTS)("at a %s space", (_kindName, ctx) => {
+            it.each(ROLES)("is not offered to %s when the switch is off", (_who, grants) => {
+                const decision = gate(ctx, readerFor(false, grants));
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.NotGated);
+                // Today there is no such option: NotGated must leave it out, unlike the other gates.
+                expect(isGateOffered(decision)).toBe(false);
+            });
+        });
+
+        it("is not offered on a room that is not a Verji space", () => {
+            expect(isGateOffered(gate(null, readerFor(true, PRIMARY_CONTACT)))).toBe(false);
+        });
+
+        it("asks about the rendered space's tenant only", () => {
+            // The PrimaryContact of another tenant, rendering a space of TENANT.
+            const otherTenantsPrimaryContact: VerjiGateReader = {
+                ...readerFor(true, {}),
+                hasRole: (tenantId, roleName, instanceId) =>
+                    tenantId === "tenant-2" && roleName === "Customer-Manager#" && instanceId === "tenant-2",
+            };
+
+            expect(isGateOffered(gate(offeredAt, otherTenantsPrimaryContact))).toBe(false);
+        });
+    });
+
+    it("hides add existing room from the PrimaryContact at an OrgUnit space that carries no org unit id", () => {
+        const decision = getAddExistingRoomGate(ctxFor(VerjiSpaceKind.OrgUnit), readerFor(true, PRIMARY_CONTACT));
+
+        expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+    });
+
+    it("offers add existing room before the context has heard of the OrgUnit", () => {
+        // The PrimaryContact's standing is tenant-wide: no Checking, no re-fetch.
+        const decision = getAddExistingRoomGate(
+            ctxFor(VerjiSpaceKind.OrgUnit, ORG_B),
+            readerFor(true, PRIMARY_CONTACT, []),
+        );
+
+        expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
+    });
+
+    it("offers only Allowed: every other verdict leaves a beta-only affordance out", () => {
+        expect(isGateOffered({ verdict: VerjiGateVerdict.Allowed })).toBe(true);
+        for (const verdict of [
+            VerjiGateVerdict.NotGated,
+            VerjiGateVerdict.Denied,
+            VerjiGateVerdict.Hidden,
+            VerjiGateVerdict.Checking,
+        ]) {
+            expect(isGateOffered({ verdict })).toBe(false);
+        }
     });
 
     describe("space settings (specified; the surface lands with avatar propagation)", () => {

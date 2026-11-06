@@ -36,6 +36,8 @@ import SettingsStore from "../../../../src/settings/SettingsStore";
 import { _t } from "../../../../src/languageHandler";
 import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
 import { mkEvent, mockStateEventImplementation } from "../../../test-utils";
+import { showAddExistingGuestOrgDialog } from "../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog"; // VERJI: verji/verji-src#2117
+import { showAddExistingRoomToOrgUnitDialog } from "../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog"; // VERJI: verji/verji-src#2117
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -52,6 +54,14 @@ jest.mock("../../../../src/utils/space", () => ({
 
 jest.mock("../../../../src/utils/leave-behaviour", () => ({
     leaveSpace: jest.fn(),
+}));
+
+// VERJI: verji/verji-src#2117
+jest.mock("../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog", () => ({
+    showAddExistingGuestOrgDialog: jest.fn(),
+}));
+jest.mock("../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog", () => ({
+    showAddExistingRoomToOrgUnitDialog: jest.fn(),
 }));
 
 describe("<SpaceContextMenu />", () => {
@@ -405,6 +415,130 @@ describe("<SpaceContextMenu />", () => {
         });
     });
 
+    // VERJI: verji/verji-src#2117 — the tenant's PrimaryContact brings guest orgs and rooms from
+    // before Hierarchy V2 in. The store's reads are real here, fed by a mocked SDK store, so the
+    // menu, the hook, the gates and the role contract are tested together.
+    describe("the Hierarchy V2 add-existing options", () => {
+        const TENANT = "tenant-1";
+        const ORG_A = "org-a";
+        const STANDARD_USER = { "Customer-User#": [TENANT] };
+        const PRIMARY_CONTACT = { "Customer-User#": [TENANT], "Customer-Manager#": [TENANT] };
+        const TENANT_INFO = { "app.verji.tenant_info": { tenant_id: TENANT } };
+        const PARENT = { "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" } };
+        const CATEGORY = { ...TENANT_INFO, ...PARENT };
+        const ORG_UNIT = { ...TENANT_INFO, ...PARENT, "app.verji.org_unit_info": { org_unit_id: ORG_A } };
+
+        /**
+         * A Verji space on which the user, like a PrimaryContact in their personal space, may not
+         * send m.space.child: the options must not depend on it.
+         */
+        const makeVerjiSpace = (events: Record<string, object>): Room => {
+            const roomId = "!verji-space:server";
+            const state = Object.entries(events).map(([type, content]) =>
+                mkEvent({ event: true, type, room: roomId, user: userId, skey: type, content, ts: Date.now() }),
+            );
+            return makeMockSpace({
+                roomId,
+                isSpaceRoom: jest.fn().mockReturnValue(true),
+                currentState: {
+                    maySendStateEvent: jest.fn().mockReturnValue(false),
+                    getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)),
+                },
+            });
+        };
+
+        /** Feeds the bridge store's real reads from a stand-in for the SDK's access-context store. */
+        const mockStore = (rolloutOn: boolean, grants: Record<string, string[]>): void => {
+            const permissions = {
+                isCanonicalSpaceSyncEnabled: (tenantId: string) => rolloutOn && tenantId === TENANT,
+                hasRole: (tenantId: string, roleName: string, instanceId: string) =>
+                    tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
+                peekContext: () => ({ status: "fresh", record: { roles: grants } }),
+                // The create-room gate reads Checking for a StandardUser at an OrgUnit the context
+                // has not heard of, and the store then re-fetches.
+                refreshContext: jest.fn().mockResolvedValue(undefined),
+                ensureContextFresh: jest.fn().mockResolvedValue(undefined),
+            };
+            (VerjiPermissionsStore.instance as unknown as { permissions: unknown }).permissions = permissions;
+        };
+
+        beforeEach(() => {
+            mocked(shouldShowComponent).mockReturnValue(true);
+        });
+
+        afterEach(() => {
+            VerjiPermissionsStore.instance["resetFreshnessRequests"]();
+            (VerjiPermissionsStore.instance as unknown as { permissions: unknown }).permissions = undefined;
+            jest.restoreAllMocks();
+        });
+
+        it("offers the PrimaryContact 'Add existing Guest Organization' at a category, under the Add header", async () => {
+            mockStore(true, PRIMARY_CONTACT);
+            const onFinished = jest.fn();
+            const space = makeVerjiSpace(CATEGORY);
+            renderComponent({ space, onFinished });
+
+            expect(screen.getByTestId("add-to-space-header")).toBeInTheDocument();
+            expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+            const option = screen.getByTestId("add-existing-guest-org-option");
+            expect(option).toHaveTextContent("Add existing Guest Organization");
+            await userEvent.click(option);
+            expect(showAddExistingGuestOrgDialog).toHaveBeenCalledWith(space);
+            expect(onFinished).toHaveBeenCalled();
+        });
+
+        it("offers the PrimaryContact 'Add existing room' at a guest org", async () => {
+            mockStore(true, PRIMARY_CONTACT);
+            const onFinished = jest.fn();
+            const space = makeVerjiSpace(ORG_UNIT);
+            renderComponent({ space, onFinished });
+
+            expect(screen.getByTestId("add-to-space-header")).toBeInTheDocument();
+            expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+            const option = screen.getByTestId("add-existing-room-option");
+            expect(option).toHaveTextContent("Add existing room");
+            await userEvent.click(option);
+            expect(showAddExistingRoomToOrgUnitDialog).toHaveBeenCalledWith(space);
+            expect(onFinished).toHaveBeenCalled();
+        });
+
+        it("offers neither at the tenant root", () => {
+            mockStore(true, PRIMARY_CONTACT);
+            renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+
+            expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+        });
+
+        it.each([
+            ["a StandardUser", STANDARD_USER],
+            ["a Guest who is a Member of the guest org", { "ClientOrganization-User#": [ORG_A] }],
+            ["the guest org's Owner", { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] }],
+        ])("offers neither to %s, and leaves no Add header behind", (_who, grants) => {
+            mockStore(true, grants);
+
+            for (const events of [CATEGORY, ORG_UNIT]) {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
+                unmount();
+            }
+        });
+
+        it("offers neither, and no Add header, when Hierarchy V2 is off for the tenant", () => {
+            mockStore(false, PRIMARY_CONTACT);
+
+            for (const events of [CATEGORY, ORG_UNIT]) {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
+                unmount();
+            }
+        });
+    });
+
     describe("UIFeature.ShowLeaveSpaceInContextMenu", () => {
         it("ShowLeaveSpaceInContextMenu = true, renders 'leave space' option", () => {
             mocked(shouldShowSpaceSettings).mockReturnValue(false);
@@ -460,6 +594,19 @@ describe("<SpaceContextMenu />", () => {
 
             expect(screen.getByTestId("add-to-space-header")).toBeInTheDocument();
             expect(screen.getByTestId("new-room-option")).toBeInTheDocument();
+            expect(screen.queryByTestId("new-subspace-option")).not.toBeInTheDocument();
+        });
+
+        // VERJI: the header renders only over an option that renders (verji/verji-src#2117).
+        it("UIFeature.AddSubSpace = false: leaves no empty Add header when a space is the only option allowed", () => {
+            mocked(shouldShowComponent).mockImplementation((feature) => feature === UIComponent.CreateSpaces);
+            jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => {
+                if (name === UIFeature.AddSubSpace) return false;
+                else return "default";
+            });
+            renderComponent({ space });
+
+            expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
             expect(screen.queryByTestId("new-subspace-option")).not.toBeInTheDocument();
         });
     });

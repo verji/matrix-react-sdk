@@ -217,6 +217,51 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
     });
 }
 
+/**
+ * Bringing a guest org from before Hierarchy V2 in, behind the "Add existing Guest Organization"
+ * option of an OrgUnitCategory space's menu (verji/verji-src#2117).
+ *
+ * Unlike the gates above, this one guards an affordance that does not exist outside the beta, so
+ * its NotGated must hide it rather than keep today's behaviour: render it on
+ * {@link isGateOffered}, never on {@link isGateVisible}. Offered to the tenant's PrimaryContact at
+ * an OrgUnitCategory; hidden for everyone else and at every other kind of space. The backend
+ * grants the route to the tenant's PrimaryContact alone, so there is no one to show it disabled to.
+ *
+ * The client cannot tell the tenant's default category from another one, and the backend gives
+ * the org unit the default category whichever category space the option is chosen on.
+ */
+export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) =>
+        c.kind === VerjiSpaceKind.OrgUnitCategory && isTenantPrimaryContact(reader, c.tenantId) ? ALLOWED : HIDDEN,
+    );
+}
+
+/**
+ * Assigning a room from before Hierarchy V2 to a guest org, behind the "Add existing room" option
+ * of an OrgUnit space's menu (verji/verji-src#2117).
+ *
+ * Like {@link getAddExistingGuestOrgGate}, an affordance of the beta only: render it on
+ * {@link isGateOffered}. Offered to the tenant's PrimaryContact at an OrgUnit that carries its org
+ * unit id, in every guest org of the tenant — whether the context has heard of the OrgUnit or not,
+ * since their standing is tenant-wide. Hidden for everyone else and at every other kind of space.
+ */
+export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) =>
+        c.kind === VerjiSpaceKind.OrgUnit && !!c.orgUnitId && isTenantPrimaryContact(reader, c.tenantId)
+            ? ALLOWED
+            : HIDDEN,
+    );
+}
+
+/**
+ * Should an affordance that exists only in the beta render? True only for
+ * {@link VerjiGateVerdict.Allowed}: outside the beta (NotGated) there is no such affordance today,
+ * so "today's behaviour" is to leave it out.
+ */
+export function isGateOffered(decision: VerjiGateDecision): boolean {
+    return decision.verdict === VerjiGateVerdict.Allowed;
+}
+
 /** Should the affordance render at all? False only for {@link VerjiGateVerdict.Hidden}. */
 export function isGateVisible(decision: VerjiGateDecision): boolean {
     return decision.verdict !== VerjiGateVerdict.Hidden;

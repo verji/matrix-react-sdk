@@ -42,7 +42,16 @@ import PosthogTrackers from "../../../PosthogTrackers";
 import { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
 // VERJI: Hierarchy V2 per-user gating
 import { useVerjiGate } from "../../../hooks/useVerjiPermissions";
-import { getCreateRoomGate, isGateDisabled, isGateVisible } from "../../../stores/verji/verjiGates";
+import {
+    getAddExistingGuestOrgGate,
+    getAddExistingRoomGate,
+    getCreateRoomGate,
+    isGateDisabled,
+    isGateOffered,
+    isGateVisible,
+} from "../../../stores/verji/verjiGates";
+import { showAddExistingGuestOrgDialog } from "../dialogs/verji/AddExistingGuestOrgDialog";
+import { showAddExistingRoomToOrgUnitDialog } from "../dialogs/verji/AddExistingRoomToOrgUnitDialog";
 
 interface IProps extends IContextMenuProps {
     space?: Room;
@@ -57,6 +66,10 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     // VERJI: the same create-room rule as the Rooms sublist "+", resolved for the space this menu
     // belongs to. Called before the early return below — it is a hook.
     const createRoomGate = useVerjiGate(space, getCreateRoomGate);
+    // VERJI: the tenant's PrimaryContact brings guest orgs and rooms from before Hierarchy V2 in
+    // (verji/verji-src#2117). Hooks too, so before the early return.
+    const addExistingGuestOrgGate = useVerjiGate(space, getAddExistingGuestOrgGate);
+    const addExistingRoomGate = useVerjiGate(space, getAddExistingRoomGate);
 
     if (!space) return null;
 
@@ -154,9 +167,18 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     const createRoomHint = createRoomDenied ? createRoomGate.hint : undefined;
     const canAddVideoRooms = canAddRooms && videoRoomsEnabled;
     const canAddSubSpaces = hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateSpaces);
+    // VERJI START: the two "Add existing" options of verji/verji-src#2117 exist only in the beta,
+    // so they render on Allowed alone, never on NotGated. They do not ask for the right to send
+    // m.space.child: the Organization API does the assigning, not the client.
+    const showAddSubSpace = canAddSubSpaces && !!SettingsStore.getValue(UIFeature.AddSubSpace);
+    const canAddExistingGuestOrg = isGateOffered(addExistingGuestOrgGate);
+    const canAddExistingRoom = isGateOffered(addExistingRoomGate);
+    // VERJI END
 
     let newRoomSection: JSX.Element | null = null;
-    if (canAddRooms || canAddSubSpaces) {
+    // VERJI: asks for an option that will render, so the "Add" header never stands alone — the
+    // sub-space option also depends on UIFeature.AddSubSpace.
+    if (canAddRooms || showAddSubSpace || canAddExistingGuestOrg || canAddExistingRoom) {
         const onNewRoomClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();
@@ -181,6 +203,24 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
             showCreateNewSubspace(space);
             onFinished();
         };
+
+        // VERJI START: verji/verji-src#2117
+        const onAddExistingGuestOrgClick = (ev: ButtonEvent): void => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            showAddExistingGuestOrgDialog(space);
+            onFinished();
+        };
+
+        const onAddExistingRoomClick = (ev: ButtonEvent): void => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            showAddExistingRoomToOrgUnitDialog(space);
+            onFinished();
+        };
+        // VERJI END
 
         newRoomSection = (
             <>
@@ -209,7 +249,7 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
                         <BetaPill />
                     </IconizedContextMenuOption>
                 )}
-                {SettingsStore.getValue(UIFeature.AddSubSpace) && canAddSubSpaces && (
+                {showAddSubSpace && (
                     <IconizedContextMenuOption
                         data-testid="new-subspace-option"
                         iconClassName="mx_SpacePanel_iconPlus"
@@ -218,6 +258,23 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
                     >
                         <BetaPill />
                     </IconizedContextMenuOption>
+                )}
+                {/* VERJI: verji/verji-src#2117 — the tenant's PrimaryContact only */}
+                {canAddExistingGuestOrg && (
+                    <IconizedContextMenuOption
+                        data-testid="add-existing-guest-org-option"
+                        iconClassName="mx_SpacePanel_iconPlus"
+                        label={_t("verji|add_existing|guest_org_option")}
+                        onClick={onAddExistingGuestOrgClick}
+                    />
+                )}
+                {canAddExistingRoom && (
+                    <IconizedContextMenuOption
+                        data-testid="add-existing-room-option"
+                        iconClassName="mx_SpacePanel_iconPlus"
+                        label={_t("verji|add_existing|room_option")}
+                        onClick={onAddExistingRoomClick}
+                    />
                 )}
             </>
         );
