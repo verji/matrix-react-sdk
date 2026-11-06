@@ -162,6 +162,7 @@ describe("VerjiPermissionsStore", () => {
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(false);
             expect(store.peekContext(TENANT)).toEqual({ status: "uninitialized" });
             expect(store.isInstanceReferenced(TENANT, TENANT)).toBe(false);
+            expect(store.getRoleInstances(TENANT, "Customer-User#")).toEqual([]);
             expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
         };
 
@@ -210,6 +211,16 @@ describe("VerjiPermissionsStore", () => {
             expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(true);
             expect(store.isInstanceReferenced(TENANT, ORG_B)).toBe(false);
             expect(store.isInstanceReferenced("tenant-2", ORG_A)).toBe(false);
+        });
+
+        // VERJI: verji/verji-src#2117 — the Owner's org units, read from the Owner role's own list.
+        it("reads one role's instances, in the tenant asked about only", async () => {
+            permissions.context.roles["ClientOrganization-Owner"] = [ORG_A, ORG_B];
+            const store = await startedStore();
+
+            expect(store.getRoleInstances(TENANT, "ClientOrganization-Owner")).toEqual([ORG_A, ORG_B]);
+            expect(store.getRoleInstances(TENANT, "ClientOrganization-User#")).toEqual([]);
+            expect(store.getRoleInstances("tenant-2", "ClientOrganization-Owner")).toEqual([]);
         });
 
         it("initialises the SDK store for the signed-in user", async () => {

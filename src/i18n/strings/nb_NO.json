@@ -6,7 +6,7 @@
         "add_existing": {
             "add_rooms": "Legg til eksisterende rom",
             "added": "Lagt til",
-            "guest_org_description": "Gjesteorganisasjoner fra før %(tenant)s gikk over til det nye hierarkiet. Legg til en for å gi den sitt område her.",
+            "guest_org_description": "Gjesteorganisasjoner fra før %(tenant)s gikk over til det nye hierarkiet. Legg til en for å gi den sitt område.",
             "guest_org_failed": "%(orgUnit)s kunne ikke legges til. Prøv igjen.",
             "guest_org_filter": "Søk i gjesteorganisasjoner",
             "guest_org_none": "Det er ingen flere gjesteorganisasjoner å legge til.",

@@ -27,6 +27,7 @@ import AutoHideScrollbar from "../../../structures/AutoHideScrollbar";
 import AccessibleButton from "../../elements/AccessibleButton";
 import Spinner from "../../elements/Spinner";
 import SpaceStore from "../../../../stores/spaces/SpaceStore";
+import { VerjiPermissionsStore } from "../../../../stores/verji/VerjiPermissionsStore";
 import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceContext";
 import {
     assignDefaultOrgUnitCategory,
@@ -37,14 +38,15 @@ import {
 import { showAddExistingRoomToOrgUnitDialog } from "./AddExistingRoomToOrgUnitDialog";
 
 /**
- * VERJI: "Add existing Guest Organization" on the Guest Organizations space (verji/verji-src#2117).
+ * VERJI: "Add existing Guest Organization" on the Guest Organizations space and on the tenant's
+ * root space (verji/verji-src#2117).
  *
- * Lists the tenant's guest orgs from before Hierarchy V2 — the org units with no category — and
- * brings the chosen one in through the Organization API, which gives it the tenant's default
+ * Lists the tenant's guest orgs from before Hierarchy V2 — the org units with no category — that
+ * the user may bring in: every one for the tenant's PrimaryContact, their own for a guest org's
+ * Owner. Brings the chosen one in through the Organization API, which gives it the tenant's default
  * category; its space and its people's personal spaces follow asynchronously. The dialog then
- * waits for the PrimaryContact's own space of the guest org to arrive and offers "Add existing
- * room" for it, since a guest org brought in shows its people an empty space until its rooms are
- * assigned.
+ * waits for the user's own space of the guest org to arrive and offers "Add existing room" for it,
+ * since a guest org brought in shows its people an empty space until its rooms are assigned.
  */
 
 interface IProps {
@@ -107,7 +109,7 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
         setLoadError(false);
         setOrgUnits(null);
         try {
-            const list = await getOrgUnitsWithoutCategory(client, tenantId);
+            const list = await getOrgUnitsWithoutCategory(client, tenantId, VerjiPermissionsStore.instance);
             if (!mounted.current) return;
             setOrgUnits([...list].sort((a, b) => a.name.localeCompare(b.name)));
         } catch (e) {
@@ -262,8 +264,8 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
 export default AddExistingGuestOrgDialog;
 
 /**
- * Open "Add existing Guest Organization" for a category space. Does nothing for a room that is not
- * a Verji space, which the menu never offers it on.
+ * Open "Add existing Guest Organization" for a category space or the tenant's root space. Does
+ * nothing for a room that is not a Verji space, which the menu never offers it on.
  */
 export function showAddExistingGuestOrgDialog(space: Room): void {
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);

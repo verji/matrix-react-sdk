@@ -17,10 +17,12 @@ limitations under the License.
 import { _t } from "../../languageHandler";
 import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
+    isAnyOrgUnitOwner,
     isOrgUnitInContext,
     isOrgUnitMemberOrOwner,
     isStandardUser,
     isTenantPrimaryContact,
+    isTenantPrimaryContactOrOrgUnitOwner,
     VerjiRoleReader,
 } from "./verjiRoles";
 
@@ -219,20 +221,30 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
 
 /**
  * Bringing a guest org from before Hierarchy V2 in, behind the "Add existing Guest Organization"
- * option of an OrgUnitCategory space's menu (verji/verji-src#2117).
+ * option of an OrgUnitCategory space's menu and of the tenant root's (verji/verji-src#2117).
  *
  * Unlike the gates above, this one guards an affordance that does not exist outside the beta, so
  * its NotGated must hide it rather than keep today's behaviour: render it on
- * {@link isGateOffered}, never on {@link isGateVisible}. Offered to the tenant's PrimaryContact at
- * an OrgUnitCategory; hidden for everyone else and at every other kind of space. The backend
- * grants the route to the tenant's PrimaryContact alone, so there is no one to show it disabled to.
+ * {@link isGateOffered}, never on {@link isGateVisible}. Offered at an OrgUnitCategory and at the
+ * TenantRoot to the tenant's PrimaryContact, who may bring in any guest org of the tenant, and to
+ * the Owner of an OrgUnit of the tenant, who may bring in their own; hidden for everyone else,
+ * the OrgUnit's own PrimaryContact included, and at an OrgUnit. The TenantRoot carries it because
+ * an Owner of a guest org from before Hierarchy V2 usually has no category space yet: it appears
+ * once they belong to a guest org that is in. There is no one to show it disabled to.
+ *
+ * For an Owner this is the half the access context can answer. Whether one of theirs still has no
+ * category it cannot, so the menu asks the Organization API before it offers the option to an
+ * Owner who is not the PrimaryContact (`useHasOrgUnitWithoutCategory`).
  *
  * The client cannot tell the tenant's default category from another one, and the backend gives
- * the org unit the default category whichever category space the option is chosen on.
+ * the org unit the default category whichever space the option is chosen on.
  */
 export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
-        c.kind === VerjiSpaceKind.OrgUnitCategory && isTenantPrimaryContact(reader, c.tenantId) ? ALLOWED : HIDDEN,
+        (c.kind === VerjiSpaceKind.OrgUnitCategory || c.kind === VerjiSpaceKind.TenantRoot) &&
+        (isTenantPrimaryContact(reader, c.tenantId) || isAnyOrgUnitOwner(reader, c.tenantId))
+            ? ALLOWED
+            : HIDDEN,
     );
 }
 
@@ -241,13 +253,16 @@ export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader
  * of an OrgUnit space's menu (verji/verji-src#2117).
  *
  * Like {@link getAddExistingGuestOrgGate}, an affordance of the beta only: render it on
- * {@link isGateOffered}. Offered to the tenant's PrimaryContact at an OrgUnit that carries its org
- * unit id, in every guest org of the tenant — whether the context has heard of the OrgUnit or not,
- * since their standing is tenant-wide. Hidden for everyone else and at every other kind of space.
+ * {@link isGateOffered}. Offered at an OrgUnit that carries its org unit id to the tenant's
+ * PrimaryContact, in every guest org of the tenant — whether the context has heard of the OrgUnit
+ * or not, since their standing is tenant-wide — and to the Owner of that OrgUnit. Hidden for
+ * everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
  */
 export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
-        c.kind === VerjiSpaceKind.OrgUnit && !!c.orgUnitId && isTenantPrimaryContact(reader, c.tenantId)
+        c.kind === VerjiSpaceKind.OrgUnit &&
+        !!c.orgUnitId &&
+        isTenantPrimaryContactOrOrgUnitOwner(reader, c.tenantId, c.orgUnitId)
             ? ALLOWED
             : HIDDEN,
     );

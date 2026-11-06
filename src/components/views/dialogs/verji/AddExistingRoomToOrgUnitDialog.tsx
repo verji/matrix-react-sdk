@@ -40,8 +40,9 @@ import {
 /**
  * VERJI: "Add existing room" on a guest org's space (verji/verji-src#2117).
  *
- * Lists the rooms the tenant's PrimaryContact is in that the Organization API says could be
- * assigned to the guest org, and assigns the chosen ones through it, one at a time. The upstream
+ * Lists the rooms the user — the tenant's PrimaryContact, or the guest org's Owner — is in that the
+ * Organization API says could be assigned to the guest org, and assigns the chosen ones through
+ * it, one at a time. The upstream
  * `AddExistingToSpace` picker is not used: it lists the client's own rooms and commits by writing
  * `m.space.child` itself, while here the server decides which rooms fit and does the assigning.
  *

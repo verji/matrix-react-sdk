@@ -129,6 +129,15 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         return Object.values(roles).some((instances) => Array.isArray(instances) && instances.includes(instanceId));
     }
 
+    /**
+     * The instances one role is held on in the tenant's cached context; empty when the tenant has
+     * no cached context or the role is not in it. Ask through `isAnyOrgUnitOwner` in `verjiRoles`.
+     */
+    public getRoleInstances(tenantId: string, roleName: string): readonly string[] {
+        const instances = this.permissions?.peekContext(tenantId).record?.roles?.[roleName];
+        return Array.isArray(instances) ? instances : [];
+    }
+
     /** See `VerjiGateReader.isOrgUnitRefreshExhausted`. */
     public isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean {
         return this.orgUnitRefreshes.get(orgUnitKey(tenantId, orgUnitId))?.exhausted ?? false;

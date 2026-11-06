@@ -31,6 +31,7 @@ import {
     isOrganizationApiConfigured,
 } from "../../../src/stores/verji/verjiOrgUnitRooms";
 import SdkConfig from "../../../src/SdkConfig";
+import { VerjiRoleReader } from "../../../src/stores/verji/verjiRoles";
 import { mkEvent, mockStateEventImplementation } from "../../test-utils";
 
 // VERJI: verji/verji-src#2117
@@ -60,6 +61,14 @@ describe("verjiOrgUnitRooms", () => {
         sdkWith(organization);
     });
 
+    /** A reader of t1's access context with these grants; it knows nothing of any other tenant. */
+    const rolesFor = (grants: Record<string, string[]>): VerjiRoleReader => ({
+        hasRole: (tenantId, roleName, instanceId) => tenantId === "t1" && (grants[roleName] ?? []).includes(instanceId),
+        isInstanceReferenced: () => false,
+        getRoleInstances: (tenantId, roleName) => (tenantId === "t1" ? grants[roleName] ?? [] : []),
+    });
+    const PRIMARY_CONTACT = rolesFor({ "Customer-Manager#": ["t1"] });
+
     it("lists only the org units that have no category, with a token minted from the client's macaroon", async () => {
         organization.getOrgUnits.mockResolvedValue({
             results: [
@@ -68,11 +77,31 @@ describe("verjiOrgUnitRooms", () => {
             ],
         });
 
-        await expect(getOrgUnitsWithoutCategory(client, "t1")).resolves.toEqual([
+        await expect(getOrgUnitsWithoutCategory(client, "t1", PRIMARY_CONTACT)).resolves.toEqual([
             { id: "u2", name: "From before", orgUnitCategoryId: null },
         ]);
         expect(getAccessToken).toHaveBeenCalledWith("macaroon");
         expect(organization.getOrgUnits).toHaveBeenCalledWith(TOKEN, "t1");
+    });
+
+    // VERJI: verji/verji-src#2117 — the tenant's PrimaryContact brings in any, an Owner their own.
+    it.each([
+        ["the tenant's PrimaryContact, every one", PRIMARY_CONTACT, ["u2", "u3"]],
+        ["an Owner, their own", rolesFor({ "ClientOrganization-Owner": ["u3", "u1"] }), ["u3"]],
+        ["the org unit's own PrimaryContact, none", rolesFor({ "ClientOrganization-Manager#": ["u2"] }), []],
+        ["a StandardUser who owns nothing, none", rolesFor({ "Customer-User#": ["t1"] }), []],
+    ])("lists %s", async (_who, roles, expected) => {
+        organization.getOrgUnits.mockResolvedValue({
+            results: [
+                { id: "u1", name: "In already", orgUnitCategoryId: "cat-1" },
+                { id: "u2", name: "From before", orgUnitCategoryId: null },
+                { id: "u3", name: "Also from before", orgUnitCategoryId: null },
+            ],
+        });
+
+        const listed = await getOrgUnitsWithoutCategory(client, "t1", roles);
+
+        expect(listed.map((orgUnit) => orgUnit.id)).toEqual(expected);
     });
 
     it("passes the tenant, the org unit and the room on to the Organization API", async () => {
@@ -90,7 +119,7 @@ describe("verjiOrgUnitRooms", () => {
     it("fails clearly when the Organization API is not configured", async () => {
         sdkWith(undefined);
 
-        await expect(getOrgUnitsWithoutCategory(client, "t1")).rejects.toThrow("verjiOrganizationUrl");
+        await expect(getOrgUnitsWithoutCategory(client, "t1", PRIMARY_CONTACT)).rejects.toThrow("verjiOrganizationUrl");
     });
 
     describe("isOrganizationApiConfigured", () => {

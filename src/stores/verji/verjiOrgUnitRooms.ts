@@ -23,10 +23,11 @@ import { hasService } from "@verji/verji-api-sdk/lib/utils/isValidVerjiSdkConfig
 import type { OrgUnit, OrgUnitRoomCandidate, VerjiApiSdk } from "@verji/verji-api-sdk";
 import SdkConfig from "../../SdkConfig";
 import { resolveVerjiSpaceContext } from "./VerjiSpaceContext";
+import { isTenantPrimaryContactOrOrgUnitOwner, VerjiRoleReader } from "./verjiRoles";
 
 /**
  * VERJI: the Organization API calls that bring a tenant's guest orgs and rooms from before
- * Hierarchy V2 in (verji/verji-src#2117), for the tenant's PrimaryContact.
+ * Hierarchy V2 in (verji/verji-src#2117), for the tenant's PrimaryContact and a guest org's Owner.
  *
  * Every write goes through the Organization API, which checks the caller and the room again and
  * starts the backend's own flows. The client never writes the space tree itself: no
@@ -61,11 +62,22 @@ async function organizationApi(client: MatrixClient): Promise<[OrganizationServi
     return [organization, token];
 }
 
-/** The tenant's org units that have no category yet: those that can be brought in. */
-export async function getOrgUnitsWithoutCategory(client: MatrixClient, tenantId: string): Promise<OrgUnit[]> {
+/**
+ * The tenant's org units that have no category yet and that the user may give one: every one for
+ * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. The
+ * Organization API lists a standard user only the org units they own; the roles are asked as well,
+ * so the answer does not lean on that.
+ */
+export async function getOrgUnitsWithoutCategory(
+    client: MatrixClient,
+    tenantId: string,
+    roles: VerjiRoleReader,
+): Promise<OrgUnit[]> {
     const [organization, token] = await organizationApi(client);
     const page = await organization.getOrgUnits(token, tenantId);
-    return (page.results ?? []).filter((orgUnit) => !orgUnit.orgUnitCategoryId);
+    return (page.results ?? []).filter(
+        (orgUnit) => !orgUnit.orgUnitCategoryId && isTenantPrimaryContactOrOrgUnitOwner(roles, tenantId, orgUnit.id),
+    );
 }
 
 /** Give the org unit the tenant's default category; its space follows asynchronously. */
@@ -122,7 +134,7 @@ export function getConflictReason(error: unknown): string | undefined | null {
 
 /**
  * The space the client has joined for the org unit: a space of the tenant whose `org_unit_info`
- * names it. For the tenant's PrimaryContact, their personal space of the guest org.
+ * names it. For the tenant's PrimaryContact or the guest org's Owner, their personal space of it.
  */
 export function findOrgUnitSpace(client: MatrixClient, tenantId: string, orgUnitId: string): Room | null {
     return (

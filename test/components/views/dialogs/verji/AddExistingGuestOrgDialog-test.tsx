@@ -29,6 +29,7 @@ import {
     assignDefaultOrgUnitCategory,
     getOrgUnitsWithoutCategory,
 } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
+import { VerjiPermissionsStore } from "../../../../../src/stores/verji/VerjiPermissionsStore";
 
 // VERJI: verji/verji-src#2117 — the Organization API calls are mocked; finding the space is not.
 jest.mock("../../../../../src/stores/verji/verjiOrgUnitRooms", () => ({
@@ -131,11 +132,12 @@ describe("<AddExistingGuestOrgDialog />", () => {
         onFinished.mockReset();
     });
 
-    it("lists the tenant's guest orgs that have no category, by name", async () => {
+    it("lists the tenant's guest orgs that have no category that the user may bring in, by name", async () => {
         renderDialog();
 
         const rows = await screen.findAllByTestId(/^verji-guest-org-org-/);
-        expect(getOrgUnitsWithoutCategory).toHaveBeenCalledWith(client, TENANT);
+        // Which ones the user may bring in is read from their access context.
+        expect(getOrgUnitsWithoutCategory).toHaveBeenCalledWith(client, TENANT, VerjiPermissionsStore.instance);
         expect(rows.map((r) => r.textContent)).toEqual(["Kari ASAdd", "Ola ASAdd"]);
     });
 

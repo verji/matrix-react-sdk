@@ -58,6 +58,7 @@ const readerFor = (
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
     isInstanceReferenced: (tenantId, instanceId) =>
         tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
+    getRoleInstances: (tenantId, roleName) => (tenantId === TENANT ? grants[roleName] ?? [] : []),
     isOrgUnitRefreshExhausted: (tenantId, orgUnitId) => tenantId === TENANT && exhausted.includes(orgUnitId),
 });
 
@@ -118,6 +119,7 @@ describe("verjiGates", () => {
                         isCanonicalSpaceSyncEnabled: () => false,
                         hasRole: () => false,
                         isInstanceReferenced: () => false,
+                        getRoleInstances: () => [],
                         isOrgUnitRefreshExhausted: () => false,
                     };
 
@@ -373,59 +375,89 @@ describe("verjiGates", () => {
     });
 
     // VERJI: verji/verji-src#2117 — affordances that exist only in the beta, so NotGated hides them.
+    // Offered to the tenant's PrimaryContact and to an OrgUnit's Owner, never to the OrgUnit's own
+    // PrimaryContact: the backend decides the same from the tenant's records.
+    const OWNER_OF_A: Record<string, string[]> = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
+    /** The Owner of ORG_A who is no person of the tenant: the Owner row is all they hold. */
+    const OUTSIDE_OWNER_OF_A: Record<string, string[]> = { "ClientOrganization-Owner": [ORG_A] };
+    const OWNER_OF_B: Record<string, string[]> = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_B] };
+    const PRIMARY_CONTACT_OF_A: Record<string, string[]> = {
+        "ClientOrganization-User#": [ORG_A],
+        "ClientOrganization-Manager#": [ORG_A],
+    };
+    const MEMBER_OF_A: Record<string, string[]> = { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] };
+
     describe.each([
-        ["add existing guest org", getAddExistingGuestOrgGate, CATEGORY],
-        ["add existing room", getAddExistingRoomGate, ORG_UNIT],
+        ["add existing guest org", getAddExistingGuestOrgGate, [TENANT_ROOT, CATEGORY]],
+        ["add existing room", getAddExistingRoomGate, [ORG_UNIT]],
     ] as const)("%s", (_name, gate, offeredAt) => {
-        const MEMBER_AND_OWNER: Record<string, string[]> = {
-            ...STANDARD_USER,
-            "ClientOrganization-User#": [ORG_A],
-            "ClientOrganization-Owner": [ORG_A],
-        };
         const ROLES: [string, Record<string, string[]>][] = [
             ["a Guest", GUEST],
             ["a StandardUser", STANDARD_USER],
             ["the tenant PrimaryContact", PRIMARY_CONTACT],
-            ["a Member and the Owner of the OrgUnit", MEMBER_AND_OWNER],
+            ["the Owner of the OrgUnit", OWNER_OF_A],
+            ["the OrgUnit's own PrimaryContact", PRIMARY_CONTACT_OF_A],
+            ["a Member of the OrgUnit", MEMBER_OF_A],
         ];
+        const OFFERED = ["the tenant PrimaryContact", "the Owner of the OrgUnit"];
 
-        it("is offered to the tenant's PrimaryContact at its kind of space", () => {
-            const decision = gate(offeredAt, readerFor(true, PRIMARY_CONTACT));
+        describe.each(offeredAt.map((ctx) => [ctx.kind, ctx] as const))("at a %s space", (_kindName, ctx) => {
+            it.each(ROLES.filter(([who]) => OFFERED.includes(who)))("is offered to %s", (_who, grants) => {
+                const decision = gate(ctx, readerFor(true, grants));
 
-            expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
-            expect(isGateOffered(decision)).toBe(true);
-        });
+                expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
+                expect(isGateOffered(decision)).toBe(true);
+            });
 
-        it("does not let the inherited Manager role stand in for the PrimaryContact", () => {
-            const decision = gate(
-                offeredAt,
-                readerFor(true, {
-                    ...STANDARD_USER,
-                    "Customer-Manager": [TENANT],
-                    "ClientOrganization-Manager": [ORG_A],
-                }),
-            );
-
-            expect(isGateOffered(decision)).toBe(false);
-        });
-
-        it.each(ROLES.filter(([who]) => who !== "the tenant PrimaryContact"))(
-            "is hidden from %s at its kind of space",
-            (_who, grants) => {
-                const decision = gate(offeredAt, readerFor(true, grants));
+            it.each(ROLES.filter(([who]) => !OFFERED.includes(who)))("is hidden from %s", (_who, grants) => {
+                const decision = gate(ctx, readerFor(true, grants));
 
                 expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
                 expect(isGateOffered(decision)).toBe(false);
-            },
-        );
+            });
 
-        it.each(ALL_CONTEXTS.filter(([, ctx]) => ctx !== offeredAt))(
-            "is hidden from the tenant's PrimaryContact at a %s space",
+            it("is offered to an Owner who is no person of the tenant", () => {
+                expect(isGateOffered(gate(ctx, readerFor(true, OUTSIDE_OWNER_OF_A)))).toBe(true);
+            });
+
+            it("does not let the inherited Manager role stand in for the PrimaryContact", () => {
+                const decision = gate(
+                    ctx,
+                    readerFor(true, {
+                        ...STANDARD_USER,
+                        "Customer-Manager": [TENANT],
+                        "ClientOrganization-Manager": [ORG_A],
+                    }),
+                );
+
+                expect(isGateOffered(decision)).toBe(false);
+            });
+
+            it("asks about the rendered space's tenant only", () => {
+                // The PrimaryContact and an Owner of another tenant, rendering a space of TENANT.
+                const otherTenantsPrimaryContactAndOwner: VerjiGateReader = {
+                    ...readerFor(true, {}),
+                    hasRole: (tenantId, roleName, instanceId) =>
+                        tenantId === "tenant-2" &&
+                        ((roleName === "Customer-Manager#" && instanceId === "tenant-2") ||
+                            (roleName === "ClientOrganization-Owner" && instanceId === ORG_A)),
+                    getRoleInstances: (tenantId, roleName) =>
+                        tenantId === "tenant-2" && roleName === "ClientOrganization-Owner" ? [ORG_A] : [],
+                };
+
+                expect(isGateOffered(gate(ctx, otherTenantsPrimaryContactAndOwner))).toBe(false);
+            });
+        });
+
+        it.each(ALL_CONTEXTS.filter(([, ctx]) => !(offeredAt as readonly VerjiSpaceContext[]).includes(ctx)))(
+            "is hidden from the tenant's PrimaryContact and the Owner at a %s space",
             (_kindName, ctx) => {
-                const decision = gate(ctx, readerFor(true, PRIMARY_CONTACT));
+                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A]) {
+                    const decision = gate(ctx, readerFor(true, grants));
 
-                expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
-                expect(isGateOffered(decision)).toBe(false);
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                    expect(isGateOffered(decision)).toBe(false);
+                }
             },
         );
 
@@ -442,17 +474,18 @@ describe("verjiGates", () => {
         it("is not offered on a room that is not a Verji space", () => {
             expect(isGateOffered(gate(null, readerFor(true, PRIMARY_CONTACT)))).toBe(false);
         });
+    });
 
-        it("asks about the rendered space's tenant only", () => {
-            // The PrimaryContact of another tenant, rendering a space of TENANT.
-            const otherTenantsPrimaryContact: VerjiGateReader = {
-                ...readerFor(true, {}),
-                hasRole: (tenantId, roleName, instanceId) =>
-                    tenantId === "tenant-2" && roleName === "Customer-Manager#" && instanceId === "tenant-2",
-            };
+    it("hides add existing room from the Owner of another OrgUnit", () => {
+        const decision = getAddExistingRoomGate(ORG_UNIT, readerFor(true, OWNER_OF_B));
 
-            expect(isGateOffered(gate(offeredAt, otherTenantsPrimaryContact))).toBe(false);
-        });
+        expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+    });
+
+    it("offers add existing guest org to the Owner of any OrgUnit of the tenant, whichever space renders it", () => {
+        // Whether one of theirs still has no category is the menu's to ask.
+        expect(isGateOffered(getAddExistingGuestOrgGate(TENANT_ROOT, readerFor(true, OWNER_OF_B)))).toBe(true);
+        expect(isGateOffered(getAddExistingGuestOrgGate(CATEGORY, readerFor(true, OWNER_OF_B)))).toBe(true);
     });
 
     it("hides add existing room from the PrimaryContact at an OrgUnit space that carries no org unit id", () => {
@@ -539,6 +572,8 @@ describe("verjiGates", () => {
                 hasRole: (tenantId, roleName, instanceId) =>
                     tenantId === TENANT && roleName === "Customer-User#" && instanceId === TENANT,
                 isInstanceReferenced: (tenantId, instanceId) => tenantId === TENANT && instanceId === TENANT,
+                getRoleInstances: (tenantId, roleName) =>
+                    tenantId === TENANT && roleName === "Customer-User#" ? [TENANT] : [],
                 isOrgUnitRefreshExhausted: () => false,
             };
 
@@ -546,7 +581,11 @@ describe("verjiGates", () => {
             expect(getCreateRoomGate(otherTenantCtx, readerKnowingOnlyTenant1).verdict).toBe(VerjiGateVerdict.NotGated);
         });
 
-        describe.each(ALL_GATES)("%s", (_name, gate) => {
+        describe.each([
+            ...ALL_GATES,
+            ["add existing guest org", getAddExistingGuestOrgGate],
+            ["add existing room", getAddExistingRoomGate],
+        ] as const)("%s", (_name, gate) => {
             it.each(ALL_CONTEXTS)("at a %s space, asks about the rendered space's tenant only", (_kindName, ctx) => {
                 const tenantsAsked: string[] = [];
                 const reader: VerjiGateReader = {
@@ -564,6 +603,10 @@ describe("verjiGates", () => {
                     isInstanceReferenced: (tenantId) => {
                         tenantsAsked.push(tenantId);
                         return false;
+                    },
+                    getRoleInstances: (tenantId) => {
+                        tenantsAsked.push(tenantId);
+                        return [];
                     },
                     isOrgUnitRefreshExhausted: (tenantId) => {
                         tenantsAsked.push(tenantId);

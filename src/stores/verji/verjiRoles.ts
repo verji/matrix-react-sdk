@@ -79,6 +79,13 @@ export interface VerjiRoleReader {
      * {@link isOrgUnitInContext} for why that is worth asking.
      */
     isInstanceReferenced(tenantId: string, instanceId: string): boolean;
+    /**
+     * The instances one role is held on in the tenant's cached context: empty for an unknown
+     * tenant, an unknown role, or a context that has not loaded. Read only an inherently direct
+     * role's this way (the Owner's, see {@link isAnyOrgUnitOwner}): a plain role's list mixes in
+     * the instances it inherits.
+     */
+    getRoleInstances(tenantId: string, roleName: string): readonly string[];
 }
 
 /**
@@ -118,6 +125,28 @@ export function isOrgUnitOwner(roles: VerjiRoleReader, tenantId: string, orgUnit
  */
 export function isOrgUnitMemberOrOwner(roles: VerjiRoleReader, tenantId: string, orgUnitId: string): boolean {
     return isOrgUnitMember(roles, tenantId, orgUnitId) || isOrgUnitOwner(roles, tenantId, orgUnitId);
+}
+
+/**
+ * Is the user the Owner of any OrgUnit of this tenant? Read from the Owner role's own instance
+ * list, which holds only what the user owns: the role is never recursed.
+ */
+export function isAnyOrgUnitOwner(roles: VerjiRoleReader, tenantId: string): boolean {
+    return roles.getRoleInstances(tenantId, ROLE_ORG_UNIT_OWNER).length > 0;
+}
+
+/**
+ * Is the user the tenant's PrimaryContact, or the Owner of this OrgUnit? They, and no one else,
+ * give an OrgUnit from before Hierarchy V2 the tenant's default category and assign its existing
+ * rooms to it (verji/verji-src#2117). The OrgUnit's own PrimaryContact does not: they are often a
+ * guest from the partner organization. The backend decides again from the tenant's records.
+ */
+export function isTenantPrimaryContactOrOrgUnitOwner(
+    roles: VerjiRoleReader,
+    tenantId: string,
+    orgUnitId: string,
+): boolean {
+    return isTenantPrimaryContact(roles, tenantId) || isOrgUnitOwner(roles, tenantId, orgUnitId);
 }
 
 /**

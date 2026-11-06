@@ -53,6 +53,7 @@ import {
 import { showAddExistingGuestOrgDialog } from "../dialogs/verji/AddExistingGuestOrgDialog";
 import { showAddExistingRoomToOrgUnitDialog } from "../dialogs/verji/AddExistingRoomToOrgUnitDialog";
 import { isOrganizationApiConfigured } from "../../../stores/verji/verjiOrgUnitRooms";
+import { useHasOrgUnitWithoutCategory } from "../../../hooks/useHasOrgUnitWithoutCategory";
 
 interface IProps extends IContextMenuProps {
     space?: Room;
@@ -67,10 +68,18 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     // VERJI: the same create-room rule as the Rooms sublist "+", resolved for the space this menu
     // belongs to. Called before the early return below — it is a hook.
     const createRoomGate = useVerjiGate(space, getCreateRoomGate);
-    // VERJI: the tenant's PrimaryContact brings guest orgs and rooms from before Hierarchy V2 in
-    // (verji/verji-src#2117). Hooks too, so before the early return.
+    // VERJI: the tenant's PrimaryContact, and a guest org's Owner for their own, bring guest orgs and
+    // rooms from before Hierarchy V2 in (verji/verji-src#2117). Hooks too, so before the early return.
+    // The options call the Organization API, so they are offered only where it is configured. An
+    // Owner is offered "Add existing Guest Organization" once the API says one of theirs has no
+    // category yet.
+    const organizationApi = isOrganizationApiConfigured();
     const addExistingGuestOrgGate = useVerjiGate(space, getAddExistingGuestOrgGate);
     const addExistingRoomGate = useVerjiGate(space, getAddExistingRoomGate);
+    const hasOrgUnitWithoutCategory = useHasOrgUnitWithoutCategory(
+        space,
+        organizationApi && isGateOffered(addExistingGuestOrgGate),
+    );
 
     if (!space) return null;
 
@@ -173,8 +182,8 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     // which they call, is configured. They do not ask for the right to send m.space.child: the
     // Organization API does the assigning, not the client.
     const showAddSubSpace = canAddSubSpaces && !!SettingsStore.getValue(UIFeature.AddSubSpace);
-    const organizationApi = isOrganizationApiConfigured();
-    const canAddExistingGuestOrg = organizationApi && isGateOffered(addExistingGuestOrgGate);
+    const canAddExistingGuestOrg =
+        organizationApi && isGateOffered(addExistingGuestOrgGate) && hasOrgUnitWithoutCategory;
     const canAddExistingRoom = organizationApi && isGateOffered(addExistingRoomGate);
     // VERJI END
 
@@ -262,7 +271,7 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
                         <BetaPill />
                     </IconizedContextMenuOption>
                 )}
-                {/* VERJI: verji/verji-src#2117 — the tenant's PrimaryContact only */}
+                {/* VERJI: verji/verji-src#2117 — the tenant's PrimaryContact, and a guest org's Owner */}
                 {canAddExistingGuestOrg && (
                     <IconizedContextMenuOption
                         data-testid="add-existing-guest-org-option"
