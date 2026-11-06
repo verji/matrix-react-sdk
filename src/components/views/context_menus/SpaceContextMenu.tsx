@@ -52,6 +52,7 @@ import {
 } from "../../../stores/verji/verjiGates";
 import { showAddExistingGuestOrgDialog } from "../dialogs/verji/AddExistingGuestOrgDialog";
 import { showAddExistingRoomToOrgUnitDialog } from "../dialogs/verji/AddExistingRoomToOrgUnitDialog";
+import { isOrganizationApiConfigured } from "../../../stores/verji/verjiOrgUnitRooms";
 
 interface IProps extends IContextMenuProps {
     space?: Room;
@@ -168,11 +169,13 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     const canAddVideoRooms = canAddRooms && videoRoomsEnabled;
     const canAddSubSpaces = hasPermissionToAddSpaceChild && shouldShowComponent(UIComponent.CreateSpaces);
     // VERJI START: the two "Add existing" options of verji/verji-src#2117 exist only in the beta,
-    // so they render on Allowed alone, never on NotGated. They do not ask for the right to send
-    // m.space.child: the Organization API does the assigning, not the client.
+    // so they render on Allowed alone, never on NotGated, and only where the Organization API,
+    // which they call, is configured. They do not ask for the right to send m.space.child: the
+    // Organization API does the assigning, not the client.
     const showAddSubSpace = canAddSubSpaces && !!SettingsStore.getValue(UIFeature.AddSubSpace);
-    const canAddExistingGuestOrg = isGateOffered(addExistingGuestOrgGate);
-    const canAddExistingRoom = isGateOffered(addExistingRoomGate);
+    const organizationApi = isOrganizationApiConfigured();
+    const canAddExistingGuestOrg = organizationApi && isGateOffered(addExistingGuestOrgGate);
+    const canAddExistingRoom = organizationApi && isGateOffered(addExistingRoomGate);
     // VERJI END
 
     let newRoomSection: JSX.Element | null = null;

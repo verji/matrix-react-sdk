@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ClientEvent, MatrixClient, Room, RoomEvent, RoomStateEvent } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -93,15 +93,26 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
     const [query, setQuery] = useState("");
     const [phase, setPhase] = useState<Phase>({ kind: "pick" });
     const [error, setError] = useState<string | null>(null);
+    // An answer that arrives after the dialog closed changes nothing. A layout effect, so the flag
+    // is down as the dialog unmounts rather than when React gets round to its passive cleanups.
+    const mounted = useRef(true);
+    useLayoutEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
     const load = useCallback(async (): Promise<void> => {
         setLoadError(false);
         setOrgUnits(null);
         try {
             const list = await getOrgUnitsWithoutCategory(client, tenantId);
+            if (!mounted.current) return;
             setOrgUnits([...list].sort((a, b) => a.name.localeCompare(b.name)));
         } catch (e) {
             logger.error("[Verji.OrgUnitRooms] Failed to list the org units", describeError(e));
+            if (!mounted.current) return;
             setLoadError(true);
         }
     }, [client, tenantId]);
@@ -121,9 +132,11 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
         setPhase({ kind: "sending", orgUnit });
         try {
             await assignDefaultOrgUnitCategory(client, tenantId, orgUnit.id);
+            if (!mounted.current) return;
             setPhase({ kind: "waiting", orgUnit });
         } catch (e) {
             logger.error("[Verji.OrgUnitRooms] Failed to bring the org unit in", orgUnit.id, describeError(e));
+            if (!mounted.current) return;
             setError(_t("verji|add_existing|guest_org_failed", { orgUnit: orgUnit.name }));
             setPhase({ kind: "pick" });
         }

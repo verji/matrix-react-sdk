@@ -23,6 +23,7 @@
             "refused_no_space": "%(orgUnit)s does not have its space yet. Try again in a moment.",
             "refused_not_a_room": "Only rooms can be added, not spaces or direct messages.",
             "refused_not_in_tenant": "This room does not belong to %(tenant)s.",
+            "refused_not_private": "Only private rooms can be added to a guest organization.",
             "refused_room_unreadable": "This room could not be read. Try again later.",
             "room_description": "Rooms you are in that are not in a guest organization yet. Suggested rooms have people from %(orgUnit)s in them.",
             "room_failed": "The room could not be added. Try again.",
@@ -32,7 +33,8 @@
             "section_internal": "Only people from %(tenant)s",
             "section_refused": "Cannot be added",
             "section_suggested": "Suggested",
-            "show_all_rooms": "Show all rooms"
+            "show_all_rooms": "Show all rooms",
+            "unnamed_room": "Unnamed room"
         },
         "gate": {
             "onboard_denied_guest": "You are a guest in %(tenant)s, so you cannot invite new users to this space.",

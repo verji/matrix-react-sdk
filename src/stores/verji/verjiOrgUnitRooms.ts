@@ -17,8 +17,11 @@ limitations under the License.
 import { KnownMembership } from "matrix-js-sdk/src/types";
 import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
 import { getVerjiApiSdk } from "@verji/verji-api-sdk/lib/asyncInit";
+import { convertToVerjiSdkConfig, VerjiAppConfig } from "@verji/verji-api-sdk/lib/utils/convertConfig";
+import { hasService } from "@verji/verji-api-sdk/lib/utils/isValidVerjiSdkConfig";
 
 import type { OrgUnit, OrgUnitRoomCandidate, VerjiApiSdk } from "@verji/verji-api-sdk";
+import SdkConfig from "../../SdkConfig";
 import { resolveVerjiSpaceContext } from "./VerjiSpaceContext";
 
 /**
@@ -32,6 +35,18 @@ import { resolveVerjiSpaceContext } from "./VerjiSpaceContext";
  * The SDK is the one `VerjiPermissionsStore` initialises. The options that lead here are offered
  * only once that store has a tenant's access context, so the SDK is up by then.
  */
+
+/**
+ * Is the Organization API configured? Without `verjiOrganizationUrl` the SDK has no
+ * `organizationService` and every call below fails, so the options that lead here are not
+ * offered. Asked of the config the SDK is created from, the same way, so the menu can ask it
+ * synchronously.
+ */
+export function isOrganizationApiConfigured(): boolean {
+    // `IConfigOptions` does not declare the Verji URLs; `VerjiPermissionsStore` casts the same way.
+    const appConfig = SdkConfig.get() as Partial<VerjiAppConfig>;
+    return hasService(convertToVerjiSdkConfig(appConfig), "organization");
+}
 
 type OrganizationService = NonNullable<VerjiApiSdk["api"]["organizationService"]>;
 type VerjiAccessToken = Parameters<OrganizationService["getOrgUnits"]>[0];

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -26,6 +26,7 @@ import SearchBox from "../../../structures/SearchBox";
 import AutoHideScrollbar from "../../../structures/AutoHideScrollbar";
 import AccessibleButton from "../../elements/AccessibleButton";
 import Spinner from "../../elements/Spinner";
+import BaseAvatar from "../../avatars/BaseAvatar";
 import DecoratedRoomAvatar from "../../avatars/DecoratedRoomAvatar";
 import SpaceStore from "../../../../stores/spaces/SpaceStore";
 import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceContext";
@@ -45,7 +46,9 @@ import {
  * `m.space.child` itself, while here the server decides which rooms fit and does the assigning.
  *
  * Suggested rooms come first; rooms of the tenant's people only are behind "Show all rooms";
- * refused rooms are listed last, disabled, with why.
+ * refused rooms are listed last, disabled, with why. A refused room has someone from outside the
+ * guest org in it, so its row shows nothing taken from its members: not the name matrix-js-sdk
+ * makes up from them for a room that has none, nor their avatar.
  */
 
 interface IProps {
@@ -75,6 +78,8 @@ export function describeOrgUnitRoomConflict(reason: string | undefined, names: N
             return _t("verji|add_existing|refused_already_in_org_unit");
         case "CallerNotInRoom":
             return _t("verji|add_existing|refused_caller_not_in_room");
+        case "NotPrivate":
+            return _t("verji|add_existing|refused_not_private");
         case "RoomUnreadable":
             return _t("verji|add_existing|refused_room_unreadable");
         case "OrgUnitHasNoSpace":
@@ -84,7 +89,30 @@ export function describeOrgUnitRoomConflict(reason: string | undefined, names: N
     }
 }
 
-type RowState = { kind: "idle" } | { kind: "busy" } | { kind: "added" } | { kind: "refused"; message: string };
+/**
+ * The 409 reasons that hold whatever the client does next: a room refused for one of them stays
+ * disabled. Any other reason, known or not, may pass, so the room can be tried again.
+ */
+const PERMANENT_REFUSALS: ReadonlySet<string> = new Set([
+    "MemberOutsideOrgUnit",
+    "NotARoom",
+    "NotInTenant",
+    "AlreadyInOrgUnit",
+    "CallerNotInRoom",
+    "NotPrivate",
+]);
+
+const isPermanentRefusal = (reason: string | null | undefined): reason is string =>
+    !!reason && PERMANENT_REFUSALS.has(reason);
+
+type RowState =
+    | { kind: "idle" }
+    | { kind: "busy" }
+    | { kind: "added" }
+    // Refused for good: disabled.
+    | { kind: "refused"; message: string }
+    // Refused for now, or for a reason the client does not know: can be tried again.
+    | { kind: "failed"; message: string };
 
 const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     client,
@@ -101,18 +129,33 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     const [query, setQuery] = useState("");
     const [rows, setRows] = useState<Record<string, RowState>>({});
     const [error, setError] = useState<string | null>(null);
+    // An answer that arrives after the dialog closed changes nothing. A layout effect, so the flag
+    // is down as the dialog unmounts rather than when React gets round to its passive cleanups.
+    const mounted = useRef(true);
+    useLayoutEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
     const load = useCallback(async (): Promise<void> => {
         setLoadError(null);
         setCandidates(null);
         try {
-            setCandidates(await getOrgUnitRoomCandidates(client, tenantId, orgUnitId));
+            const list = await getOrgUnitRoomCandidates(client, tenantId, orgUnitId);
+            if (!mounted.current) return;
+            setCandidates(list);
         } catch (e) {
             const reason = getConflictReason(e);
             if (reason === null)
                 logger.error("[Verji.OrgUnitRooms] Failed to list the room candidates", describeError(e));
+            if (!mounted.current) return;
+            // The list's one refusal the client can explain; anything else is a list that did not load.
             setLoadError(
-                reason === null ? _t("verji|add_existing|load_failed") : describeOrgUnitRoomConflict(reason, names),
+                reason === "OrgUnitHasNoSpace"
+                    ? describeOrgUnitRoomConflict(reason, names)
+                    : _t("verji|add_existing|load_failed"),
             );
         }
     }, [client, tenantId, orgUnitId, names]);
@@ -129,23 +172,37 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         setRows((r) => ({ ...r, [candidate.roomId]: { kind: "busy" } }));
         try {
             await assignRoomToOrgUnit(client, tenantId, orgUnitId, candidate.roomId);
+            if (!mounted.current) return;
             setRows((r) => ({ ...r, [candidate.roomId]: { kind: "added" } }));
         } catch (e) {
             const reason = getConflictReason(e);
             if (reason === null) {
                 logger.error("[Verji.OrgUnitRooms] Failed to assign the room", candidate.roomId, describeError(e));
+                if (!mounted.current) return;
                 setError(_t("verji|add_existing|room_failed"));
                 setRows((r) => ({ ...r, [candidate.roomId]: { kind: "idle" } }));
                 return;
             }
-            // The server's answer for this room: shown on its row, which stays disabled.
+            if (!mounted.current) return;
+            // The server's answer for this room, shown on its row: disabled for a permanent refusal,
+            // left to be tried again for any other.
             const message = describeOrgUnitRoomConflict(reason, names);
-            setRows((r) => ({ ...r, [candidate.roomId]: { kind: "refused", message } }));
+            const kind = isPermanentRefusal(reason) ? "refused" : "failed";
+            setRows((r) => ({ ...r, [candidate.roomId]: { kind, message } }));
         }
     };
 
+    /**
+     * The row's name, which the search matches too. A refused room never takes the name
+     * matrix-js-sdk computes from its members, which would name someone from outside the guest org.
+     */
+    const label = (candidate: OrgUnitRoomCandidate): string =>
+        candidate.fit === "Refused"
+            ? candidate.name || _t("verji|add_existing|unnamed_room")
+            : candidate.name || client.getRoom(candidate.roomId)?.name || candidate.roomId;
+
     const lcQuery = query.toLowerCase().trim();
-    const matching = (candidates ?? []).filter((c) => !lcQuery || c.name.toLowerCase().includes(lcQuery));
+    const matching = (candidates ?? []).filter((c) => !lcQuery || label(c).toLowerCase().includes(lcQuery));
     const suggested = matching.filter((c) => c.fit === "Suggested");
     const internal = matching.filter((c) => c.fit === "Internal");
     // A fit the client does not know yet is not offered: the server would refuse it or the client
@@ -156,26 +213,35 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         const room: Room | null = client.getRoom(candidate.roomId);
         const row = rows[candidate.roomId] ?? { kind: "idle" };
         const isRefused = candidate.fit === "Refused";
+        const name = label(candidate);
+        // A refused room's reason, or what its fit means when the reason is missing or not one the
+        // client knows: someone in it is from outside the guest org.
         const hint = isRefused
-            ? describeOrgUnitRoomConflict(candidate.reason ?? undefined, names)
-            : row.kind === "refused"
+            ? describeOrgUnitRoomConflict(
+                  isPermanentRefusal(candidate.reason) ? candidate.reason : "MemberOutsideOrgUnit",
+                  names,
+              )
+            : row.kind === "refused" || row.kind === "failed"
               ? row.message
               : undefined;
+        let avatar: JSX.Element | null = null;
+        if (isRefused) avatar = <BaseAvatar name={name} idName={candidate.roomId} size="32px" />;
+        else if (room) avatar = <DecoratedRoomAvatar room={room} size="32px" />;
         return (
             <div
                 key={candidate.roomId}
                 className="mx_AddExistingToSpace_entry mx_VerjiAddExistingToOrgUnit_entry"
                 data-testid={`verji-room-candidate-${candidate.roomId}`}
             >
-                {room && <DecoratedRoomAvatar room={room} size="32px" />}
+                {avatar}
                 <span className="mx_AddExistingToSpace_entry_name">
-                    {candidate.name || room?.name || candidate.roomId}
+                    {name}
                     {hint && <div className="mx_VerjiAddExistingToOrgUnit_hint">{hint}</div>}
                 </span>
                 <AccessibleButton
                     kind="primary_outline"
                     className="mx_VerjiAddExistingToOrgUnit_add"
-                    disabled={isRefused || busy || row.kind !== "idle"}
+                    disabled={isRefused || busy || (row.kind !== "idle" && row.kind !== "failed")}
                     onClick={() => void onAdd(candidate)}
                 >
                     {row.kind === "added" ? _t("verji|add_existing|added") : _t("action|add")}
@@ -206,6 +272,13 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         body = <Spinner />;
     } else {
         const nothingShown = suggested.length === 0 && (!showAll || internal.length === 0) && refused.length === 0;
+        // Without a search, rooms behind "Show all rooms" are not "no results": the link is the way on.
+        let empty: string | null = null;
+        if (nothingShown && lcQuery) {
+            empty = _t("common|no_results");
+        } else if (nothingShown && internal.length === 0) {
+            empty = _t("verji|add_existing|no_rooms", { orgUnit: orgUnitName });
+        }
         body = (
             <>
                 {section("verji-room-candidates-suggested", _t("verji|add_existing|section_suggested"), suggested)}
@@ -223,13 +296,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
                     </div>
                 )}
                 {section("verji-room-candidates-refused", _t("verji|add_existing|section_refused"), refused)}
-                {nothingShown && (
-                    <span className="mx_AddExistingToSpace_noResults">
-                        {lcQuery || internal.length > 0
-                            ? _t("common|no_results")
-                            : _t("verji|add_existing|no_rooms", { orgUnit: orgUnitName })}
-                    </span>
-                )}
+                {empty && <span className="mx_AddExistingToSpace_noResults">{empty}</span>}
             </>
         );
     }

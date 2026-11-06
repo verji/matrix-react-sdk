@@ -33,6 +33,7 @@ import { leaveSpace } from "../../../../src/utils/leave-behaviour";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
 import { UIComponent, UIFeature } from "../../../../src/settings/UIFeature";
 import SettingsStore from "../../../../src/settings/SettingsStore";
+import SdkConfig from "../../../../src/SdkConfig"; // VERJI: verji/verji-src#2117
 import { _t } from "../../../../src/languageHandler";
 import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermissionsStore";
 import { mkEvent, mockStateEventImplementation } from "../../../test-utils";
@@ -464,11 +465,14 @@ describe("<SpaceContextMenu />", () => {
 
         beforeEach(() => {
             mocked(shouldShowComponent).mockReturnValue(true);
+            // The options call the Organization API, so they are offered only where it is configured.
+            SdkConfig.put({ verjiItopsUrl: "https://itops.test", verjiOrganizationUrl: "https://org.test" } as never);
         });
 
         afterEach(() => {
             VerjiPermissionsStore.instance["resetFreshnessRequests"]();
             (VerjiPermissionsStore.instance as unknown as { permissions: unknown }).permissions = undefined;
+            SdkConfig.reset();
             jest.restoreAllMocks();
         });
 
@@ -516,6 +520,19 @@ describe("<SpaceContextMenu />", () => {
             ["the guest org's Owner", { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] }],
         ])("offers neither to %s, and leaves no Add header behind", (_who, grants) => {
             mockStore(true, grants);
+
+            for (const events of [CATEGORY, ORG_UNIT]) {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
+                unmount();
+            }
+        });
+
+        it("offers neither, and no Add header, when the Organization API is not configured", () => {
+            mockStore(true, PRIMARY_CONTACT);
+            SdkConfig.put({ verjiItopsUrl: "https://itops.test" } as never);
 
             for (const events of [CATEGORY, ORG_UNIT]) {
                 const { unmount } = renderComponent({ space: makeVerjiSpace(events) });

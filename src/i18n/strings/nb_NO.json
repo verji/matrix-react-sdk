@@ -23,6 +23,7 @@
             "refused_no_space": "%(orgUnit)s har ikke fått sitt område ennå. Prøv igjen om et øyeblikk.",
             "refused_not_a_room": "Bare rom kan legges til, ikke områder eller direktemeldinger.",
             "refused_not_in_tenant": "Dette rommet hører ikke til %(tenant)s.",
+            "refused_not_private": "Bare private rom kan legges til i en gjesteorganisasjon.",
             "refused_room_unreadable": "Rommet kunne ikke leses. Prøv igjen senere.",
             "room_description": "Rom du er med i som ikke er i en gjesteorganisasjon ennå. Foreslåtte rom har personer fra %(orgUnit)s.",
             "room_failed": "Rommet kunne ikke legges til. Prøv igjen.",
@@ -32,7 +33,8 @@
             "section_internal": "Bare personer fra %(tenant)s",
             "section_refused": "Kan ikke legges til",
             "section_suggested": "Foreslått",
-            "show_all_rooms": "Vis alle rom"
+            "show_all_rooms": "Vis alle rom",
+            "unnamed_room": "Rom uten navn"
         },
         "gate": {
             "onboard_denied_guest": "Du er gjest i %(tenant)s, så du kan ikke invitere nye brukere til dette området.",

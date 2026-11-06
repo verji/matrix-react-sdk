@@ -15,14 +15,15 @@ limitations under the License.
 */
 
 import React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MatrixClient } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
+import { KnownMembership } from "matrix-js-sdk/src/types";
 import { mocked } from "jest-mock";
 import { OrgUnitRoomConflictError } from "@verji/verji-api-sdk";
 
 import type { OrgUnitRoomCandidate } from "@verji/verji-api-sdk";
-import { stubClient } from "../../../../test-utils";
+import { mkMembership, stubClient } from "../../../../test-utils";
 import AddExistingRoomToOrgUnitDialog from "../../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog";
 import { assignRoomToOrgUnit, getOrgUnitRoomCandidates } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
 
@@ -35,7 +36,7 @@ jest.mock("../../../../../src/stores/verji/verjiOrgUnitRooms", () => ({
 
 const candidate = (
     roomId: string,
-    name: string,
+    name: string | null,
     fit: OrgUnitRoomCandidate["fit"],
     reason: OrgUnitRoomCandidate["reason"] = null,
 ): OrgUnitRoomCandidate => ({ roomId, name, fit, reason });
@@ -43,6 +44,22 @@ const candidate = (
 const SUGGESTED = candidate("!suggested:server", "Project Kari", "Suggested");
 const INTERNAL = candidate("!internal:server", "Board", "Internal");
 const REFUSED = candidate("!refused:server", "Mixed room", "Refused", "MemberOutsideOrgUnit");
+
+interface Deferred<T> {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+    reject: (error: unknown) => void;
+}
+
+const deferred = <T,>(): Deferred<T> => {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+};
 
 describe("<AddExistingRoomToOrgUnitDialog />", () => {
     let client: MatrixClient;
@@ -67,6 +84,10 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         await act(async () => {
             await userEvent.click(addButton(roomId));
         });
+    };
+    /** Type a search in one change, which the search box passes on at once. */
+    const search = (query: string): void => {
+        fireEvent.change(screen.getByPlaceholderText("Search rooms"), { target: { value: query } });
     };
 
     beforeEach(() => {
@@ -116,6 +137,93 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         expect(screen.queryByRole("button", { name: "Show all rooms" })).not.toBeInTheDocument();
     });
 
+    it("does not offer a room whose fit the client does not know, even behind 'Show all rooms'", async () => {
+        const unknown = { ...candidate("!unknown:server", "Future room", "Internal"), fit: "Future" };
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([SUGGESTED, INTERNAL, unknown as OrgUnitRoomCandidate]);
+        renderDialog();
+
+        await userEvent.click(await screen.findByRole("button", { name: "Show all rooms" }));
+
+        expect(screen.getByText("Board")).toBeInTheDocument();
+        expect(screen.queryByText("Future room")).not.toBeInTheDocument();
+    });
+
+    it("filters the rooms on the name each row shows, a room with no name too", async () => {
+        const nameless = candidate("!nameless:server", null, "Suggested");
+        const namelessRefused = candidate("!nameless-refused:server", null, "Refused", "MemberOutsideOrgUnit");
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([SUGGESTED, nameless, INTERNAL, REFUSED, namelessRefused]);
+        renderDialog();
+        await screen.findByTestId("verji-room-candidates-suggested");
+
+        search("proj");
+
+        expect(screen.getByText("Project Kari")).toBeInTheDocument();
+        expect(screen.queryByText("!nameless:server")).not.toBeInTheDocument();
+        expect(screen.queryByText("Mixed room")).not.toBeInTheDocument();
+        expect(screen.queryByText("Unnamed room")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Show all rooms" })).not.toBeInTheDocument();
+
+        // A suggested room with no name, and no room in the client, shows and matches its id; a
+        // refused one shows and matches "Unnamed room".
+        search("unnamed");
+        await waitFor(() => expect(screen.queryByText("Project Kari")).not.toBeInTheDocument());
+        expect(within(row(namelessRefused.roomId)).getByText("Unnamed room")).toBeInTheDocument();
+
+        search("nameless:server");
+        await waitFor(() => expect(screen.getByText("!nameless:server")).toBeInTheDocument());
+        expect(screen.queryByText("Unnamed room")).not.toBeInTheDocument();
+    });
+
+    it("never shows a refused room under a name or avatar taken from its members", async () => {
+        const eve = "@eve:outside.example";
+        const me = client.getSafeUserId();
+        const room = new Room("!mixed:server", client, me);
+        room.currentState.setStateEvents([
+            mkMembership({ event: true, room: room.roomId, mship: KnownMembership.Join, user: me, skey: me }),
+            mkMembership({
+                event: true,
+                room: room.roomId,
+                mship: KnownMembership.Join,
+                user: eve,
+                skey: eve,
+                name: "Eve Outsider",
+                url: "mxc://outside.example/eve",
+            }),
+        ]);
+        room.recalculate();
+        expect(room.name).toContain("Eve Outsider");
+        mocked(client.getRoom).mockImplementation((id) => (id === room.roomId ? room : null));
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([
+            candidate(room.roomId, null, "Refused", "MemberOutsideOrgUnit"),
+        ]);
+        renderDialog();
+
+        await screen.findByTestId("verji-room-candidates-refused");
+
+        const refused = row(room.roomId);
+        expect(refused).not.toHaveTextContent("Eve");
+        expect(within(refused).getByText("Unnamed room")).toBeInTheDocument();
+        expect(refused.querySelector("img")).toBeNull();
+        expect(refused.querySelector(".mx_BaseAvatar")).toHaveTextContent("U");
+    });
+
+    it.each([null, "SomethingNew"])(
+        "explains a refused room whose reason is %s by its fit, not as a failure",
+        async (reason) => {
+            mocked(getOrgUnitRoomCandidates).mockResolvedValue([
+                { ...REFUSED, reason: reason as OrgUnitRoomCandidate["reason"] },
+            ]);
+            renderDialog();
+
+            await screen.findByTestId("verji-room-candidates-refused");
+            expect(row(REFUSED.roomId)).toHaveTextContent(
+                "Someone in this room is not part of Kari AS or Acme AS, so it cannot be added.",
+            );
+            expect(row(REFUSED.roomId)).not.toHaveTextContent("Try again");
+            expect(addButton(REFUSED.roomId)).toHaveAttribute("aria-disabled", "true");
+        },
+    );
+
     it("never assigns a refused room", async () => {
         renderDialog();
 
@@ -139,14 +247,37 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         expect(onFinished).toHaveBeenCalledWith(true);
     });
 
+    it("sends one assignment for a double click, and keeps Done disabled until it is answered", async () => {
+        const pending = deferred<void>();
+        mocked(assignRoomToOrgUnit).mockReturnValue(pending.promise);
+        renderDialog();
+        await screen.findByTestId("verji-room-candidates-suggested");
+
+        const button = addButton(SUGGESTED.roomId);
+        fireEvent.click(button);
+        fireEvent.click(button);
+        fireEvent.keyDown(button, { key: "Enter" });
+
+        expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(1);
+        const done = screen.getByRole("button", { name: "Done" });
+        expect(done).toHaveAttribute("aria-disabled", "true");
+        fireEvent.click(done);
+        expect(onFinished).not.toHaveBeenCalled();
+
+        await act(async () => {
+            pending.resolve();
+            await pending.promise;
+        });
+        expect(done).not.toHaveAttribute("aria-disabled", "true");
+    });
+
     it.each([
         ["MemberOutsideOrgUnit", "Someone in this room is not part of Kari AS or Acme AS, so it cannot be added."],
         ["AlreadyInOrgUnit", "This room is already in a guest organization."],
         ["CallerNotInRoom", "You are no longer in this room."],
         ["NotInTenant", "This room does not belong to Acme AS."],
         ["NotARoom", "Only rooms can be added, not spaces or direct messages."],
-        ["OrgUnitHasNoSpace", "Kari AS does not have its space yet. Try again in a moment."],
-        ["SomethingNew", "The room could not be added. Try again."],
+        ["NotPrivate", "Only private rooms can be added to a guest organization."],
     ])("shows a 409 with reason %s as a readable message on the room, and disables it", async (reason, message) => {
         mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError(reason));
         renderDialog();
@@ -157,6 +288,28 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         expect(await within(row(SUGGESTED.roomId)).findByText(message)).toBeInTheDocument();
         expect(addButton(SUGGESTED.roomId)).toHaveTextContent("Add");
         expect(addButton(SUGGESTED.roomId)).toHaveAttribute("aria-disabled", "true");
+    });
+
+    it.each([
+        ["RoomUnreadable", "This room could not be read. Try again later."],
+        ["OrgUnitHasNoSpace", "Kari AS does not have its space yet. Try again in a moment."],
+        ["SpaceTenantNotFound", "The room could not be added. Try again."],
+        [undefined, "The room could not be added. Try again."],
+    ])("shows a 409 with reason %s on the room, and lets it be tried again", async (reason, message) => {
+        mocked(assignRoomToOrgUnit).mockRejectedValueOnce(new OrgUnitRoomConflictError(reason));
+        renderDialog();
+
+        await screen.findByTestId("verji-room-candidates-suggested");
+        await clickAdd(SUGGESTED.roomId);
+
+        expect(within(row(SUGGESTED.roomId)).getByText(message)).toBeInTheDocument();
+        expect(addButton(SUGGESTED.roomId)).not.toHaveAttribute("aria-disabled", "true");
+
+        await clickAdd(SUGGESTED.roomId);
+
+        expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(2);
+        expect(addButton(SUGGESTED.roomId)).toHaveTextContent("Added");
+        expect(row(SUGGESTED.roomId)).not.toHaveTextContent(message);
     });
 
     it("keeps a room that failed for another reason available, with a general message", async () => {
@@ -179,10 +332,91 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ).toBeInTheDocument();
     });
 
+    it.each([
+        ["a 409 with a reason the client does not know", () => new OrgUnitRoomConflictError("SomethingNew")],
+        ["a 409 with no reason", () => new OrgUnitRoomConflictError(undefined)],
+        ["any other failure", () => new Error("down")],
+    ])("says the list could not be loaded for %s, and retries", async (_what, failure) => {
+        mocked(getOrgUnitRoomCandidates).mockRejectedValueOnce(failure());
+        renderDialog();
+
+        expect(await screen.findByText("Could not load the list. Try again.")).toBeInTheDocument();
+        expect(screen.queryByText("The room could not be added. Try again.")).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+        expect(await screen.findByTestId("verji-room-candidates-suggested")).toBeInTheDocument();
+    });
+
     it("says so when none of the caller's rooms can be added", async () => {
         mocked(getOrgUnitRoomCandidates).mockResolvedValue([]);
         renderDialog();
 
         expect(await screen.findByText("None of your rooms can be added to Kari AS.")).toBeInTheDocument();
+    });
+
+    it("says 'No results' only for a search, not for rooms behind 'Show all rooms'", async () => {
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([INTERNAL]);
+        renderDialog();
+
+        expect(await screen.findByRole("button", { name: "Show all rooms" })).toBeInTheDocument();
+        expect(screen.queryByText("No results")).not.toBeInTheDocument();
+        expect(screen.queryByText("None of your rooms can be added to Kari AS.")).not.toBeInTheDocument();
+
+        search("nothing like it");
+
+        expect(screen.getByText("No results")).toBeInTheDocument();
+    });
+
+    describe("once closed", () => {
+        let errors: jest.SpyInstance;
+        /** React's warning for a state update on an unmounted component. */
+        const updatesAfterUnmount = (): unknown[][] =>
+            errors.mock.calls.filter((call) => String(call[0]).includes("unmounted component"));
+
+        beforeEach(() => {
+            errors = jest.spyOn(console, "error");
+        });
+
+        afterEach(() => errors.mockRestore());
+
+        it.each([
+            ["the list arrives", (list: Deferred<OrgUnitRoomCandidate[]>) => list.resolve([SUGGESTED])],
+            ["the list fails", (list: Deferred<OrgUnitRoomCandidate[]>) => list.reject(new Error("down"))],
+        ])("changes nothing when %s", async (_what, settle) => {
+            const list = deferred<OrgUnitRoomCandidate[]>();
+            mocked(getOrgUnitRoomCandidates).mockReturnValue(list.promise);
+            const { unmount } = renderDialog();
+
+            unmount();
+            await act(async () => {
+                settle(list);
+                await list.promise.catch(() => undefined);
+            });
+
+            expect(updatesAfterUnmount()).toEqual([]);
+        });
+
+        it.each([
+            ["the room is added", (answer: Deferred<void>) => answer.resolve()],
+            ["the assignment fails", (answer: Deferred<void>) => answer.reject(new Error("down"))],
+            [
+                "the room is refused",
+                (answer: Deferred<void>) => answer.reject(new OrgUnitRoomConflictError("MemberOutsideOrgUnit")),
+            ],
+        ])("changes nothing when %s", async (_what, settle) => {
+            const answer = deferred<void>();
+            mocked(assignRoomToOrgUnit).mockReturnValue(answer.promise);
+            const { unmount } = renderDialog();
+            await screen.findByTestId("verji-room-candidates-suggested");
+
+            fireEvent.click(addButton(SUGGESTED.roomId));
+            unmount();
+            await act(async () => {
+                settle(answer);
+                await answer.promise.catch(() => undefined);
+            });
+
+            expect(updatesAfterUnmount()).toEqual([]);
+        });
     });
 });
