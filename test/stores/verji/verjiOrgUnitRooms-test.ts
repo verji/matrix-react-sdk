@@ -26,7 +26,7 @@ import {
     assignRoomToOrgUnit,
     BRING_IN_SETTLES_AFTER_MS,
     bringInClock,
-    currentSignIn,
+    currentSignedInUser,
     describeError,
     findOrgUnitSpace,
     forgetHasOrgUnitWithoutCategory,
@@ -234,6 +234,8 @@ describe("verjiOrgUnitRooms", () => {
     });
 
     describe("whether the user has an org unit to bring in, as last answered", () => {
+        // As `VerjiPermissionsStore.onReady` does: the menus and the dialogs ask while a user is signed in.
+        beforeEach(() => setSignedInUser("@alice:server"));
         afterEach(() => forgetHasOrgUnitWithoutCategory());
 
         it("is kept per tenant, and holds only under the access context it was asked under", () => {
@@ -361,7 +363,7 @@ describe("verjiOrgUnitRooms", () => {
             rememberHasOrgUnitWithoutCategory("t1", 7, true);
             rememberHasOrgUnitWithoutCategory("t2", 7, true);
 
-            markBringingIn("t1", "u1", currentSignIn());
+            markBringingIn("t1", "u1", currentSignedInUser());
             expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
             expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBe(true);
 
@@ -385,7 +387,7 @@ describe("verjiOrgUnitRooms", () => {
         });
 
         it("is kept again once every tenant's answer is forgotten, bring-ins and all", () => {
-            markBringingIn("t1", "u1", currentSignIn());
+            markBringingIn("t1", "u1", currentSignedInUser());
 
             forgetHasOrgUnitWithoutCategory();
             rememberHasOrgUnitWithoutCategory("t1", 7, true);
@@ -394,8 +396,8 @@ describe("verjiOrgUnitRooms", () => {
         });
 
         it("is not kept while another org unit of the tenant is still being brought in", async () => {
-            markBringingIn("t1", "u1", currentSignIn());
-            markBringingIn("t1", "u2", currentSignIn());
+            markBringingIn("t1", "u1", currentSignedInUser());
+            markBringingIn("t1", "u2", currentSignedInUser());
 
             markBroughtIn("t1", "u1");
             await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
@@ -414,7 +416,7 @@ describe("verjiOrgUnitRooms", () => {
             afterEach(() => now.mockRestore());
 
             it("is not kept for nearly five minutes after the 202", async () => {
-                markBringingIn("t1", "u1", currentSignIn());
+                markBringingIn("t1", "u1", currentSignedInUser());
 
                 now.mockReturnValue(1_000 + 5 * 60 * 1000 - 1);
                 await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
@@ -423,7 +425,7 @@ describe("verjiOrgUnitRooms", () => {
             });
 
             it("is kept again once the time a bring-in takes is up, but not when asked before", async () => {
-                markBringingIn("t1", "u1", currentSignIn());
+                markBringingIn("t1", "u1", currentSignedInUser());
 
                 now.mockReturnValue(1_000 + BRING_IN_SETTLES_AFTER_MS - 1);
                 await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
@@ -441,7 +443,7 @@ describe("verjiOrgUnitRooms", () => {
             });
 
             it("is kept again five minutes and a millisecond after the 202", async () => {
-                markBringingIn("t1", "u1", currentSignIn());
+                markBringingIn("t1", "u1", currentSignedInUser());
 
                 now.mockReturnValue(1_000 + 5 * 60 * 1000 + 1);
                 await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
@@ -451,12 +453,10 @@ describe("verjiOrgUnitRooms", () => {
         });
 
         describe("across sign-ins", () => {
-            afterEach(() => setSignedInUser(undefined));
-
             it("keeps the user's answers and bring-ins when the same user signs in again, as after a soft logout", async () => {
                 setSignedInUser("@alice:server");
                 rememberHasOrgUnitWithoutCategory("t1", 7, true);
-                markBringingIn("t2", "u1", currentSignIn());
+                markBringingIn("t2", "u1", currentSignedInUser());
 
                 setSignedInUser(undefined);
                 setSignedInUser("@alice:server");
@@ -467,10 +467,26 @@ describe("verjiOrgUnitRooms", () => {
                 expect(knownHasOrgUnitWithoutCategory("t2", 8)).toBeUndefined();
             });
 
+            it("keeps the user's other bring-ins when one of them settles while nobody is signed in", async () => {
+                setSignedInUser("@alice:server");
+                // Two guest orgs brought in, in two tenants: both 202, and neither space is here yet.
+                markBringingIn("t1", "u1", currentSignedInUser());
+                markBringingIn("t2", "u2", currentSignedInUser());
+
+                // A soft logout. Her dialog for u1, still open on the client signed out, sees u1's space arrive.
+                setSignedInUser(undefined);
+                markBroughtIn("t1", "u1");
+
+                // She signs in again. u2 still has no category: the Organization API still lists it.
+                setSignedInUser("@alice:server");
+                await askHasOrgUnitWithoutCategory("t2", 8, async () => true);
+                expect(knownHasOrgUnitWithoutCategory("t2", 8)).toBeUndefined();
+            });
+
             it("forgets them all, bring-ins included, once another user signs in", async () => {
                 setSignedInUser("@alice:server");
                 rememberHasOrgUnitWithoutCategory("t1", 7, true);
-                markBringingIn("t2", "u1", currentSignIn());
+                markBringingIn("t2", "u1", currentSignedInUser());
 
                 setSignedInUser(undefined);
                 setSignedInUser("@bob:server");
@@ -480,39 +496,68 @@ describe("verjiOrgUnitRooms", () => {
                 expect(knownHasOrgUnitWithoutCategory("t2", 8)).toBe(false);
             });
 
-            it("keeps nothing from a question that lands after the sign-in it was asked in ended", async () => {
-                setSignedInUser("@alice:server");
-                markBringingIn("t1", "u1", currentSignIn());
-                const late = question();
-                const before = askHasOrgUnitWithoutCategory("t1", 7, late.ask);
+            it.each([
+                ["while nobody is signed in", true],
+                ["once the same user signed in again", false],
+            ])(
+                "keeps nothing from a question that lands after the sign-in it was asked in ended, %s",
+                async (_when, whileSignedOut) => {
+                    setSignedInUser("@alice:server");
+                    const late = question();
+                    const before = askHasOrgUnitWithoutCategory("t1", 7, late.ask);
+                    const land = async (): Promise<void> => {
+                        late.answer(true);
+                        await before;
+                    };
 
-                // A soft logout, the question landing while nobody is signed in, and the same user again.
+                    // A soft logout, and the same user again.
+                    setSignedInUser(undefined);
+                    if (whileSignedOut) await land();
+                    setSignedInUser("@alice:server");
+                    if (!whileSignedOut) await land();
+
+                    // Her next menu asks again.
+                    expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+                },
+            );
+
+            it.each([
+                ["while nobody is signed in", true],
+                ["once the same user signed in again", false],
+            ])("marks a bring-in whose 202 lands after a soft logout, %s", async (_when, whileSignedOut) => {
+                setSignedInUser("@alice:server");
+                // Her menu offered the option, and she brought u1 in.
+                await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
+                const sentBy = currentSignedInUser();
+
                 setSignedInUser(undefined);
-                late.answer(true);
-                await before;
+                if (whileSignedOut) markBringingIn("t1", "u1", sentBy);
                 setSignedInUser("@alice:server");
+                if (!whileSignedOut) markBringingIn("t1", "u1", sentBy);
 
-                // u1 is still being brought in: the late answer did not forget it.
+                // u1 still has no category: the Organization API still lists it, and no answer is kept.
                 await askHasOrgUnitWithoutCategory("t1", 8, async () => true);
                 expect(knownHasOrgUnitWithoutCategory("t1", 8)).toBeUndefined();
-                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
             });
 
             it.each([
-                ["while nobody is signed in", undefined],
-                ["once another user signed in", "@bob:server"],
-                ["once the same user signed in again", "@alice:server"],
-            ])("marks nothing for a bring-in whose 202 lands after its sign-in ended, %s", async (_when, next) => {
-                setSignedInUser("@alice:server");
-                const sentIn = currentSignIn();
+                ["after she signed out", true],
+                ["with no sign-out in between", false],
+            ])(
+                "marks nothing for a bring-in whose 202 lands once another user signed in, %s",
+                async (_when, signedOut) => {
+                    setSignedInUser("@alice:server");
+                    await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
+                    const sentBy = currentSignedInUser();
 
-                setSignedInUser(undefined);
-                if (next) setSignedInUser(next);
-                markBringingIn("t1", "u1", sentIn);
+                    if (signedOut) setSignedInUser(undefined);
+                    setSignedInUser("@bob:server");
+                    markBringingIn("t1", "u1", sentBy);
 
-                await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
-                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
-            });
+                    await askHasOrgUnitWithoutCategory("t1", 8, async () => false);
+                    expect(knownHasOrgUnitWithoutCategory("t1", 8)).toBe(false);
+                },
+            );
         });
 
         describe("when the wall clock is changed after the 202", () => {
@@ -534,7 +579,7 @@ describe("verjiOrgUnitRooms", () => {
                 ["set back an hour does not stretch the five minutes", -HOUR, 6 * MINUTE, false],
                 ["set forward an hour does not shorten them", HOUR, MINUTE, undefined],
             ])("%s", async (_what, setBy, passed, kept) => {
-                markBringingIn("t1", "u1", currentSignIn());
+                markBringingIn("t1", "u1", currentSignedInUser());
 
                 wall.mockReturnValue(10 * HOUR + setBy + passed);
                 monotonic.mockReturnValue(1_000 + passed);

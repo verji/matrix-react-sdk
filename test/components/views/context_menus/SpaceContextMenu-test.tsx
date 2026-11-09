@@ -40,7 +40,7 @@ import { mkEvent, mockStateEventImplementation } from "../../../test-utils";
 import { showAddExistingGuestOrgDialog } from "../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog"; // VERJI: verji/verji-src#2117
 import { showAddExistingRoomToOrgUnitDialog } from "../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog"; // VERJI: verji/verji-src#2117
 import {
-    currentSignIn,
+    currentSignedInUser,
     forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
     markBringingIn,
@@ -745,7 +745,7 @@ describe("<SpaceContextMenu />", () => {
 
                 // What AddExistingGuestOrgDialog does once the Organization API took one in (202).
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
 
                 expect(await openMenu()).toBe(false);
                 expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
@@ -825,7 +825,7 @@ describe("<SpaceContextMenu />", () => {
                 renderComponent({ space: makeVerjiSpace(TENANT_INFO) }).unmount();
                 // Meanwhile the guest org is brought in: AddExistingGuestOrgDialog marks it on the 202, and
                 // again once its space arrives, after which answers are kept again.
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
                 markBroughtIn(TENANT, ORG_A);
                 // Menu 1's question lands now, with the answer from before the bring-in.
                 await act(async () => {
@@ -840,7 +840,7 @@ describe("<SpaceContextMenu />", () => {
             it("keeps no answer while a guest org is being brought in, and keeps one again once it has its space", async () => {
                 mockStore(true, OWNER_OF_A);
                 // The 202 only queued the work: the Organization API still lists the guest org without a category.
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
                 expect(await openMenu()).toBe(true);
 

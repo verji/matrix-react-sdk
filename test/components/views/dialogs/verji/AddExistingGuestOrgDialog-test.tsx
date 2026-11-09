@@ -30,9 +30,11 @@ import { showAddExistingRoomToOrgUnitDialog } from "../../../../../src/component
 import {
     askHasOrgUnitWithoutCategory,
     assignDefaultOrgUnitCategory,
+    currentSignedInUser,
     forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
     knownHasOrgUnitWithoutCategory,
+    markBringingIn,
     rememberHasOrgUnitWithoutCategory,
     setSignedInUser,
 } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
@@ -50,6 +52,7 @@ jest.mock("../../../../../src/components/views/dialogs/verji/AddExistingRoomToOr
 }));
 
 const TENANT = "tenant-1";
+const USER = "@alice:server";
 
 interface Deferred<T> {
     promise: Promise<T>;
@@ -145,6 +148,8 @@ describe("<AddExistingGuestOrgDialog />", () => {
         onFinished.mockReset();
         // The menu's answers, and the bring-ins they wait for, are kept for the session: each test starts without any.
         forgetHasOrgUnitWithoutCategory();
+        // As `VerjiPermissionsStore.onReady` does: the dialog is open while a user is signed in.
+        setSignedInUser(USER);
     });
 
     it("lists the tenant's guest orgs that have no category that the user may bring in, by name", async () => {
@@ -224,32 +229,61 @@ describe("<AddExistingGuestOrgDialog />", () => {
     });
 
     it.each([
-        ["nobody has signed in since", undefined],
-        ["the next user has signed in", "@bob:server"],
+        ["before the next user signs in", true],
+        ["once the next user has signed in", false],
     ])(
-        "lets no 202 that lands after the user signed out hold back the next user's answers, when %s",
-        async (_when, next) => {
+        "lets no 202 that lands after the user signed out hold back the next user's answers, when it lands %s",
+        async (_when, beforeNextUser) => {
             const answer = deferred<void>();
             mocked(assignDefaultOrgUnitCategory).mockReturnValue(answer.promise);
             const { unmount } = renderDialog();
             fireEvent.click(within(await screen.findByTestId("verji-guest-org-org-a")).getByRole("button"));
+            const land = async (): Promise<void> => {
+                await act(async () => {
+                    answer.resolve();
+                    await answer.promise;
+                });
+            };
 
             // User A is logged out while the bring-in is on its way: the dialog goes, and
-            // VerjiPermissionsStore.onNotReady ends the sign-in (what it calls).
+            // VerjiPermissionsStore.onNotReady says nobody is signed in (what it calls).
             unmount();
             setSignedInUser(undefined);
-            if (next) setSignedInUser(next);
-            // The Organization API's 202 for A lands now.
-            await act(async () => {
-                answer.resolve();
-                await answer.promise;
-            });
+            // The Organization API's 202 for A lands, before or after user B signs in, in the same tab.
+            if (beforeNextUser) await land();
+            setSignedInUser("@bob:server");
+            if (!beforeNextUser) await land();
 
-            // User B, in the same tab and tenant: their answer is kept.
+            // User B's answer, in the same tenant, is kept.
             await askHasOrgUnitWithoutCategory(TENANT, 42, async () => false);
             expect(knownHasOrgUnitWithoutCategory(TENANT, 42)).toBe(false);
         },
     );
+
+    it("keeps the user's bring-in in another tenant when this one's space arrives during a soft logout", async () => {
+        // A guest org of another tenant was brought in a minute ago: 202, and its space is not here yet.
+        markBringingIn("tenant-2", "org-z", currentSignedInUser());
+        // org-a's space is in the client's room list already, synced while its 202 was on its way.
+        rooms = [makeSpace("!kari:server", TENANT, "org-a")];
+        const answer = deferred<void>();
+        mocked(assignDefaultOrgUnitCategory).mockReturnValue(answer.promise);
+        renderDialog();
+        fireEvent.click(within(await screen.findByTestId("verji-guest-org-org-a")).getByRole("button"));
+
+        // A soft logout while the POST is on its way; this dialog stays open on the client signed out.
+        setSignedInUser(undefined);
+        await act(async () => {
+            answer.resolve();
+            await answer.promise;
+        });
+        // It sees org-a's space, and marks org-a brought in.
+        await screen.findByTestId("verji-guest-org-ready");
+
+        // The same user signs in again. org-z still has no category: the Organization API still lists it.
+        setSignedInUser(USER);
+        await askHasOrgUnitWithoutCategory("tenant-2", 7, async () => true);
+        expect(knownHasOrgUnitWithoutCategory("tenant-2", 7)).toBeUndefined();
+    });
 
     it("keeps the tenant's answer when bringing one in fails", async () => {
         mocked(assignDefaultOrgUnitCategory).mockRejectedValue(new Error("down"));

@@ -405,10 +405,10 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.primedForUserId = undefined;
         // The re-fetch budget and the throttle belong to the user who spent them.
         this.resetFreshnessRequests();
-        // The answers on what they may bring in, and their bring-ins still settling, are kept for the
-        // same user to sign in again to, as after a soft logout, and forgotten once anyone else is
-        // signed in (verji/verji-src#2117). Ending the sign-in here, before any await, is what keeps a
-        // bring-in's 202 that lands later from marking anything.
+        // Nobody is signed in now (verji/verji-src#2117): an answer on what the user may bring in, to a
+        // question asked before this, is not kept. Their answers and their bring-ins still settling
+        // are not forgotten here: the same user signing in again, as after a soft logout, keeps them,
+        // and they are forgotten once another user has signed in (`onReady`).
         setSignedInUser(undefined);
         this.bumpVersion();
 

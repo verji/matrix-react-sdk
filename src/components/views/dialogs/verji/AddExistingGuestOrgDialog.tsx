@@ -31,7 +31,7 @@ import { VerjiPermissionsStore } from "../../../../stores/verji/VerjiPermissions
 import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceContext";
 import {
     assignDefaultOrgUnitCategory,
-    currentSignIn,
+    currentSignedInUser,
     findOrgUnitSpace,
     getOrgUnitsWithoutCategory,
     describeError,
@@ -144,13 +144,13 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
     const onAdd = async (orgUnit: OrgUnit): Promise<void> => {
         setError(null);
         setPhase({ kind: "sending", orgUnit });
-        // Taken before the POST: a 202 that lands once the user has signed out marks nothing.
-        const sentIn = currentSignIn();
+        // Taken before the POST: a 202 that lands once another user has signed in marks nothing.
+        const sentBy = currentSignedInUser();
         try {
             await assignDefaultOrgUnitCategory(client, tenantId, orgUnit.id);
             // One of the user's org units is getting its category: the menu asks again whether any is
             // left, and keeps no answer until it has it.
-            markBringingIn(tenantId, orgUnit.id, sentIn);
+            markBringingIn(tenantId, orgUnit.id, sentBy);
             if (!mounted.current) return;
             setPhase({ kind: "waiting", orgUnit });
         } catch (e) {

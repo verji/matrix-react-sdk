@@ -93,12 +93,13 @@ export async function getOrgUnitsWithoutCategory(
  * so meanwhile it may still list the org unit without one. The tenant is settled again when the
  * org unit's space arrives, or after {@link BRING_IN_SETTLES_AFTER_MS} when nobody waited for it.
  *
- * The answers are one Matrix user's, and last as long as that user is the one signed in
- * ({@link setSignedInUser}, which `VerjiPermissionsStore` calls): a soft logout and a sign-in again
- * as the same user keep them, bring-ins included, while the first call made for anyone else,
- * another user or nobody, forgets them all first. No menu asks while nobody is signed in, since the
- * options need a loaded access context; and a question or a bring-in's 202 that lands after the
- * sign-in it was sent in has ended keeps and marks nothing.
+ * The answers are one Matrix user's ({@link setSignedInUser}, which `VerjiPermissionsStore` calls),
+ * and last until another user signs in: the first call made once one has forgets them all first,
+ * bring-ins included. A soft logout and a sign-in again as the same user keep them, and so does a
+ * call made while nobody is signed in, as by a dialog or a menu of the client signed out. A
+ * bring-in's 202 is marked while the answers are still those of the user who sent its POST, and
+ * not once they are another user's; a question's answer that lands after the sign-in it was asked
+ * in has ended is not kept, even for the same user.
  */
 interface TenantAnswer {
     /** Bumped by every forget: an answer to a question asked before it is never kept. */
@@ -134,22 +135,24 @@ let signIn = 0;
 /**
  * `VerjiPermissionsStore`: the user signed in, or, with undefined, signed out (logout, a soft logout,
  * or a switch to another user). Either way a new sign-in starts. Forgets nothing itself: the answers
- * are forgotten at the first call made for another user, so the same user signing in again keeps them.
+ * are forgotten at the first call made once another user is signed in, so the same user signing in
+ * again keeps them.
  */
 export function setSignedInUser(userId: string | undefined): void {
     signedInUser = userId;
     signIn++;
 }
 
-/** The sign-in now. A bring-in takes it along when it sends its POST, for {@link markBringingIn}. */
-export function currentSignIn(): number {
-    return signIn;
+/** The user signed in now. A bring-in takes it along when it sends its POST, for {@link markBringingIn}. */
+export function currentSignedInUser(): string | undefined {
+    return signedInUser;
 }
 
-/** The tenant's entry for the user signed in now, with every bring-in whose time is up settled. */
+/** The tenant's entry in the answers held now, with every bring-in whose time is up settled. */
 function tenantAnswer(tenantId: string): TenantAnswer {
-    // The answers are another user's, or nobody is signed in: none of them holds, bring-ins included.
-    if (answersUser !== signedInUser) {
+    // Another user is signed in: none of the answers holds, bring-ins included. While nobody is, they
+    // stay the last user's, for that user to sign in again to.
+    if (signedInUser !== undefined && answersUser !== signedInUser) {
         forgetHasOrgUnitWithoutCategory();
         answersUser = signedInUser;
     }
@@ -208,8 +211,7 @@ export function askHasOrgUnitWithoutCategory(
     const askedIn = signIn;
     const generation = entry.generation;
     const answer = ask().then((has) => {
-        // The sign-in first: landing after it ended, it must not reach the entry, which would forget
-        // the user's answers while nobody is signed in.
+        // Not kept once the sign-in it was asked in has ended, even for the same user: the next menu asks again.
         if (signIn === askedIn && tenantAnswer(tenantId).generation === generation) {
             rememberHasOrgUnitWithoutCategory(tenantId, version, has);
         }
@@ -243,12 +245,13 @@ export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
 /**
  * The Organization API took the org unit in (202): forget the tenant's answer, and keep none until
  * the org unit has its category ({@link markBroughtIn}), or {@link BRING_IN_SETTLES_AFTER_MS} has passed.
- * `sentIn` is the sign-in its POST was sent in ({@link currentSignIn}): once that has ended, as on
- * logout, the 202 marks nothing, so it never holds back the answers of whoever signs in next.
+ * `sentBy` is the user signed in as its POST was sent ({@link currentSignedInUser}): the 202 is
+ * marked while the answers are still that user's, over a soft logout too, and marks nothing once
+ * they are another user's, so it never holds back their answers.
  */
-export function markBringingIn(tenantId: string, orgUnitId: string, sentIn: number): void {
-    if (sentIn !== signIn) return;
+export function markBringingIn(tenantId: string, orgUnitId: string, sentBy: string | undefined): void {
     const entry = tenantAnswer(tenantId);
+    if (answersUser !== sentBy) return;
     entry.bringingIn.set(orgUnitId, bringInClock.now() + BRING_IN_SETTLES_AFTER_MS);
     forgetAnswer(entry);
 }

@@ -32,7 +32,7 @@ import SpaceStore from "../../../src/stores/spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../../../src/stores/spaces";
 import {
     askHasOrgUnitWithoutCategory,
-    currentSignIn,
+    currentSignedInUser,
     forgetHasOrgUnitWithoutCategory,
     knownHasOrgUnitWithoutCategory,
     markBringingIn,
@@ -315,12 +315,24 @@ describe("VerjiPermissionsStore", () => {
 
             it("does not let a bring-in of the previous user hold back the next user's answers", async () => {
                 const store = await startedStore();
-                // The first user brings a guest org in, and logs out before its space arrives.
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                // The first user's menu offers the option, and she brings a guest org in.
+                await askHasOrgUnitWithoutCategory(TENANT, store.getVersion(), async () => true);
+                const sentBy = currentSignedInUser();
 
+                // She logs out, and the 202 lands while nobody is signed in: it is still hers.
                 await dispatchAndSettle({ action: Action.OnLoggedOut });
+                markBringingIn(TENANT, ORG_A, sentBy);
 
-                // The next user, in the same tab: their answer is kept.
+                // The next user signs in, in the same tab: their answer is kept.
+                await dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser("@bob:domain.org"),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
                 const version = store.getVersion();
                 await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
                 expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
@@ -328,7 +340,7 @@ describe("VerjiPermissionsStore", () => {
 
             it("forgets the previous user's bring-ins once another user signs in", async () => {
                 const store = await startedStore();
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
 
                 await dispatchAndSettle({ action: Action.OnLoggedOut });
                 await dispatchAndSettle({
@@ -361,7 +373,7 @@ describe("VerjiPermissionsStore", () => {
             it("keeps the same user's bring-in that is still settling over a soft logout", async () => {
                 const store = await startedStore();
                 // Alice brings a guest org in: 202, and the Organization API still lists it without a category.
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
 
                 // Her session is soft-logged-out, and she signs in again in the same tab, seconds later.
                 await dispatchAndSettle({ action: "on_client_not_viable" });
@@ -375,7 +387,7 @@ describe("VerjiPermissionsStore", () => {
 
             it("keeps it too for a menu that re-renders as her access context loads again", async () => {
                 const store = await startedStore();
-                markBringingIn(TENANT, ORG_A, currentSignIn());
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
                 // A mounted menu re-renders on every change of the store, and reads the answers once
                 // there is an access context to offer the option on.
                 store.subscribe(() => {
