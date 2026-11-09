@@ -25,6 +25,7 @@ import {
     assignDefaultOrgUnitCategory,
     assignRoomToOrgUnit,
     BRING_IN_SETTLES_AFTER_MS,
+    bringInClock,
     describeError,
     findOrgUnitSpace,
     forgetHasOrgUnitWithoutCategory,
@@ -277,6 +278,37 @@ describe("verjiOrgUnitRooms", () => {
             expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(true);
         });
 
+        it("is shared by the menus that open after a forget, even when a question from before it lands meanwhile", async () => {
+            const stale = question();
+            void askHasOrgUnitWithoutCategory("t1", 7, stale.ask);
+            forgetHasOrgUnitWithoutCategory("t1");
+            const fresh = question();
+            const ask = jest.fn(fresh.ask);
+            void askHasOrgUnitWithoutCategory("t1", 7, ask);
+
+            // The question from before the forget lands while the one asked after it is still in flight.
+            stale.answer(true);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            // A menu opening now shares the question in flight.
+            void askHasOrgUnitWithoutCategory("t1", 7, ask);
+            expect(ask).toHaveBeenCalledTimes(1);
+        });
+
+        it("keeps the newer answer when a question asked under an older access context lands last", async () => {
+            const older = question();
+            const olderAnswer = askHasOrgUnitWithoutCategory("t1", 7, older.ask);
+            await askHasOrgUnitWithoutCategory("t1", 8, async () => false);
+            expect(knownHasOrgUnitWithoutCategory("t1", 8)).toBe(false);
+
+            older.answer(true);
+            await olderAnswer;
+
+            expect(knownHasOrgUnitWithoutCategory("t1", 8)).toBe(false);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+        });
+
         it("is asked anew for another tenant, or under another access context", () => {
             const ask = jest.fn(question().ask);
 
@@ -366,9 +398,18 @@ describe("verjiOrgUnitRooms", () => {
         describe("when the org unit's space never shows it was brought in", () => {
             let now: jest.SpyInstance;
             beforeEach(() => {
-                now = jest.spyOn(Date, "now").mockReturnValue(1_000);
+                now = jest.spyOn(bringInClock, "now").mockReturnValue(1_000);
             });
             afterEach(() => now.mockRestore());
+
+            it("is not kept for nearly five minutes after the 202", async () => {
+                markBringingIn("t1", "u1");
+
+                now.mockReturnValue(1_000 + 5 * 60 * 1000 - 1);
+                await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
+
+                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+            });
 
             it("is kept again once the time a bring-in takes is up, but not when asked before", async () => {
                 markBringingIn("t1", "u1");
@@ -386,6 +427,35 @@ describe("verjiOrgUnitRooms", () => {
 
                 await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
                 expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
+            });
+        });
+
+        describe("when the wall clock is changed after the 202", () => {
+            const MINUTE = 60 * 1000;
+            const HOUR = 60 * MINUTE;
+            let wall: jest.SpyInstance;
+            let monotonic: jest.SpyInstance;
+            beforeEach(() => {
+                wall = jest.spyOn(Date, "now").mockReturnValue(10 * HOUR);
+                monotonic = jest.spyOn(performance, "now").mockReturnValue(1_000);
+            });
+            afterEach(() => {
+                wall.mockRestore();
+                monotonic.mockRestore();
+            });
+
+            // The five minutes are timed on the monotonic clock, which no one sets.
+            it.each([
+                ["set back an hour does not stretch the five minutes", -HOUR, 6 * MINUTE, false],
+                ["set forward an hour does not shorten them", HOUR, MINUTE, undefined],
+            ])("%s", async (_what, setBy, passed, kept) => {
+                markBringingIn("t1", "u1");
+
+                wall.mockReturnValue(10 * HOUR + setBy + passed);
+                monotonic.mockReturnValue(1_000 + passed);
+                await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
+
+                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(kept);
             });
         });
     });

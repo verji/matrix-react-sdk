@@ -525,7 +525,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ["OrgUnitHasNoSpace", "Kari AS does not have its space yet. Try again in a moment."],
         ["SpaceTenantNotFound", "The room could not be added. Try again."],
         [undefined, "The room could not be added. Try again."],
-    ])("shows a 409 with reason %s on the room, and lets it be tried again", async (reason, message) => {
+    ])("shows a 409 with reason %s on the room only, and lets it be tried again", async (reason, message) => {
         mocked(assignRoomToOrgUnit).mockRejectedValueOnce(new OrgUnitRoomConflictError(reason));
         renderDialog();
 
@@ -533,6 +533,8 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         await clickAdd(SUGGESTED.roomId);
 
         expect(within(row(SUGGESTED.roomId)).getByText(message)).toBeInTheDocument();
+        // A refusal the user may try again is said on its row only: the status line is for one that holds.
+        expect(screen.getByRole("status")).toBeEmptyDOMElement();
         expect(addButton(SUGGESTED.roomId)).not.toHaveAttribute("aria-disabled", "true");
 
         await clickAdd(SUGGESTED.roomId);
@@ -633,6 +635,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
                 "the room is refused",
                 (answer: Deferred<void>) => answer.reject(new OrgUnitRoomConflictError("MemberOutsideOrgUnit")),
             ],
+            ["the user is refused (403)", (answer: Deferred<void>) => answer.reject(forbidden())],
         ])("changes nothing when %s", async (_what, settle) => {
             const answer = deferred<void>();
             mocked(assignRoomToOrgUnit).mockReturnValue(answer.promise);

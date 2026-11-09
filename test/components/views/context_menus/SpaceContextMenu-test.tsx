@@ -742,9 +742,9 @@ describe("<SpaceContextMenu />", () => {
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
                 expect(await openMenu()).toBe(true);
 
-                // What AddExistingGuestOrgDialog does first once the Organization API took one in.
+                // What AddExistingGuestOrgDialog does once the Organization API took one in (202).
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
-                forgetHasOrgUnitWithoutCategory(TENANT);
+                markBringingIn(TENANT, ORG_A);
 
                 expect(await openMenu()).toBe(false);
                 expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
@@ -822,8 +822,10 @@ describe("<SpaceContextMenu />", () => {
 
                 // Menu 1 asks, and is closed before its (slow) answer lands.
                 renderComponent({ space: makeVerjiSpace(TENANT_INFO) }).unmount();
-                // Meanwhile the guest org is brought in: what AddExistingGuestOrgDialog does first on the 202.
-                forgetHasOrgUnitWithoutCategory(TENANT);
+                // Meanwhile the guest org is brought in: AddExistingGuestOrgDialog marks it on the 202, and
+                // again once its space arrives, after which answers are kept again.
+                markBringingIn(TENANT, ORG_A);
+                markBroughtIn(TENANT, ORG_A);
                 // Menu 1's question lands now, with the answer from before the bring-in.
                 await act(async () => {
                     lateAnswer(WAITING);

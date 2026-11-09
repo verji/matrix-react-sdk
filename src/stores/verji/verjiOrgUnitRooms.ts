@@ -82,15 +82,18 @@ export async function getOrgUnitsWithoutCategory(
 
 /**
  * Whether the user has an org unit of the tenant to bring in, as the Organization API last answered
- * it: per tenant, for the session, so that a menu opening does not ask again. An answer holds only
- * for the access context it was asked under (`version`, the permissions store's): once that
- * changes, the user's org units may have too. A failed question is not kept: the next menu asks
- * again. Every menu that opens while the tenant's question is in flight shares it.
+ * it: per tenant, until the user logs out, so that a menu opening does not ask again. An answer
+ * holds only for the access context it was asked under (`version`, the permissions store's): once
+ * that changes, the user's org units may have too. An answer never replaces one asked under a later
+ * access context. A failed question is not kept: the next menu asks again. Every menu that opens
+ * while the tenant's question is in flight shares it.
  *
  * Bringing a guest org in forgets the tenant's answer, and keeps no other until the org unit has its
  * category: the Organization API answers 202 and gives it the category later, over its message bus,
  * so meanwhile it may still list the org unit without one. The tenant is settled again when the
  * org unit's space arrives, or after {@link BRING_IN_SETTLES_AFTER_MS} when nobody waited for it.
+ *
+ * Logout, or a switch to another user, forgets it all, bring-ins included (`VerjiPermissionsStore`).
  */
 interface TenantAnswer {
     /** Bumped by every forget: an answer to a question asked before it is never kept. */
@@ -98,12 +101,21 @@ interface TenantAnswer {
     known?: { version: number; has: boolean };
     /** The question in flight, under the access context `version`. */
     asking?: { version: number; answer: Promise<boolean> };
-    /** The org units being brought in that may have no category yet, each with when it is taken to have one. */
+    /**
+     * The org units being brought in that may have no category yet, each with when it is taken to
+     * have one, on {@link bringInClock}.
+     */
     bringingIn: Map<string, number>;
 }
 
 /** How long after a bring-in's 202 the org unit is taken to have its category, if its space never showed it. */
 export const BRING_IN_SETTLES_AFTER_MS = 5 * 60 * 1000;
+
+/**
+ * The clock a bring-in is timed on, in milliseconds: monotonic, so a wall clock set back or forward
+ * neither stretches nor shortens {@link BRING_IN_SETTLES_AFTER_MS}. Tests drive it through `now`.
+ */
+export const bringInClock = { now: (): number => performance.now() };
 
 const tenantAnswers = new Map<string, TenantAnswer>();
 
@@ -114,7 +126,7 @@ function tenantAnswer(tenantId: string): TenantAnswer {
         entry = { generation: 0, bringingIn: new Map() };
         tenantAnswers.set(tenantId, entry);
     }
-    const now = Date.now();
+    const now = bringInClock.now();
     for (const [orgUnitId, settlesAt] of entry.bringingIn) {
         if (settlesAt > now) continue;
         entry.bringingIn.delete(orgUnitId);
@@ -135,17 +147,23 @@ export function knownHasOrgUnitWithoutCategory(tenantId: string, version: number
     return known?.version === version ? known.has : undefined;
 }
 
-/** Keep the answer for the tenant, asked under the access context `version`; none while a bring-in settles. */
+/**
+ * Keep the answer for the tenant, asked under the access context `version`: none while a bring-in
+ * settles, and none over an answer asked under a later access context, which an older question
+ * landing last would otherwise replace.
+ */
 export function rememberHasOrgUnitWithoutCategory(tenantId: string, version: number, has: boolean): void {
     const entry = tenantAnswer(tenantId);
-    if (entry.bringingIn.size === 0) entry.known = { version, has };
+    if (entry.bringingIn.size > 0) return;
+    if (entry.known && entry.known.version > version) return;
+    entry.known = { version, has };
 }
 
 /**
  * Ask whether the user has an org unit of the tenant to bring in, under the access context
  * `version`: `ask` is sent only when no question for it is in flight, else that one is shared. The
- * answer is kept unless the tenant's answer was forgotten after it was asked, or a bring-in is
- * still settling.
+ * answer is kept unless the tenant's answer was forgotten after it was asked, a bring-in is still
+ * settling, or an answer asked under a later access context is kept already.
  */
 export function askHasOrgUnitWithoutCategory(
     tenantId: string,
@@ -160,6 +178,7 @@ export function askHasOrgUnitWithoutCategory(
         return has;
     });
     entry.asking = { version, answer };
+    // Only its own: a question from before a forget, landing late, leaves the one asked after it shared.
     const done = (): void => {
         if (entry.asking?.answer === answer) entry.asking = undefined;
     };
@@ -168,8 +187,9 @@ export function askHasOrgUnitWithoutCategory(
 }
 
 /**
- * Forget the tenant's answer, and any question in flight for it; or every tenant's, bring-ins
- * included: one of the user's org units has its category now.
+ * Forget the tenant's answer, and any question in flight for it; or, with no tenant, every tenant's,
+ * bring-ins included, as on logout or a switch to another user (`VerjiPermissionsStore`): the next
+ * user's answers are not held back by the bring-ins of the one before.
  */
 export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
     if (tenantId !== undefined) {
@@ -188,7 +208,7 @@ export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
  */
 export function markBringingIn(tenantId: string, orgUnitId: string): void {
     const entry = tenantAnswer(tenantId);
-    entry.bringingIn.set(orgUnitId, Date.now() + BRING_IN_SETTLES_AFTER_MS);
+    entry.bringingIn.set(orgUnitId, bringInClock.now() + BRING_IN_SETTLES_AFTER_MS);
     forgetAnswer(entry);
 }
 

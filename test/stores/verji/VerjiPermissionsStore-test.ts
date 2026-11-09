@@ -30,6 +30,12 @@ import { Action } from "../../../src/dispatcher/actions";
 import SdkConfig from "../../../src/SdkConfig";
 import SpaceStore from "../../../src/stores/spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../../../src/stores/spaces";
+import {
+    askHasOrgUnitWithoutCategory,
+    forgetHasOrgUnitWithoutCategory,
+    knownHasOrgUnitWithoutCategory,
+    markBringingIn,
+} from "../../../src/stores/verji/verjiOrgUnitRooms";
 import { flushPromises, getMockClientWithEventEmitter, mockClientMethodsUser } from "../../test-utils";
 
 jest.mock("@verji/verji-api-sdk/lib/asyncInit", () => ({
@@ -300,6 +306,24 @@ describe("VerjiPermissionsStore", () => {
             await dispatchAndSettle({ action: Action.OnLoggedOut });
 
             expect(listener).toHaveBeenCalled();
+        });
+
+        // VERJI: verji/verji-src#2117 — what the user may bring in is theirs, and so are their bring-ins.
+        describe("the answers on what the user may bring in", () => {
+            afterEach(() => forgetHasOrgUnitWithoutCategory());
+
+            it("does not let a bring-in of the previous user hold back the next user's answers", async () => {
+                const store = await startedStore();
+                // The first user brings a guest org in, and logs out before its space arrives.
+                markBringingIn(TENANT, ORG_A);
+
+                await dispatchAndSettle({ action: Action.OnLoggedOut });
+
+                // The next user, in the same tab: their answer is kept.
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
+            });
         });
     });
 

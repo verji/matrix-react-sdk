@@ -26,6 +26,7 @@ import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
 import { isOrgUnitMemberOrOwner, isTenantPrimaryContact } from "./verjiRoles";
+import { forgetHasOrgUnitWithoutCategory } from "./verjiOrgUnitRooms";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -401,6 +402,10 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.primedForUserId = undefined;
         // The re-fetch budget and the throttle belong to the user who spent them.
         this.resetFreshnessRequests();
+        // So do the answers on what they may bring in, and their bring-ins still settling, which would
+        // keep the next user's answers from being kept (verji/verji-src#2117). Before the version bump,
+        // so the menus it re-renders read the cleared cache.
+        forgetHasOrgUnitWithoutCategory();
         this.bumpVersion();
 
         if (!permissions) return;
