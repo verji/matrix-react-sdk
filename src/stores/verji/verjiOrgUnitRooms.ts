@@ -82,18 +82,23 @@ export async function getOrgUnitsWithoutCategory(
 
 /**
  * Whether the user has an org unit of the tenant to bring in, as the Organization API last answered
- * it: per tenant, until the user logs out, so that a menu opening does not ask again. An answer
- * holds only for the access context it was asked under (`version`, the permissions store's): once
- * that changes, the user's org units may have too. An answer never replaces one asked under a later
- * access context. A failed question is not kept: the next menu asks again. Every menu that opens
- * while the tenant's question is in flight shares it.
+ * it: per tenant, so that a menu opening does not ask again. An answer holds only for the access
+ * context it was asked under (`version`, the permissions store's): once that changes, the user's
+ * org units may have too. An answer never replaces one asked under a later access context. A failed
+ * question is not kept: the next menu asks again. Every menu that opens while the tenant's question
+ * is in flight shares it.
  *
  * Bringing a guest org in forgets the tenant's answer, and keeps no other until the org unit has its
  * category: the Organization API answers 202 and gives it the category later, over its message bus,
  * so meanwhile it may still list the org unit without one. The tenant is settled again when the
  * org unit's space arrives, or after {@link BRING_IN_SETTLES_AFTER_MS} when nobody waited for it.
  *
- * Logout, or a switch to another user, forgets it all, bring-ins included (`VerjiPermissionsStore`).
+ * The answers are one Matrix user's, and last as long as that user is the one signed in
+ * ({@link setSignedInUser}, which `VerjiPermissionsStore` calls): a soft logout and a sign-in again
+ * as the same user keep them, bring-ins included, while the first call made for anyone else,
+ * another user or nobody, forgets them all first. No menu asks while nobody is signed in, since the
+ * options need a loaded access context; and a question or a bring-in's 202 that lands after the
+ * sign-in it was sent in has ended keeps and marks nothing.
  */
 interface TenantAnswer {
     /** Bumped by every forget: an answer to a question asked before it is never kept. */
@@ -113,14 +118,41 @@ export const BRING_IN_SETTLES_AFTER_MS = 5 * 60 * 1000;
 
 /**
  * The clock a bring-in is timed on, in milliseconds: monotonic, so a wall clock set back or forward
- * neither stretches nor shortens {@link BRING_IN_SETTLES_AFTER_MS}. Tests drive it through `now`.
+ * neither stretches nor shortens {@link BRING_IN_SETTLES_AFTER_MS}. It may stand still while the
+ * machine sleeps, so the window counts time awake. Tests drive it through `now`.
  */
 export const bringInClock = { now: (): number => performance.now() };
 
 const tenantAnswers = new Map<string, TenantAnswer>();
+/** The Matrix user whose answers {@link tenantAnswers} holds. */
+let answersUser: string | undefined;
+/** The Matrix user signed in now, as `VerjiPermissionsStore` last said; undefined while nobody is. */
+let signedInUser: string | undefined;
+/** The sign-in now: a new one starts as a user signs in and as they sign out. */
+let signIn = 0;
 
-/** The tenant's entry, with every bring-in whose time is up settled. */
+/**
+ * `VerjiPermissionsStore`: the user signed in, or, with undefined, signed out (logout, a soft logout,
+ * or a switch to another user). Either way a new sign-in starts. Forgets nothing itself: the answers
+ * are forgotten at the first call made for another user, so the same user signing in again keeps them.
+ */
+export function setSignedInUser(userId: string | undefined): void {
+    signedInUser = userId;
+    signIn++;
+}
+
+/** The sign-in now. A bring-in takes it along when it sends its POST, for {@link markBringingIn}. */
+export function currentSignIn(): number {
+    return signIn;
+}
+
+/** The tenant's entry for the user signed in now, with every bring-in whose time is up settled. */
 function tenantAnswer(tenantId: string): TenantAnswer {
+    // The answers are another user's, or nobody is signed in: none of them holds, bring-ins included.
+    if (answersUser !== signedInUser) {
+        forgetHasOrgUnitWithoutCategory();
+        answersUser = signedInUser;
+    }
     let entry = tenantAnswers.get(tenantId);
     if (!entry) {
         entry = { generation: 0, bringingIn: new Map() };
@@ -162,8 +194,9 @@ export function rememberHasOrgUnitWithoutCategory(tenantId: string, version: num
 /**
  * Ask whether the user has an org unit of the tenant to bring in, under the access context
  * `version`: `ask` is sent only when no question for it is in flight, else that one is shared. The
- * answer is kept unless the tenant's answer was forgotten after it was asked, a bring-in is still
- * settling, or an answer asked under a later access context is kept already.
+ * answer is kept unless the sign-in it was asked in has ended, the tenant's answer was forgotten
+ * after it was asked, a bring-in is still settling, or an answer asked under a later access context
+ * is kept already.
  */
 export function askHasOrgUnitWithoutCategory(
     tenantId: string,
@@ -172,9 +205,14 @@ export function askHasOrgUnitWithoutCategory(
 ): Promise<boolean> {
     const entry = tenantAnswer(tenantId);
     if (entry.asking?.version === version) return entry.asking.answer;
+    const askedIn = signIn;
     const generation = entry.generation;
     const answer = ask().then((has) => {
-        if (tenantAnswer(tenantId).generation === generation) rememberHasOrgUnitWithoutCategory(tenantId, version, has);
+        // The sign-in first: landing after it ended, it must not reach the entry, which would forget
+        // the user's answers while nobody is signed in.
+        if (signIn === askedIn && tenantAnswer(tenantId).generation === generation) {
+            rememberHasOrgUnitWithoutCategory(tenantId, version, has);
+        }
         return has;
     });
     entry.asking = { version, answer };
@@ -188,8 +226,8 @@ export function askHasOrgUnitWithoutCategory(
 
 /**
  * Forget the tenant's answer, and any question in flight for it; or, with no tenant, every tenant's,
- * bring-ins included, as on logout or a switch to another user (`VerjiPermissionsStore`): the next
- * user's answers are not held back by the bring-ins of the one before.
+ * bring-ins included, as when the answers stop being the signed-in user's: the next user's answers
+ * are not held back by the bring-ins of the one before.
  */
 export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
     if (tenantId !== undefined) {
@@ -205,8 +243,11 @@ export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
 /**
  * The Organization API took the org unit in (202): forget the tenant's answer, and keep none until
  * the org unit has its category ({@link markBroughtIn}), or {@link BRING_IN_SETTLES_AFTER_MS} has passed.
+ * `sentIn` is the sign-in its POST was sent in ({@link currentSignIn}): once that has ended, as on
+ * logout, the 202 marks nothing, so it never holds back the answers of whoever signs in next.
  */
-export function markBringingIn(tenantId: string, orgUnitId: string): void {
+export function markBringingIn(tenantId: string, orgUnitId: string, sentIn: number): void {
+    if (sentIn !== signIn) return;
     const entry = tenantAnswer(tenantId);
     entry.bringingIn.set(orgUnitId, bringInClock.now() + BRING_IN_SETTLES_AFTER_MS);
     forgetAnswer(entry);

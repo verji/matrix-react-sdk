@@ -26,7 +26,7 @@ import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
 import { isOrgUnitMemberOrOwner, isTenantPrimaryContact } from "./verjiRoles";
-import { forgetHasOrgUnitWithoutCategory } from "./verjiOrgUnitRooms";
+import { setSignedInUser } from "./verjiOrgUnitRooms";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -324,6 +324,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         const client = this.matrixClient;
         const userId = client?.getUserId();
         if (!client || !userId) return;
+        // The answers on what the user may bring in are this user's from here on (verji/verji-src#2117).
+        // Before the access context is set below: a menu it re-renders reads them as this user's.
+        setSignedInUser(userId);
 
         // `IConfigOptions` does not declare the Verji URLs; the Verji runtime modules cast the same
         // way (see verji-roomsublist-module's `VerjiConfig`).
@@ -402,10 +405,11 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.primedForUserId = undefined;
         // The re-fetch budget and the throttle belong to the user who spent them.
         this.resetFreshnessRequests();
-        // So do the answers on what they may bring in, and their bring-ins still settling, which would
-        // keep the next user's answers from being kept (verji/verji-src#2117). Before the version bump,
-        // so the menus it re-renders read the cleared cache.
-        forgetHasOrgUnitWithoutCategory();
+        // The answers on what they may bring in, and their bring-ins still settling, are kept for the
+        // same user to sign in again to, as after a soft logout, and forgotten once anyone else is
+        // signed in (verji/verji-src#2117). Ending the sign-in here, before any await, is what keeps a
+        // bring-in's 202 that lands later from marking anything.
+        setSignedInUser(undefined);
         this.bumpVersion();
 
         if (!permissions) return;

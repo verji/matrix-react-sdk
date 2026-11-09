@@ -28,11 +28,13 @@ import AddExistingGuestOrgDialog, {
 } from "../../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog";
 import { showAddExistingRoomToOrgUnitDialog } from "../../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog";
 import {
+    askHasOrgUnitWithoutCategory,
     assignDefaultOrgUnitCategory,
     forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
     knownHasOrgUnitWithoutCategory,
     rememberHasOrgUnitWithoutCategory,
+    setSignedInUser,
 } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
 import { VerjiPermissionsStore } from "../../../../../src/stores/verji/VerjiPermissionsStore";
 import Modal from "../../../../../src/Modal";
@@ -220,6 +222,34 @@ describe("<AddExistingGuestOrgDialog />", () => {
         rememberHasOrgUnitWithoutCategory(TENANT, 1, false);
         expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBe(false);
     });
+
+    it.each([
+        ["nobody has signed in since", undefined],
+        ["the next user has signed in", "@bob:server"],
+    ])(
+        "lets no 202 that lands after the user signed out hold back the next user's answers, when %s",
+        async (_when, next) => {
+            const answer = deferred<void>();
+            mocked(assignDefaultOrgUnitCategory).mockReturnValue(answer.promise);
+            const { unmount } = renderDialog();
+            fireEvent.click(within(await screen.findByTestId("verji-guest-org-org-a")).getByRole("button"));
+
+            // User A is logged out while the bring-in is on its way: the dialog goes, and
+            // VerjiPermissionsStore.onNotReady ends the sign-in (what it calls).
+            unmount();
+            setSignedInUser(undefined);
+            if (next) setSignedInUser(next);
+            // The Organization API's 202 for A lands now.
+            await act(async () => {
+                answer.resolve();
+                await answer.promise;
+            });
+
+            // User B, in the same tab and tenant: their answer is kept.
+            await askHasOrgUnitWithoutCategory(TENANT, 42, async () => false);
+            expect(knownHasOrgUnitWithoutCategory(TENANT, 42)).toBe(false);
+        },
+    );
 
     it("keeps the tenant's answer when bringing one in fails", async () => {
         mocked(assignDefaultOrgUnitCategory).mockRejectedValue(new Error("down"));

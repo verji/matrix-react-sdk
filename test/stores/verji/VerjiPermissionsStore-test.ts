@@ -32,6 +32,7 @@ import SpaceStore from "../../../src/stores/spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../../../src/stores/spaces";
 import {
     askHasOrgUnitWithoutCategory,
+    currentSignIn,
     forgetHasOrgUnitWithoutCategory,
     knownHasOrgUnitWithoutCategory,
     markBringingIn,
@@ -315,7 +316,7 @@ describe("VerjiPermissionsStore", () => {
             it("does not let a bring-in of the previous user hold back the next user's answers", async () => {
                 const store = await startedStore();
                 // The first user brings a guest org in, and logs out before its space arrives.
-                markBringingIn(TENANT, ORG_A);
+                markBringingIn(TENANT, ORG_A, currentSignIn());
 
                 await dispatchAndSettle({ action: Action.OnLoggedOut });
 
@@ -323,6 +324,71 @@ describe("VerjiPermissionsStore", () => {
                 const version = store.getVersion();
                 await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
                 expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
+            });
+
+            it("forgets the previous user's bring-ins once another user signs in", async () => {
+                const store = await startedStore();
+                markBringingIn(TENANT, ORG_A, currentSignIn());
+
+                await dispatchAndSettle({ action: Action.OnLoggedOut });
+                await dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser("@bob:domain.org"),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
+
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
+            });
+
+            /** The same user signs in again after a soft logout, in the same tab, seconds later. */
+            const signInAgain = (): Promise<void> =>
+                dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser(USER),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
+
+            it("keeps the same user's bring-in that is still settling over a soft logout", async () => {
+                const store = await startedStore();
+                // Alice brings a guest org in: 202, and the Organization API still lists it without a category.
+                markBringingIn(TENANT, ORG_A, currentSignIn());
+
+                // Her session is soft-logged-out, and she signs in again in the same tab, seconds later.
+                await dispatchAndSettle({ action: "on_client_not_viable" });
+                await signInAgain();
+
+                // Her menu asks; the Organization API still lists ORG_A without a category.
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => true);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBeUndefined();
+            });
+
+            it("keeps it too for a menu that re-renders as her access context loads again", async () => {
+                const store = await startedStore();
+                markBringingIn(TENANT, ORG_A, currentSignIn());
+                // A mounted menu re-renders on every change of the store, and reads the answers once
+                // there is an access context to offer the option on.
+                store.subscribe(() => {
+                    if (store.peekContext(TENANT).status === "uninitialized") return;
+                    knownHasOrgUnitWithoutCategory(TENANT, store.getVersion());
+                });
+
+                await dispatchAndSettle({ action: "on_client_not_viable" });
+                await signInAgain();
+
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => true);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBeUndefined();
             });
         });
     });
