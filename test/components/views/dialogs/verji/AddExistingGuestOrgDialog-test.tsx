@@ -23,13 +23,19 @@ import { mocked } from "jest-mock";
 
 import type { OrgUnit } from "@verji/verji-api-sdk";
 import { mkEvent, mockStateEventImplementation, stubClient } from "../../../../test-utils";
-import AddExistingGuestOrgDialog from "../../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog";
+import AddExistingGuestOrgDialog, {
+    showAddExistingGuestOrgDialog,
+} from "../../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog";
 import { showAddExistingRoomToOrgUnitDialog } from "../../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog";
 import {
     assignDefaultOrgUnitCategory,
+    forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
+    knownHasOrgUnitWithoutCategory,
+    rememberHasOrgUnitWithoutCategory,
 } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
 import { VerjiPermissionsStore } from "../../../../../src/stores/verji/VerjiPermissionsStore";
+import Modal from "../../../../../src/Modal";
 
 // VERJI: verji/verji-src#2117 — the Organization API calls are mocked; finding the space is not.
 jest.mock("../../../../../src/stores/verji/verjiOrgUnitRooms", () => ({
@@ -59,15 +65,15 @@ const deferred = <T,>(): Deferred<T> => {
     return { promise, resolve, reject };
 };
 
-/** A joined space carrying the Verji state a guest org's personal space carries. */
-const makeSpace = (roomId: string, tenantId: string, orgUnitId: string): Room => {
+/** A joined space carrying the Verji state a guest org's personal space carries, sent by vsys unless `sender` says. */
+const makeSpace = (roomId: string, tenantId: string, orgUnitId: string, sender = "@vsys:server"): Room => {
     const state = [
         mkEvent({
             event: true,
             type: "app.verji.tenant_info",
             skey: "app.verji.tenant_info",
             room: roomId,
-            user: "@vsys:server",
+            user: sender,
             content: { tenant_id: tenantId },
         }),
         mkEvent({
@@ -75,18 +81,23 @@ const makeSpace = (roomId: string, tenantId: string, orgUnitId: string): Room =>
             type: "app.verji.org_unit_info",
             skey: "app.verji.org_unit_info",
             room: roomId,
-            user: "@vsys:server",
+            user: sender,
             content: { org_unit_id: orgUnitId },
         }),
     ];
     return {
         roomId,
         name: "Kari AS",
+        client: { getDomain: () => "server" },
         isSpaceRoom: () => true,
         getMyMembership: () => KnownMembership.Join,
         currentState: { getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)) },
     } as unknown as Room;
 };
+
+/** What the SDK passes on when the Organization API answers 403: the request's own error. */
+const forbidden = (): Error =>
+    Object.assign(new Error("Request failed with status code 403"), { response: { status: 403 } });
 
 describe("<AddExistingGuestOrgDialog />", () => {
     let client: MatrixClient;
@@ -149,10 +160,11 @@ describe("<AddExistingGuestOrgDialog />", () => {
         expect(assignDefaultOrgUnitCategory).toHaveBeenCalledWith(client, TENANT, "org-a");
         expect(await screen.findByTestId("verji-guest-org-waiting")).toHaveTextContent("Adding Kari AS.");
 
-        // A space of another guest org, and one of another tenant, are not the one.
+        // A space of another guest org, one of another tenant, and one anyone stamped with the ids, are not the one.
         rooms = [
             makeSpace("!other-org:server", TENANT, "org-b"),
             makeSpace("!other-tenant:server", "tenant-2", "org-a"),
+            makeSpace("!forged:server", TENANT, "org-a", "@mallory:server"),
         ];
         act(() => {
             client.emit(ClientEvent.Room, rooms[0]);
@@ -170,7 +182,83 @@ describe("<AddExistingGuestOrgDialog />", () => {
         );
         await userEvent.click(screen.getByRole("button", { name: "Add existing rooms" }));
         expect(onFinished).toHaveBeenCalled();
-        expect(showAddExistingRoomToOrgUnitDialog).toHaveBeenCalledWith(space);
+        // The org unit's own name, as the Organization API listed it: not the space's.
+        expect(showAddExistingRoomToOrgUnitDialog).toHaveBeenCalledWith(space, "Kari AS");
+    });
+
+    it("forgets the tenant's kept answer once one is brought in, so the menu asks again", async () => {
+        rememberHasOrgUnitWithoutCategory(TENANT, 1, true);
+        rememberHasOrgUnitWithoutCategory("tenant-2", 1, true);
+        renderDialog();
+
+        await clickAdd("org-a");
+
+        expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBeUndefined();
+        expect(knownHasOrgUnitWithoutCategory("tenant-2", 1)).toBe(true);
+        forgetHasOrgUnitWithoutCategory();
+    });
+
+    it("keeps the tenant's answer when bringing one in fails", async () => {
+        mocked(assignDefaultOrgUnitCategory).mockRejectedValue(new Error("down"));
+        rememberHasOrgUnitWithoutCategory(TENANT, 1, true);
+        renderDialog();
+
+        await clickAdd("org-a");
+
+        expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBe(true);
+        forgetHasOrgUnitWithoutCategory();
+    });
+
+    it("says the user can no longer do this when the Organization API refuses them (403), and offers that one no more", async () => {
+        mocked(assignDefaultOrgUnitCategory).mockRejectedValue(forbidden());
+        renderDialog();
+
+        await clickAdd("org-a");
+
+        expect(await screen.findByText("You can no longer do this here.")).toBeInTheDocument();
+        expect(screen.queryByText("Kari AS could not be added. Try again.")).not.toBeInTheDocument();
+        expect(addButton("org-a")).toHaveAttribute("aria-disabled", "true");
+        // Another one is the Organization API's to refuse or not.
+        expect(addButton("org-b")).not.toHaveAttribute("aria-disabled", "true");
+
+        fireEvent.click(addButton("org-a"));
+        expect(assignDefaultOrgUnitCategory).toHaveBeenCalledTimes(1);
+    });
+
+    it("opens only on a space whose tenant_info vsys sent", () => {
+        const createDialog = jest.spyOn(Modal, "createDialog").mockReturnValue({} as never);
+        const tenantRoot = (sender: string): Room => {
+            const roomId = "!root:server";
+            const state = [
+                mkEvent({
+                    event: true,
+                    type: "app.verji.tenant_info",
+                    skey: "app.verji.tenant_info",
+                    room: roomId,
+                    user: sender,
+                    content: { tenant_id: TENANT },
+                }),
+            ];
+            return {
+                roomId,
+                name: "Acme AS",
+                client,
+                isSpaceRoom: () => true,
+                currentState: { getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)) },
+            } as unknown as Room;
+        };
+        mocked(client.getDomain).mockReturnValue("server");
+
+        showAddExistingGuestOrgDialog(tenantRoot("@mallory:server"));
+        expect(createDialog).not.toHaveBeenCalled();
+
+        showAddExistingGuestOrgDialog(tenantRoot("@vsys:server"));
+        expect(createDialog).toHaveBeenCalledWith(
+            AddExistingGuestOrgDialog,
+            expect.objectContaining({ tenantId: TENANT }),
+            "mx_AddExistingToSpaceDialog_wrapper",
+        );
+        createDialog.mockRestore();
     });
 
     it("sees the space arrive as room state too, on a room the client already has", async () => {

@@ -80,6 +80,46 @@ export async function getOrgUnitsWithoutCategory(
     );
 }
 
+/**
+ * Whether the user has an org unit of the tenant to bring in, as the Organization API last answered
+ * it: per tenant, for the session, so that a menu opening does not ask again. An answer holds only
+ * for the access context it was asked under (`version`, the permissions store's): once that
+ * changes, the user's org units may have too. Bringing a guest org in forgets the tenant's answer.
+ * A failed question is not kept: the next menu asks again.
+ */
+const orgUnitsToBringIn = new Map<string, { version: number; has: boolean }>();
+
+/** The kept answer for the tenant under the access context `version`; undefined when there is none. */
+export function knownHasOrgUnitWithoutCategory(tenantId: string, version: number): boolean | undefined {
+    const known = orgUnitsToBringIn.get(tenantId);
+    return known?.version === version ? known.has : undefined;
+}
+
+/** Keep the answer for the tenant, asked under the access context `version`. */
+export function rememberHasOrgUnitWithoutCategory(tenantId: string, version: number, has: boolean): void {
+    orgUnitsToBringIn.set(tenantId, { version, has });
+}
+
+/** Forget the tenant's answer, or every tenant's: one of the user's org units has its category now. */
+export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
+    if (tenantId === undefined) orgUnitsToBringIn.clear();
+    else orgUnitsToBringIn.delete(tenantId);
+}
+
+/**
+ * The org unit's own name, as the Organization API lists the tenant's org units to the user;
+ * undefined when it does not list it. The name a space carries is that space's, not the org unit's.
+ */
+export async function getOrgUnitName(
+    client: MatrixClient,
+    tenantId: string,
+    orgUnitId: string,
+): Promise<string | undefined> {
+    const [organization, token] = await organizationApi(client);
+    const page = await organization.getOrgUnits(token, tenantId);
+    return (page.results ?? []).find((orgUnit) => orgUnit.id === orgUnitId)?.name || undefined;
+}
+
 /** Give the org unit the tenant's default category; its space follows asynchronously. */
 export async function assignDefaultOrgUnitCategory(
     client: MatrixClient,
@@ -133,15 +173,27 @@ export function getConflictReason(error: unknown): string | undefined | null {
 }
 
 /**
+ * Did the Organization API refuse the user (HTTP 403)? They are no longer the tenant's
+ * PrimaryContact or the org unit's Owner, or the org unit is not the tenant's: trying again changes
+ * nothing. The SDK passes the request's error on for a 403, so it is read off that error's HTTP
+ * status, by shape rather than `instanceof`, as {@link getConflictReason} reads a conflict.
+ */
+export function isForbidden(error: unknown): boolean {
+    if (typeof error !== "object" || error === null) return false;
+    return (error as { response?: { status?: unknown } }).response?.status === 403;
+}
+
+/**
  * The space the client has joined for the org unit: a space of the tenant whose `org_unit_info`
- * names it. For the tenant's PrimaryContact or the guest org's Owner, their personal space of it.
+ * names it, both sent by vsys. For the tenant's PrimaryContact or the guest org's Owner, their
+ * personal space of it.
  */
 export function findOrgUnitSpace(client: MatrixClient, tenantId: string, orgUnitId: string): Room | null {
     return (
         client.getRooms().find((room) => {
             if (room.getMyMembership() !== KnownMembership.Join) return false;
             const ctx = resolveVerjiSpaceContext(room, []);
-            return ctx?.tenantId === tenantId && ctx.orgUnitId === orgUnitId;
+            return ctx?.sentByVsys === true && ctx.tenantId === tenantId && ctx.orgUnitId === orgUnitId;
         }) ?? null
     );
 }

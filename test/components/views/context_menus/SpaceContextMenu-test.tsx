@@ -39,7 +39,10 @@ import { VerjiPermissionsStore } from "../../../../src/stores/verji/VerjiPermiss
 import { mkEvent, mockStateEventImplementation } from "../../../test-utils";
 import { showAddExistingGuestOrgDialog } from "../../../../src/components/views/dialogs/verji/AddExistingGuestOrgDialog"; // VERJI: verji/verji-src#2117
 import { showAddExistingRoomToOrgUnitDialog } from "../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog"; // VERJI: verji/verji-src#2117
-import { getOrgUnitsWithoutCategory } from "../../../../src/stores/verji/verjiOrgUnitRooms"; // VERJI: verji/verji-src#2117
+import {
+    forgetHasOrgUnitWithoutCategory,
+    getOrgUnitsWithoutCategory,
+} from "../../../../src/stores/verji/verjiOrgUnitRooms"; // VERJI: verji/verji-src#2117
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -77,6 +80,8 @@ describe("<SpaceContextMenu />", () => {
     const mockClient = {
         getUserId: jest.fn().mockReturnValue(userId),
         getSafeUserId: jest.fn().mockReturnValue(userId),
+        // VERJI: vsys of this homeserver sends the Verji events of the spaces the backend makes.
+        getDomain: jest.fn().mockReturnValue("server"),
     } as unknown as Mocked<MatrixClient>;
 
     const makeMockSpace = (props = {}) =>
@@ -110,6 +115,7 @@ describe("<SpaceContextMenu />", () => {
         jest.resetAllMocks();
         mockClient.getUserId.mockReturnValue(userId);
         mockClient.getSafeUserId.mockReturnValue(userId);
+        mockClient.getDomain.mockReturnValue("server");
     });
 
     it("renders menu correctly", () => {
@@ -437,15 +443,20 @@ describe("<SpaceContextMenu />", () => {
         const PARENT = { "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" } };
         const CATEGORY = { ...TENANT_INFO, ...PARENT };
         const ORG_UNIT = { ...TENANT_INFO, ...PARENT, "app.verji.org_unit_info": { org_unit_id: ORG_A } };
+        const VSYS = "@vsys:server";
 
         /**
          * A Verji space on which the user, like a PrimaryContact in their personal space, may not
-         * send m.space.child: the options must not depend on it.
+         * send m.space.child: the options must not depend on it. vsys sent its Verji events, as in
+         * every space the backend makes, unless `sender` says someone else did.
          */
-        const makeVerjiSpace = (events: Record<string, object>): Room => {
-            const roomId = "!verji-space:server";
+        const makeVerjiSpace = (
+            events: Record<string, object>,
+            sender = VSYS,
+            roomId = "!verji-space:server",
+        ): Room => {
             const state = Object.entries(events).map(([type, content]) =>
-                mkEvent({ event: true, type, room: roomId, user: userId, skey: type, content, ts: Date.now() }),
+                mkEvent({ event: true, type, room: roomId, user: sender, skey: type, content, ts: Date.now() }),
             );
             return makeMockSpace({
                 roomId,
@@ -477,6 +488,8 @@ describe("<SpaceContextMenu />", () => {
             // The options call the Organization API, so they are offered only where it is configured.
             SdkConfig.put({ verjiItopsUrl: "https://itops.test", verjiOrganizationUrl: "https://org.test" } as never);
             mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
+            // The answers are kept for the session: each test starts without any.
+            forgetHasOrgUnitWithoutCategory();
         });
 
         /** Let the Organization API's answer land. */
@@ -639,6 +652,168 @@ describe("<SpaceContextMenu />", () => {
                 expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
                 unmount();
             }
+        });
+
+        it("asks an Owner nothing when the Organization API is not configured", async () => {
+            mockStore(true, OWNER_OF_A);
+            SdkConfig.put({ verjiItopsUrl: "https://itops.test" } as never);
+            mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+            ]);
+
+            for (const events of [TENANT_INFO, CATEGORY]) {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                await settle();
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                unmount();
+            }
+            expect(getOrgUnitsWithoutCategory).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ["the PrimaryContact", PRIMARY_CONTACT],
+            ["the Owner", OWNER_OF_A],
+        ])("offers %s neither on a space whose Verji events someone other than vsys sent", async (_who, grants) => {
+            mockStore(true, grants);
+            mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+            ]);
+
+            // A space anyone could make, stamped with the tenant's and the guest org's ids.
+            for (const events of [TENANT_INFO, CATEGORY, ORG_UNIT]) {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(events, userId) });
+                await settle();
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                unmount();
+            }
+            expect(getOrgUnitsWithoutCategory).not.toHaveBeenCalled();
+        });
+
+        describe("the Owner's answer, kept for the session", () => {
+            const WAITING = [{ id: ORG_A, name: "Kari AS", orgUnitCategoryId: null }];
+
+            /** Open the menu at the tenant root, let the answer land, and close it; whether it offered the option. */
+            const openMenu = async (): Promise<boolean> => {
+                const { unmount } = renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                await settle();
+                const offered = !!screen.queryByTestId("add-existing-guest-org-option");
+                unmount();
+                return offered;
+            };
+
+            it("asks once per tenant, not each time a menu opens", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+
+                expect(await openMenu()).toBe(true);
+                expect(await openMenu()).toBe(true);
+                expect(await openMenu()).toBe(true);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(1);
+            });
+
+            it("offers at once a second time, before any answer could land", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+                expect(await openMenu()).toBe(true);
+
+                mocked(getOrgUnitsWithoutCategory).mockReturnValue(new Promise(() => {}));
+                renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                expect(screen.getByTestId("add-existing-guest-org-option")).toBeInTheDocument();
+            });
+
+            it("asks again once the access context changes", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+                expect(await openMenu()).toBe(true);
+
+                // The user's roles changed: what they may bring in may have too.
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
+                act(() => VerjiPermissionsStore.instance["bumpVersion"]());
+
+                expect(await openMenu()).toBe(false);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
+            });
+
+            it("asks again once a guest org is brought in", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+                expect(await openMenu()).toBe(true);
+
+                // What AddExistingGuestOrgDialog does once the Organization API took one in.
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
+                forgetHasOrgUnitWithoutCategory(TENANT);
+
+                expect(await openMenu()).toBe(false);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
+            });
+
+            it("keeps no failed answer: the next menu asks again", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockRejectedValueOnce(new Error("down")).mockResolvedValue(WAITING);
+
+                expect(await openMenu()).toBe(false);
+                expect(await openMenu()).toBe(true);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
+            });
+
+            it("never shows one tenant's answer on another tenant's space", async () => {
+                const TENANT_2 = "tenant-2";
+                // The Owner of ORG_A in TENANT and of ORG_B in TENANT_2, both rolled out.
+                const roles: Record<string, Record<string, string[]>> = {
+                    [TENANT]: OWNER_OF_A,
+                    [TENANT_2]: { "Customer-User#": [TENANT_2], "ClientOrganization-Owner": [ORG_B] },
+                };
+                (VerjiPermissionsStore.instance as unknown as { permissions: unknown }).permissions = {
+                    isCanonicalSpaceSyncEnabled: (tenantId: string) => tenantId in roles,
+                    hasRole: (tenantId: string, roleName: string, instanceId: string) =>
+                        (roles[tenantId]?.[roleName] ?? []).includes(instanceId),
+                    peekContext: (tenantId: string) => ({ status: "fresh", record: { roles: roles[tenantId] ?? {} } }),
+                    refreshContext: jest.fn().mockResolvedValue(undefined),
+                    ensureContextFresh: jest.fn().mockResolvedValue(undefined),
+                };
+                // TENANT has one waiting; TENANT_2's answer has not come.
+                mocked(getOrgUnitsWithoutCategory).mockImplementation((_client, tenantId) =>
+                    tenantId === TENANT ? Promise.resolve(WAITING) : new Promise(() => {}),
+                );
+
+                const { rerender } = renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                expect(await screen.findByTestId("add-existing-guest-org-option")).toBeInTheDocument();
+
+                const otherTenantsRoot = makeVerjiSpace(
+                    { "app.verji.tenant_info": { tenant_id: TENANT_2 } },
+                    VSYS,
+                    "!other-root:server",
+                );
+                rerender(
+                    <MatrixClientContext.Provider value={mockClient}>
+                        <SpaceContextMenu {...defaultProps} space={otherTenantsRoot} />
+                    </MatrixClientContext.Provider>,
+                );
+                await settle();
+
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledWith(
+                    mockClient,
+                    TENANT_2,
+                    VerjiPermissionsStore.instance,
+                );
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+            });
+        });
+
+        it("changes nothing when a failed answer arrives after the menu closed", async () => {
+            mockStore(true, OWNER_OF_A);
+            let reject!: (error: Error) => void;
+            mocked(getOrgUnitsWithoutCategory).mockReturnValue(new Promise((_res, rej) => (reject = rej)));
+            const errors = jest.spyOn(console, "error");
+
+            const { unmount } = renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+            unmount();
+            await act(async () => {
+                reject(new Error("down"));
+            });
+
+            expect(errors.mock.calls.filter((call) => String(call[0]).includes("unmounted component"))).toEqual([]);
         });
 
         it("offers neither, and no Add header, when Hierarchy V2 is off for the tenant", () => {

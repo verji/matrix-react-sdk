@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
+import { mocked } from "jest-mock";
 
 import {
     deriveVerjiSpaceKind,
@@ -32,7 +33,12 @@ const ORG_A = "org-a";
  * of the exercise is that Verji custom events use the event type as their own state key, and only
  * the real state store proves the read matches the write.
  */
-const makeSpace = (client: MatrixClient, events: Record<string, object>, roomId = "!space:domain.org"): Room => {
+const makeSpace = (
+    client: MatrixClient,
+    events: Record<string, object>,
+    roomId = "!space:domain.org",
+    senders: Record<string, string> = {},
+): Room => {
     const room = new Room(roomId, client, USER);
     jest.spyOn(room, "isSpaceRoom").mockReturnValue(true);
     room.currentState.setStateEvents(
@@ -42,13 +48,16 @@ const makeSpace = (client: MatrixClient, events: Record<string, object>, roomId 
                     type,
                     state_key: type, // Verji custom events key on their own type
                     room_id: room.roomId,
-                    sender: USER,
+                    sender: senders[type] ?? USER,
                     content,
                 }),
         ),
     );
     return room;
 };
+
+/** vsys of the client's homeserver (USER's). */
+const VSYS = "@vsys:domain.org";
 
 const TENANT_INFO = { "app.verji.tenant_info": { tenant_id: TENANT } };
 
@@ -130,6 +139,48 @@ describe("VerjiSpaceContext", () => {
                 const roots = [topLevel("!other-root:d.org", "tenant-2", "Other AS")];
 
                 expect(resolveVerjiSpaceContext(orgUnitSpace(), roots)!.tenantName).toBe("Org A");
+            });
+        });
+
+        describe("whether vsys sent the space's Verji events", () => {
+            const ORG_UNIT_INFO = { "app.verji.org_unit_info": { org_unit_id: ORG_A } };
+            const sentByVsys = (events: Record<string, object>, senders: Record<string, string>): boolean | undefined =>
+                resolveVerjiSpaceContext(makeSpace(client, events, "!space:domain.org", senders), [])!.sentByVsys;
+
+            it("is true when vsys of the client's homeserver sent the tenant_info, and the org_unit_info where there is one", () => {
+                expect(sentByVsys(TENANT_INFO, { "app.verji.tenant_info": VSYS })).toBe(true);
+                expect(
+                    sentByVsys(
+                        { ...TENANT_INFO, ...ORG_UNIT_INFO },
+                        { "app.verji.tenant_info": VSYS, "app.verji.org_unit_info": VSYS },
+                    ),
+                ).toBe(true);
+            });
+
+            it("is false when someone else sent either: anyone may stamp a space of their own", () => {
+                expect(sentByVsys(TENANT_INFO, {})).toBe(false);
+                expect(sentByVsys({ ...TENANT_INFO, ...ORG_UNIT_INFO }, { "app.verji.tenant_info": VSYS })).toBe(false);
+                expect(sentByVsys({ ...TENANT_INFO, ...ORG_UNIT_INFO }, { "app.verji.org_unit_info": VSYS })).toBe(
+                    false,
+                );
+            });
+
+            it("is false for vsys of another homeserver, and for a client that has no homeserver yet", () => {
+                expect(sentByVsys(TENANT_INFO, { "app.verji.tenant_info": "@vsys:elsewhere.org" })).toBe(false);
+                mocked(client.getDomain).mockReturnValue(null);
+                expect(sentByVsys(TENANT_INFO, { "app.verji.tenant_info": VSYS })).toBe(false);
+            });
+
+            it("changes nothing else the context says", () => {
+                const ours = resolveVerjiSpaceContext(
+                    makeSpace(client, { ...TENANT_INFO, ...ORG_UNIT_INFO }, "!space:domain.org", {
+                        "app.verji.tenant_info": VSYS,
+                        "app.verji.org_unit_info": VSYS,
+                    }),
+                    [],
+                )!;
+                const anyones = resolveVerjiSpaceContext(makeSpace(client, { ...TENANT_INFO, ...ORG_UNIT_INFO }), [])!;
+                expect({ ...anyones, sentByVsys: true }).toEqual(ours);
             });
         });
 

@@ -33,8 +33,10 @@ import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceCon
 import {
     assignRoomToOrgUnit,
     getConflictReason,
+    getOrgUnitName,
     getOrgUnitRoomCandidates,
     describeError,
+    isForbidden,
 } from "../../../../stores/verji/verjiOrgUnitRooms";
 
 /**
@@ -49,7 +51,11 @@ import {
  * Suggested rooms come first; rooms of the tenant's people only are behind "Show all rooms";
  * refused rooms are listed last, disabled, with why. A refused room has someone from outside the
  * guest org in it, so its row shows nothing taken from its members: not the name matrix-js-sdk
- * makes up from them for a room that has none, nor their avatar.
+ * makes up from them for a room that has none, nor their avatar. Nor does a room the Organization
+ * API refuses when it is chosen, whatever the list said of it.
+ *
+ * The dialog names the guest org by its own name, as the Organization API lists it, never by the
+ * name of the space it was opened on.
  */
 
 interface IProps {
@@ -57,7 +63,8 @@ interface IProps {
     tenantId: string;
     tenantName: string;
     orgUnitId: string;
-    orgUnitName: string;
+    /** The org unit's own name, when the opener has it from the Organization API; else asked for. */
+    orgUnitName?: string;
     onFinished(added?: boolean): void;
 }
 
@@ -112,6 +119,8 @@ type RowState =
     | { kind: "added" }
     // Refused for good: disabled.
     | { kind: "refused"; message: string }
+    // The Organization API refused the user (403): they may no longer do this here. Disabled.
+    | { kind: "forbidden"; message: string }
     // Refused for now, or for a reason the client does not know: can be tried again.
     | { kind: "failed"; message: string };
 
@@ -120,12 +129,20 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     tenantId,
     tenantName,
     orgUnitId,
-    orgUnitName,
+    orgUnitName: givenOrgUnitName,
     onFinished,
 }) => {
-    const names = useMemo(() => ({ tenant: tenantName, orgUnit: orgUnitName }), [tenantName, orgUnitName]);
+    const [orgUnitName, setOrgUnitName] = useState<string | undefined>(givenOrgUnitName);
+    // Until the org unit's name is known, or when the Organization API does not list it, the
+    // messages say "this guest organization".
+    const names = useMemo(
+        () => ({ tenant: tenantName, orgUnit: orgUnitName ?? _t("verji|add_existing|this_guest_org") }),
+        [tenantName, orgUnitName],
+    );
     const [candidates, setCandidates] = useState<OrgUnitRoomCandidate[] | null>(null);
-    const [loadError, setLoadError] = useState<string | null>(null);
+    // A list that did not load: refused to the user (403), which trying again does not change; the
+    // org unit without its space yet; or anything else.
+    const [loadError, setLoadError] = useState<"forbidden" | "no-space" | "failed" | null>(null);
     const [showAll, setShowAll] = useState(false);
     const [query, setQuery] = useState("");
     const [rows, setRows] = useState<Record<string, RowState>>({});
@@ -149,21 +166,30 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             setCandidates(list);
         } catch (e) {
             const reason = getConflictReason(e);
-            if (reason === null)
+            const forbidden = reason === null && isForbidden(e);
+            if (reason === null && !forbidden)
                 logger.error("[Verji.OrgUnitRooms] Failed to list the room candidates", describeError(e));
             if (!mounted.current) return;
-            // The list's one refusal the client can explain; anything else is a list that did not load.
-            setLoadError(
-                reason === "OrgUnitHasNoSpace"
-                    ? describeOrgUnitRoomConflict(reason, names)
-                    : _t("verji|add_existing|load_failed"),
-            );
+            // A 403 holds whatever the client does next; the list's one refusal the client can explain
+            // may pass; anything else is a list that did not load.
+            setLoadError(forbidden ? "forbidden" : reason === "OrgUnitHasNoSpace" ? "no-space" : "failed");
         }
-    }, [client, tenantId, orgUnitId, names]);
+    }, [client, tenantId, orgUnitId]);
 
     useEffect(() => {
         void load();
     }, [load]);
+
+    // The org unit's own name, when the opener did not have it.
+    useEffect(() => {
+        if (givenOrgUnitName) return;
+        getOrgUnitName(client, tenantId, orgUnitId).then(
+            (name) => {
+                if (mounted.current && name) setOrgUnitName(name);
+            },
+            (e) => logger.warn("[Verji.OrgUnitRooms] Could not read the org unit's name", describeError(e)),
+        );
+    }, [client, tenantId, orgUnitId, givenOrgUnitName]);
 
     const busy = Object.values(rows).some((row) => row.kind === "busy");
     const addedAny = Object.values(rows).some((row) => row.kind === "added");
@@ -177,6 +203,14 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             setRows((r) => ({ ...r, [candidate.roomId]: { kind: "added" } }));
         } catch (e) {
             const reason = getConflictReason(e);
+            if (reason === null && isForbidden(e)) {
+                // Not this room's doing, and not to be tried again: the user may no longer do this here.
+                logger.warn("[Verji.OrgUnitRooms] The Organization API refused the user", describeError(e));
+                if (!mounted.current) return;
+                const message = _t("verji|add_existing|forbidden");
+                setRows((r) => ({ ...r, [candidate.roomId]: { kind: "forbidden", message } }));
+                return;
+            }
             if (reason === null) {
                 logger.error("[Verji.OrgUnitRooms] Failed to assign the room", candidate.roomId, describeError(e));
                 if (!mounted.current) return;
@@ -194,11 +228,18 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     };
 
     /**
+     * Is the room refused: listed so, or refused for good when it was chosen? Either way someone in
+     * it may be from outside the guest org, so its row takes nothing from its members.
+     */
+    const isRefused = (candidate: OrgUnitRoomCandidate): boolean =>
+        candidate.fit === "Refused" || rows[candidate.roomId]?.kind === "refused";
+
+    /**
      * The row's name, which the search matches too. A refused room never takes the name
      * matrix-js-sdk computes from its members, which would name someone from outside the guest org.
      */
     const label = (candidate: OrgUnitRoomCandidate): string =>
-        candidate.fit === "Refused"
+        isRefused(candidate)
             ? candidate.name || _t("verji|add_existing|unnamed_room")
             : candidate.name || client.getRoom(candidate.roomId)?.name || candidate.roomId;
 
@@ -213,20 +254,22 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     const renderRow = (candidate: OrgUnitRoomCandidate): JSX.Element => {
         const room: Room | null = client.getRoom(candidate.roomId);
         const row = rows[candidate.roomId] ?? { kind: "idle" };
-        const isRefused = candidate.fit === "Refused";
+        const listedRefused = candidate.fit === "Refused";
+        const refusedRoom = isRefused(candidate);
         const name = label(candidate);
-        // A refused room's reason, or what its fit means when the reason is missing or not one the
-        // client knows: someone in it is from outside the guest org.
-        const hint = isRefused
+        // A room listed as refused: its reason, or what its fit means when the reason is missing or
+        // not one the client knows: someone in it is from outside the guest org. Any other: what the
+        // Organization API answered when it was chosen.
+        const hint = listedRefused
             ? describeOrgUnitRoomConflict(
                   isPermanentRefusal(candidate.reason) ? candidate.reason : "MemberOutsideOrgUnit",
                   names,
               )
-            : row.kind === "refused" || row.kind === "failed"
+            : row.kind === "refused" || row.kind === "forbidden" || row.kind === "failed"
               ? row.message
               : undefined;
         let avatar: JSX.Element | null = null;
-        if (isRefused) avatar = <BaseAvatar name={name} idName={candidate.roomId} size="32px" />;
+        if (refusedRoom) avatar = <BaseAvatar name={name} idName={candidate.roomId} size="32px" />;
         else if (room) avatar = <DecoratedRoomAvatar room={room} size="32px" />;
         return (
             <div
@@ -242,7 +285,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
                 <AccessibleButton
                     kind="primary_outline"
                     className="mx_VerjiAddExistingToOrgUnit_add"
-                    disabled={isRefused || busy || (row.kind !== "idle" && row.kind !== "failed")}
+                    disabled={refusedRoom || busy || (row.kind !== "idle" && row.kind !== "failed")}
                     onClick={() => void onAdd(candidate)}
                 >
                     {row.kind === "added" ? _t("verji|add_existing|added") : _t("action|add")}
@@ -263,10 +306,18 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     if (loadError) {
         body = (
             <div className="mx_VerjiAddExistingToOrgUnit_message">
-                <div>{loadError}</div>
-                <AccessibleButton kind="link" onClick={() => void load()}>
-                    {_t("action|retry")}
-                </AccessibleButton>
+                <div>
+                    {loadError === "forbidden"
+                        ? _t("verji|add_existing|forbidden")
+                        : loadError === "no-space"
+                          ? describeOrgUnitRoomConflict("OrgUnitHasNoSpace", names)
+                          : _t("verji|add_existing|load_failed")}
+                </div>
+                {loadError !== "forbidden" && (
+                    <AccessibleButton kind="link" onClick={() => void load()}>
+                        {_t("action|retry")}
+                    </AccessibleButton>
+                )}
             </div>
         );
     } else if (!candidates) {
@@ -278,7 +329,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         if (nothingShown && lcQuery) {
             empty = _t("common|no_results");
         } else if (nothingShown && internal.length === 0) {
-            empty = _t("verji|add_existing|no_rooms", { orgUnit: orgUnitName });
+            empty = _t("verji|add_existing|no_rooms", { orgUnit: names.orgUnit });
         }
         body = (
             <>
@@ -304,7 +355,11 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
 
     return (
         <BaseDialog
-            title={_t("verji|add_existing|room_title", { orgUnit: orgUnitName })}
+            title={
+                orgUnitName
+                    ? _t("verji|add_existing|room_title", { orgUnit: orgUnitName })
+                    : _t("verji|add_existing|room_option")
+            }
             className="mx_AddExistingToSpaceDialog mx_VerjiAddExistingToOrgUnitDialog"
             contentId="mx_VerjiAddExistingToOrgUnit"
             onFinished={() => onFinished(addedAny)}
@@ -312,7 +367,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         >
             <div className="mx_AddExistingToSpace" id="mx_VerjiAddExistingToOrgUnit">
                 <div className="mx_VerjiAddExistingToOrgUnit_description">
-                    {_t("verji|add_existing|room_description", { orgUnit: orgUnitName })}
+                    {_t("verji|add_existing|room_description", { orgUnit: names.orgUnit })}
                 </div>
                 <SearchBox
                     className="mx_textinput_icon mx_textinput_search"
@@ -338,11 +393,14 @@ export default AddExistingRoomToOrgUnitDialog;
 
 /**
  * Open "Add existing room" for a guest org's space. Does nothing for a space that is not a Verji
- * OrgUnit space, which the menu never offers it on.
+ * OrgUnit space whose Verji events vsys sent, which the menu never offers it on.
+ *
+ * @param orgUnitName the org unit's own name, when the opener has it from the Organization API;
+ *     the dialog asks for it otherwise. Never the space's name.
  */
-export function showAddExistingRoomToOrgUnitDialog(space: Room): void {
+export function showAddExistingRoomToOrgUnitDialog(space: Room, orgUnitName?: string): void {
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
-    if (!ctx?.orgUnitId) return;
+    if (!ctx?.orgUnitId || ctx.sentByVsys !== true) return;
     Modal.createDialog(
         AddExistingRoomToOrgUnitDialog,
         {
@@ -350,7 +408,7 @@ export function showAddExistingRoomToOrgUnitDialog(space: Room): void {
             tenantId: ctx.tenantId,
             tenantName: ctx.tenantName,
             orgUnitId: ctx.orgUnitId,
-            orgUnitName: space.name,
+            orgUnitName,
         },
         "mx_AddExistingToSpaceDialog_wrapper",
     );

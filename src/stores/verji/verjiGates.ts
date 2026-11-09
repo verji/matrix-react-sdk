@@ -238,9 +238,14 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
  *
  * The client cannot tell the tenant's default category from another one, and the backend gives
  * the org unit the default category whichever space the option is chosen on.
+ *
+ * Only on a space whose `tenant_info` vsys sent ({@link VerjiSpaceContext.sentByVsys}): a space
+ * anyone made and stamped with a tenant's id is not that tenant's, and the option would call the
+ * Organization API for the tenant it names.
  */
 export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
+        c.sentByVsys === true &&
         (c.kind === VerjiSpaceKind.OrgUnitCategory || c.kind === VerjiSpaceKind.TenantRoot) &&
         (isTenantPrimaryContact(reader, c.tenantId) || isAnyOrgUnitOwner(reader, c.tenantId))
             ? ALLOWED
@@ -257,9 +262,12 @@ export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader
  * PrimaryContact, in every guest org of the tenant — whether the context has heard of the OrgUnit
  * or not, since their standing is tenant-wide — and to the Owner of that OrgUnit. Hidden for
  * everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
+ * Only on a space whose `tenant_info` and `org_unit_info` vsys sent
+ * ({@link VerjiSpaceContext.sentByVsys}), as for {@link getAddExistingGuestOrgGate}.
  */
 export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
+        c.sentByVsys === true &&
         c.kind === VerjiSpaceKind.OrgUnit &&
         !!c.orgUnitId &&
         isTenantPrimaryContactOrOrgUnitOwner(reader, c.tenantId, c.orgUnitId)

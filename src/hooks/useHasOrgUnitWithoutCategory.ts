@@ -21,7 +21,12 @@ import { logger } from "matrix-js-sdk/src/logger";
 import SpaceStore from "../stores/spaces/SpaceStore";
 import { VerjiPermissionsStore } from "../stores/verji/VerjiPermissionsStore";
 import { resolveVerjiSpaceContext } from "../stores/verji/VerjiSpaceContext";
-import { describeError, getOrgUnitsWithoutCategory } from "../stores/verji/verjiOrgUnitRooms";
+import {
+    describeError,
+    getOrgUnitsWithoutCategory,
+    knownHasOrgUnitWithoutCategory,
+    rememberHasOrgUnitWithoutCategory,
+} from "../stores/verji/verjiOrgUnitRooms";
 import { isTenantPrimaryContact } from "../stores/verji/verjiRoles";
 
 /**
@@ -30,42 +35,53 @@ import { isTenantPrimaryContact } from "../stores/verji/verjiRoles";
  * access context cannot answer: it says whom an org unit belongs to, not whether it has a category.
  *
  * The tenant's PrimaryContact may bring in any org unit of the tenant, and is answered yes at once.
- * Anyone else is asked of the Organization API, once per mount, so a menu that opens shows the
- * option to an Owner only when one of theirs is waiting, a moment after it opens. A failed answer
- * reads as no: the option is left out, as for someone who has nothing to bring in.
+ * Anyone else is asked of the Organization API once per tenant for the session, and the answer is
+ * kept (`knownHasOrgUnitWithoutCategory`) until the access context changes or a guest org is
+ * brought in, so a menu shows the option to an Owner only when one of theirs is waiting, a moment
+ * after it first opens and at once after that. A failed answer reads as no, and is not kept: the
+ * option is left out, as for someone who has nothing to bring in, until a menu asks again.
  *
  * Reads the access context synchronously, as a gate does; the component re-renders on its changes
  * through `useVerjiGate`, which it calls for the same space.
  *
  * @param space the space being rendered
- * @param asked whether to ask at all: false, as when the gate hides the option, is answered no at
- *     once and sends nothing
+ * @param asked whether to ask at all: false, as when the gate hides the option or the Organization
+ *     API is not configured, is answered no at once and sends nothing
  */
 export function useHasOrgUnitWithoutCategory(space: Room | null | undefined, asked: boolean): boolean {
+    const store = VerjiPermissionsStore.instance;
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
     const tenantId = asked ? ctx?.tenantId : undefined;
-    const primaryContact = !!tenantId && isTenantPrimaryContact(VerjiPermissionsStore.instance, tenantId);
+    const primaryContact = !!tenantId && isTenantPrimaryContact(store, tenantId);
+    // The access context the answer is asked under: when it changes, a kept answer no longer holds.
+    const version = store.getVersion();
+    const known = tenantId && !primaryContact ? knownHasOrgUnitWithoutCategory(tenantId, version) : undefined;
     const client = space?.client;
-    const [answer, setAnswer] = useState<{ tenantId: string; has: boolean } | null>(null);
+    const [answer, setAnswer] = useState<{ tenantId: string; version: number; has: boolean } | null>(null);
 
     useEffect(() => {
-        if (!tenantId || primaryContact || !client) return;
+        if (!tenantId || primaryContact || !client || known !== undefined) return;
         let mounted = true;
-        getOrgUnitsWithoutCategory(client, tenantId, VerjiPermissionsStore.instance).then(
+        getOrgUnitsWithoutCategory(client, tenantId, store).then(
             (orgUnits) => {
-                if (mounted) setAnswer({ tenantId, has: orgUnits.length > 0 });
+                const has = orgUnits.length > 0;
+                // Kept for the next menu even when this one has closed.
+                rememberHasOrgUnitWithoutCategory(tenantId, version, has);
+                if (mounted) setAnswer({ tenantId, version, has });
             },
             (error) => {
                 logger.warn("[Verji.OrgUnitRooms] Could not ask for the org units to bring in", describeError(error));
-                if (mounted) setAnswer({ tenantId, has: false });
+                if (mounted) setAnswer({ tenantId, version, has: false });
             },
         );
         return () => {
             mounted = false;
         };
-    }, [client, tenantId, primaryContact]);
+    }, [client, store, tenantId, primaryContact, version, known]);
 
     if (!tenantId) return false;
     if (primaryContact) return true;
-    return answer?.tenantId === tenantId && answer.has;
+    if (known !== undefined) return known;
+    // Only the answer for this tenant, under this access context: never another space's.
+    return answer?.tenantId === tenantId && answer.version === version && answer.has;
 }

@@ -6,6 +6,7 @@
         "add_existing": {
             "add_rooms": "Legg til eksisterende rom",
             "added": "Lagt til",
+            "forbidden": "Du kan ikke lenger gjøre dette her.",
             "guest_org_description": "Gjesteorganisasjoner fra før %(tenant)s gikk over til det nye hierarkiet. Legg til en for å gi den sitt område.",
             "guest_org_failed": "%(orgUnit)s kunne ikke legges til. Prøv igjen.",
             "guest_org_filter": "Søk i gjesteorganisasjoner",
@@ -34,6 +35,7 @@
             "section_refused": "Kan ikke legges til",
             "section_suggested": "Foreslått",
             "show_all_rooms": "Vis alle rom",
+            "this_guest_org": "denne gjesteorganisasjonen",
             "unnamed_room": "Rom uten navn"
         },
         "gate": {

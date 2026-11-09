@@ -32,11 +32,13 @@ const TENANT = "tenant-1";
 const ORG_A = "org-a";
 const ORG_B = "org-b";
 
+/** A space the backend made: vsys sent its Verji events. Only the add-existing gates read that. */
 const ctxFor = (kind: VerjiSpaceKind, orgUnitId?: string): VerjiSpaceContext => ({
     tenantId: TENANT,
     orgUnitId,
     kind,
     tenantName: "Acme AS",
+    sentByVsys: true,
 });
 
 const TENANT_ROOT = ctxFor(VerjiSpaceKind.TenantRoot);
@@ -474,6 +476,34 @@ describe("verjiGates", () => {
         it("is not offered on a room that is not a Verji space", () => {
             expect(isGateOffered(gate(null, readerFor(true, PRIMARY_CONTACT)))).toBe(false);
         });
+
+        it.each([
+            ["someone other than vsys sent its Verji events", false],
+            ["who sent its Verji events is not known", undefined],
+        ])("is hidden on a space %s, from the PrimaryContact and the Owner alike", (_why, sentByVsys) => {
+            // A space anyone could make and stamp with the tenant's and the OrgUnit's ids.
+            for (const ctx of offeredAt) {
+                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A]) {
+                    const decision = gate({ ...ctx, sentByVsys }, readerFor(true, grants));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                    expect(isGateOffered(decision)).toBe(false);
+                }
+            }
+        });
+    });
+
+    it.each(ALL_GATES)("leaves the %s gate as it was, whoever sent the space's Verji events", (_name, gate) => {
+        // Only the add-existing gates read sentByVsys; every other one decides as it did before it existed.
+        for (const [, ctx] of ALL_CONTEXTS) {
+            for (const grants of [GUEST, STANDARD_USER, PRIMARY_CONTACT, OWNER_OF_A, JOINED_A_ROOM_IN_ORG_A]) {
+                for (const rolloutOn of [true, false]) {
+                    const asBefore = gate({ ...ctx, sentByVsys: undefined }, readerFor(rolloutOn, grants));
+                    expect(gate({ ...ctx, sentByVsys: false }, readerFor(rolloutOn, grants))).toEqual(asBefore);
+                    expect(gate({ ...ctx, sentByVsys: true }, readerFor(rolloutOn, grants))).toEqual(asBefore);
+                }
+            }
+        }
     });
 
     it("hides add existing room from the Owner of another OrgUnit", () => {

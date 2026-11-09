@@ -17,22 +17,35 @@ limitations under the License.
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, PendingEventOrdering, Room } from "matrix-js-sdk/src/matrix";
 import { KnownMembership } from "matrix-js-sdk/src/types";
 import { mocked } from "jest-mock";
 import { OrgUnitRoomConflictError } from "@verji/verji-api-sdk";
 
 import type { OrgUnitRoomCandidate } from "@verji/verji-api-sdk";
-import { mkMembership, stubClient } from "../../../../test-utils";
-import AddExistingRoomToOrgUnitDialog from "../../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog";
-import { assignRoomToOrgUnit, getOrgUnitRoomCandidates } from "../../../../../src/stores/verji/verjiOrgUnitRooms";
+import { mkEvent, mkMembership, mockStateEventImplementation, stubClient } from "../../../../test-utils";
+import AddExistingRoomToOrgUnitDialog, {
+    showAddExistingRoomToOrgUnitDialog,
+} from "../../../../../src/components/views/dialogs/verji/AddExistingRoomToOrgUnitDialog";
+import {
+    assignRoomToOrgUnit,
+    getOrgUnitName,
+    getOrgUnitRoomCandidates,
+} from "../../../../../src/stores/verji/verjiOrgUnitRooms";
+import Modal from "../../../../../src/Modal";
+import DMRoomMap from "../../../../../src/utils/DMRoomMap";
 
-// VERJI: verji/verji-src#2117 — the Organization API calls are mocked; reading a conflict's reason is not.
+// VERJI: verji/verji-src#2117 — the Organization API calls are mocked; reading a conflict's reason, or a 403, is not.
 jest.mock("../../../../../src/stores/verji/verjiOrgUnitRooms", () => ({
     ...jest.requireActual("../../../../../src/stores/verji/verjiOrgUnitRooms"),
     getOrgUnitRoomCandidates: jest.fn(),
     assignRoomToOrgUnit: jest.fn(),
+    getOrgUnitName: jest.fn(),
 }));
+
+/** What the SDK passes on when the Organization API answers 403: the request's own error. */
+const forbidden = (): Error =>
+    Object.assign(new Error("Request failed with status code 403"), { response: { status: 403 } });
 
 const candidate = (
     roomId: string,
@@ -95,7 +108,223 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         jest.spyOn(client, "getRoom").mockReturnValue(null);
         mocked(getOrgUnitRoomCandidates).mockReset().mockResolvedValue([REFUSED, INTERNAL, SUGGESTED]);
         mocked(assignRoomToOrgUnit).mockReset().mockResolvedValue(undefined);
+        mocked(getOrgUnitName).mockReset().mockResolvedValue("Kari AS");
         onFinished.mockReset();
+    });
+
+    /** A nameless room the client knows, whose name matrix-js-sdk makes up from its members: Eve, from outside. */
+    const roomWithOutsider = (): Room => {
+        const eve = "@eve:outside.example";
+        const me = client.getSafeUserId();
+        // Listed as fitting, its row shows the room's own avatar, which reads its pending events.
+        const room = new Room("!mixed:server", client, me, { pendingEventOrdering: PendingEventOrdering.Detached });
+        room.currentState.setStateEvents([
+            mkMembership({ event: true, room: room.roomId, mship: KnownMembership.Join, user: me, skey: me }),
+            mkMembership({
+                event: true,
+                room: room.roomId,
+                mship: KnownMembership.Join,
+                user: eve,
+                skey: eve,
+                name: "Eve Outsider",
+                url: "mxc://outside.example/eve",
+            }),
+        ]);
+        room.recalculate();
+        expect(room.name).toContain("Eve Outsider");
+        mocked(client.getRoom).mockImplementation((id) => (id === room.roomId ? room : null));
+        // The room's own avatar asks whether it is a direct message: it is not.
+        dmRoomMap = jest
+            .spyOn(DMRoomMap, "shared")
+            .mockReturnValue({ getUserIdForRoomId: () => undefined } as unknown as DMRoomMap);
+        return room;
+    };
+    let dmRoomMap: jest.SpyInstance | undefined;
+    afterEach(() => {
+        dmRoomMap?.mockRestore();
+        dmRoomMap = undefined;
+    });
+
+    it("takes nothing from the members of a room refused when it is chosen, though it was listed as fitting", async () => {
+        const room = roomWithOutsider();
+        // The list said Internal; by the time it is chosen, someone from outside is in it.
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Internal")]);
+        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError("MemberOutsideOrgUnit"));
+        renderDialog();
+        await userEvent.click(await screen.findByRole("button", { name: "Show all rooms" }));
+
+        await clickAdd(room.roomId);
+
+        const refused = row(room.roomId);
+        expect(refused).toHaveTextContent(
+            "Someone in this room is not part of Kari AS or Acme AS, so it cannot be added.",
+        );
+        expect(refused).not.toHaveTextContent("Eve");
+        expect(within(refused).getByText("Unnamed room")).toBeInTheDocument();
+        expect(refused.querySelector("img")).toBeNull();
+        expect(refused.querySelector(".mx_BaseAvatar")).toHaveTextContent("U");
+        expect(addButton(room.roomId)).toHaveAttribute("aria-disabled", "true");
+        // Nor does the search find it by them.
+        search("eve");
+        expect(screen.queryByTestId(`verji-room-candidate-${room.roomId}`)).not.toBeInTheDocument();
+    });
+
+    it("keeps every other room disabled while an assignment runs", async () => {
+        const pending = deferred<void>();
+        mocked(assignRoomToOrgUnit).mockReturnValue(pending.promise);
+        renderDialog();
+        await userEvent.click(await screen.findByRole("button", { name: "Show all rooms" }));
+        expect(addButton(INTERNAL.roomId)).not.toHaveAttribute("aria-disabled", "true");
+
+        fireEvent.click(addButton(SUGGESTED.roomId));
+
+        expect(addButton(INTERNAL.roomId)).toHaveAttribute("aria-disabled", "true");
+        fireEvent.click(addButton(INTERNAL.roomId));
+        expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            pending.resolve();
+            await pending.promise;
+        });
+        expect(addButton(INTERNAL.roomId)).not.toHaveAttribute("aria-disabled", "true");
+    });
+
+    describe("when the Organization API refuses the user (403)", () => {
+        it("says they can no longer do this here, without a Retry, when it refuses the list", async () => {
+            mocked(getOrgUnitRoomCandidates).mockRejectedValue(forbidden());
+            renderDialog();
+
+            expect(await screen.findByText("You can no longer do this here.")).toBeInTheDocument();
+            expect(screen.queryByText("Could not load the list. Try again.")).not.toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+        });
+
+        it("says so on the room it refused, leaves it disabled, and asks nothing again", async () => {
+            mocked(assignRoomToOrgUnit).mockRejectedValue(forbidden());
+            renderDialog();
+            await screen.findByTestId("verji-room-candidates-suggested");
+
+            await clickAdd(SUGGESTED.roomId);
+
+            expect(within(row(SUGGESTED.roomId)).getByText("You can no longer do this here.")).toBeInTheDocument();
+            expect(screen.queryByText("The room could not be added. Try again.")).not.toBeInTheDocument();
+            expect(addButton(SUGGESTED.roomId)).toHaveAttribute("aria-disabled", "true");
+            fireEvent.click(addButton(SUGGESTED.roomId));
+            expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe("the guest org's name", () => {
+        const renderWithoutName = () =>
+            render(
+                <AddExistingRoomToOrgUnitDialog
+                    client={client}
+                    tenantId="tenant-1"
+                    tenantName="Acme AS"
+                    orgUnitId="org-a"
+                    onFinished={onFinished}
+                />,
+            );
+
+        it("is its own, as the Organization API lists it, when the opener does not have it", async () => {
+            const name = deferred<string | undefined>();
+            mocked(getOrgUnitName).mockReturnValue(name.promise);
+            renderWithoutName();
+
+            // No name but the guest org's own: until it is known, the title names none.
+            expect(screen.getByText("Add existing room")).toBeInTheDocument();
+            await act(async () => {
+                name.resolve("Kari AS");
+                await name.promise;
+            });
+
+            expect(getOrgUnitName).toHaveBeenCalledWith(client, "tenant-1", "org-a");
+            expect(screen.getByText("Add existing room to Kari AS")).toBeInTheDocument();
+            expect(screen.getByText(/Suggested rooms have people from Kari AS in them/)).toBeInTheDocument();
+        });
+
+        it("is not asked for when the opener has it", async () => {
+            renderDialog();
+            await screen.findByTestId("verji-room-candidates-suggested");
+
+            expect(getOrgUnitName).not.toHaveBeenCalled();
+            expect(screen.getByText("Add existing room to Kari AS")).toBeInTheDocument();
+        });
+
+        it.each([
+            ["the Organization API does not list it", () => mocked(getOrgUnitName).mockResolvedValue(undefined)],
+            ["it cannot be read", () => mocked(getOrgUnitName).mockRejectedValue(new Error("down"))],
+        ])("is 'this guest organization' when %s", async (_when, answer) => {
+            answer();
+            renderWithoutName();
+            await screen.findByTestId("verji-room-candidates-suggested");
+
+            expect(screen.getByText("Add existing room")).toBeInTheDocument();
+            expect(
+                screen.getByText(/Suggested rooms have people from this guest organization in them/),
+            ).toBeInTheDocument();
+        });
+
+        describe("when opened on a guest org's space", () => {
+            /** A space named otherwise than its guest org, whose Verji events `sender` sent. */
+            const orgUnitSpace = (sender: string): Room => {
+                const roomId = "!kari:server";
+                const state = [
+                    mkEvent({
+                        event: true,
+                        type: "app.verji.tenant_info",
+                        skey: "app.verji.tenant_info",
+                        room: roomId,
+                        user: sender,
+                        content: { tenant_id: "tenant-1" },
+                    }),
+                    mkEvent({
+                        event: true,
+                        type: "app.verji.org_unit_info",
+                        skey: "app.verji.org_unit_info",
+                        room: roomId,
+                        user: sender,
+                        content: { org_unit_id: "org-a" },
+                    }),
+                ];
+                return {
+                    roomId,
+                    name: "Not what it is called",
+                    client,
+                    isSpaceRoom: () => true,
+                    currentState: { getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)) },
+                } as unknown as Room;
+            };
+            let createDialog: jest.SpyInstance;
+
+            beforeEach(() => {
+                mocked(client.getDomain).mockReturnValue("server");
+                createDialog = jest.spyOn(Modal, "createDialog").mockReturnValue({} as never);
+            });
+
+            afterEach(() => createDialog.mockRestore());
+
+            it("never takes the space's name for the guest org's", () => {
+                showAddExistingRoomToOrgUnitDialog(orgUnitSpace("@vsys:server"));
+                expect(createDialog).toHaveBeenCalledWith(
+                    AddExistingRoomToOrgUnitDialog,
+                    expect.objectContaining({ tenantId: "tenant-1", orgUnitId: "org-a", orgUnitName: undefined }),
+                    "mx_AddExistingToSpaceDialog_wrapper",
+                );
+
+                showAddExistingRoomToOrgUnitDialog(orgUnitSpace("@vsys:server"), "Kari AS");
+                expect(createDialog).toHaveBeenLastCalledWith(
+                    AddExistingRoomToOrgUnitDialog,
+                    expect.objectContaining({ orgUnitName: "Kari AS" }),
+                    "mx_AddExistingToSpaceDialog_wrapper",
+                );
+            });
+
+            it("opens only on a space whose Verji events vsys sent", () => {
+                showAddExistingRoomToOrgUnitDialog(orgUnitSpace("@mallory:server"));
+                expect(createDialog).not.toHaveBeenCalled();
+            });
+        });
     });
 
     it("lists the suggested rooms first, keeps internal ones behind 'Show all rooms', and refused ones last, disabled", async () => {

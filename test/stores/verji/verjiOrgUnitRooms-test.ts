@@ -25,10 +25,15 @@ import {
     assignRoomToOrgUnit,
     describeError,
     findOrgUnitSpace,
+    forgetHasOrgUnitWithoutCategory,
     getConflictReason,
+    getOrgUnitName,
     getOrgUnitRoomCandidates,
     getOrgUnitsWithoutCategory,
+    isForbidden,
     isOrganizationApiConfigured,
+    knownHasOrgUnitWithoutCategory,
+    rememberHasOrgUnitWithoutCategory,
 } from "../../../src/stores/verji/verjiOrgUnitRooms";
 import SdkConfig from "../../../src/SdkConfig";
 import { VerjiRoleReader } from "../../../src/stores/verji/verjiRoles";
@@ -138,15 +143,21 @@ describe("verjiOrgUnitRooms", () => {
     });
 
     describe("findOrgUnitSpace", () => {
-        /** A space carrying the Verji state a guest org's personal space carries. */
-        const makeSpace = (roomId: string, membership: Membership, tenantId = "t1", orgUnitId = "u1"): Room => {
+        /** A space carrying the Verji state a guest org's personal space carries, sent by vsys unless `sender` says. */
+        const makeSpace = (
+            roomId: string,
+            membership: Membership,
+            tenantId = "t1",
+            orgUnitId = "u1",
+            sender = "@vsys:server",
+        ): Room => {
             const state = [
                 mkEvent({
                     event: true,
                     type: "app.verji.tenant_info",
                     skey: "app.verji.tenant_info",
                     room: roomId,
-                    user: "@vsys:server",
+                    user: sender,
                     content: { tenant_id: tenantId },
                 }),
                 mkEvent({
@@ -154,12 +165,13 @@ describe("verjiOrgUnitRooms", () => {
                     type: "app.verji.org_unit_info",
                     skey: "app.verji.org_unit_info",
                     room: roomId,
-                    user: "@vsys:server",
+                    user: sender,
                     content: { org_unit_id: orgUnitId },
                 }),
             ];
             return {
                 roomId,
+                client: { getDomain: () => "server" },
                 isSpaceRoom: () => true,
                 getMyMembership: () => membership,
                 currentState: { getStateEvents: jest.fn().mockImplementation(mockStateEventImplementation(state)) },
@@ -182,6 +194,86 @@ describe("verjiOrgUnitRooms", () => {
         it.each([KnownMembership.Invite, KnownMembership.Leave])("passes over a space the client is %s in", (mship) => {
             expect(findOrgUnitSpace(withRooms([makeSpace("!space:server", mship)]), "t1", "u1")).toBeNull();
         });
+
+        it("passes over a space whose Verji events someone other than vsys sent: anyone may stamp a space of their own", () => {
+            const forged = makeSpace("!forged:server", KnownMembership.Join, "t1", "u1", "@mallory:server");
+            const ours = makeSpace("!ours:server", KnownMembership.Join);
+
+            expect(findOrgUnitSpace(withRooms([forged]), "t1", "u1")).toBeNull();
+            expect(findOrgUnitSpace(withRooms([forged, ours]), "t1", "u1")).toBe(ours);
+        });
+    });
+
+    describe("the org unit's own name", () => {
+        it("is the name the Organization API lists it under", async () => {
+            organization.getOrgUnits.mockResolvedValue({
+                results: [
+                    { id: "u1", name: "Kari AS", orgUnitCategoryId: "cat-1" },
+                    { id: "u2", name: "Ola AS", orgUnitCategoryId: null },
+                ],
+            });
+
+            await expect(getOrgUnitName(client, "t1", "u2")).resolves.toBe("Ola AS");
+            expect(organization.getOrgUnits).toHaveBeenCalledWith(TOKEN, "t1");
+        });
+
+        it("is unknown when the Organization API does not list the org unit", async () => {
+            organization.getOrgUnits.mockResolvedValue({
+                results: [{ id: "u1", name: "Kari AS", orgUnitCategoryId: null }],
+            });
+
+            await expect(getOrgUnitName(client, "t1", "u9")).resolves.toBeUndefined();
+        });
+    });
+
+    describe("whether the user has an org unit to bring in, as last answered", () => {
+        afterEach(() => forgetHasOrgUnitWithoutCategory());
+
+        it("is kept per tenant, and holds only under the access context it was asked under", () => {
+            rememberHasOrgUnitWithoutCategory("t1", 7, true);
+            rememberHasOrgUnitWithoutCategory("t2", 7, false);
+
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(true);
+            expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBe(false);
+            expect(knownHasOrgUnitWithoutCategory("t3", 7)).toBeUndefined();
+            // The access context changed: the user's org units may have too.
+            expect(knownHasOrgUnitWithoutCategory("t1", 8)).toBeUndefined();
+        });
+
+        it("is forgotten for one tenant once a guest org is brought in, or for all", () => {
+            rememberHasOrgUnitWithoutCategory("t1", 7, true);
+            rememberHasOrgUnitWithoutCategory("t2", 7, true);
+
+            forgetHasOrgUnitWithoutCategory("t1");
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+            expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBe(true);
+
+            forgetHasOrgUnitWithoutCategory();
+            expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBeUndefined();
+        });
+    });
+
+    it("reads a 403 off the error's HTTP status: the user may no longer do this", () => {
+        // What the SDK passes on for a 403: the request's own error.
+        const forbidden = Object.assign(new Error("Request failed with status code 403"), {
+            name: "AxiosError",
+            response: { status: 403 },
+        });
+
+        expect(isForbidden(forbidden)).toBe(true);
+        expect(isForbidden({ response: { status: 403 } })).toBe(true);
+        for (const other of [
+            Object.assign(new Error("x"), { response: { status: 409 } }),
+            Object.assign(new Error("x"), { response: { status: 500 } }),
+            Object.assign(new Error("x"), { response: { status: "403" } }),
+            new OrgUnitRoomConflictError("MemberOutsideOrgUnit"),
+            new Error("down"),
+            "403",
+            null,
+            undefined,
+        ]) {
+            expect(isForbidden(other)).toBe(false);
+        }
     });
 
     it("reads a conflict's reason, and nothing from any other failure", () => {
@@ -189,6 +281,14 @@ describe("verjiOrgUnitRooms", () => {
         expect(getConflictReason(new OrgUnitRoomConflictError(undefined))).toBeUndefined();
         expect(getConflictReason(new Error("down"))).toBeNull();
         expect(getConflictReason("down")).toBeNull();
+    });
+
+    it("reads a conflict whose reason is not text as one without a reason", () => {
+        // A second copy of the SDK, or a changed one, could carry anything there: only text is a reason.
+        for (const reason of [42, { reason: "MemberOutsideOrgUnit" }, ["NotARoom"], true, null]) {
+            const conflict = Object.assign(new Error("conflict"), { name: "OrgUnitRoomConflictError", reason });
+            expect(getConflictReason(conflict)).toBeUndefined();
+        }
     });
 
     it("logs a failure as its message, never with the request that carries the token", () => {

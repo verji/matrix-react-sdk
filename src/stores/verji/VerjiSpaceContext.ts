@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Room } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
 
 /**
  * VERJI: what the client can know about the space it is rendering.
@@ -66,11 +66,36 @@ export interface VerjiSpaceContext {
      * tenant, so that is the name the hint must give. See {@link resolveVerjiSpaceContext}.
      */
     tenantName: string;
+    /**
+     * Did vsys send the space's `tenant_info` and, when it has one, its `org_unit_info`? Anyone may
+     * send those events in a space of their own, and vsys is the only sender of them in the spaces
+     * the backend makes, so this says the space is the tenant's rather than one that only claims to
+     * be. Read by the gates of verji/verji-src#2117 alone, whose options call the Organization API
+     * for the tenant and the OrgUnit the space names; every other gate reads the context as it did.
+     */
+    sentByVsys?: boolean;
+}
+
+/**
+ * The local part of vsys, the backend's appservice user, which sends every Verji event of the
+ * spaces the backend makes (VerjiSdk's `AppServiceConfig.LocalPart`, `vsys` wherever Verji runs).
+ */
+const VSYS_LOCALPART = "vsys";
+
+/** vsys on the client's own homeserver; null when the client has no user id yet. */
+export function vsysUserIdOf(client: MatrixClient | null | undefined): string | null {
+    const domain = client?.getDomain?.();
+    return domain ? `@${VSYS_LOCALPART}:${domain}` : null;
 }
 
 /** Synchronous state read. Verji custom events use the event type as their own state key. */
 function readContent(space: Room, type: string): Record<string, unknown> | undefined {
     return space.currentState.getStateEvents(type, type)?.getContent();
+}
+
+/** Who sent the space's Verji event of the type, under its own type as state key. */
+function senderOf(space: Room, type: string): string | undefined {
+    return space.currentState.getStateEvents(type, type)?.getSender();
 }
 
 function readString(space: Room, type: string, field: string): string | undefined {
@@ -138,14 +163,20 @@ export function resolveVerjiSpaceContext(
     const tenantRoot = isTopLevel
         ? space
         : topLevelSpaces.find((s) => readString(s, EV_TENANT_INFO, "tenant_id") === tenantId);
+    const orgUnitId = readString(space, EV_ORG_UNIT_INFO, "org_unit_id");
+    const vsys = vsysUserIdOf(space.client);
 
     return {
         tenantId,
-        orgUnitId: readString(space, EV_ORG_UNIT_INFO, "org_unit_id"),
+        orgUnitId,
         canonicalSpaceId:
             readString(space, EV_CANONICAL_SIBLING_SPACE, "canonical_sibling_space_id") ??
             readString(space, EV_CANONICAL_PARENT_SPACE, "canonical_parent_space_id"),
         kind: deriveVerjiSpaceKind(space, isTopLevel),
         tenantName: (tenantRoot ?? space).name,
+        sentByVsys:
+            !!vsys &&
+            senderOf(space, EV_TENANT_INFO) === vsys &&
+            (!orgUnitId || senderOf(space, EV_ORG_UNIT_INFO) === vsys),
     };
 }

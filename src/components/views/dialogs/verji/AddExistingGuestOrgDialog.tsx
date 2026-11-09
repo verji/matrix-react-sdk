@@ -32,8 +32,10 @@ import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceCon
 import {
     assignDefaultOrgUnitCategory,
     findOrgUnitSpace,
+    forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
     describeError,
+    isForbidden,
 } from "../../../../stores/verji/verjiOrgUnitRooms";
 import { showAddExistingRoomToOrgUnitDialog } from "./AddExistingRoomToOrgUnitDialog";
 
@@ -95,6 +97,8 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
     const [query, setQuery] = useState("");
     const [phase, setPhase] = useState<Phase>({ kind: "pick" });
     const [error, setError] = useState<string | null>(null);
+    // Org units the Organization API refused to let the user bring in (403): not offered again.
+    const [forbidden, setForbidden] = useState<ReadonlySet<string>>(new Set());
     // An answer that arrives after the dialog closed changes nothing. A layout effect, so the flag
     // is down as the dialog unmounts rather than when React gets round to its passive cleanups.
     const mounted = useRef(true);
@@ -134,9 +138,20 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
         setPhase({ kind: "sending", orgUnit });
         try {
             await assignDefaultOrgUnitCategory(client, tenantId, orgUnit.id);
+            // One of the user's org units has its category now: the menu asks again whether any is left.
+            forgetHasOrgUnitWithoutCategory(tenantId);
             if (!mounted.current) return;
             setPhase({ kind: "waiting", orgUnit });
         } catch (e) {
+            if (isForbidden(e)) {
+                // Trying again changes nothing: the user may no longer bring this one in.
+                logger.warn("[Verji.OrgUnitRooms] The Organization API refused the user", orgUnit.id, describeError(e));
+                if (!mounted.current) return;
+                setForbidden((ids) => new Set([...ids, orgUnit.id]));
+                setError(_t("verji|add_existing|forbidden"));
+                setPhase({ kind: "pick" });
+                return;
+            }
             logger.error("[Verji.OrgUnitRooms] Failed to bring the org unit in", orgUnit.id, describeError(e));
             if (!mounted.current) return;
             setError(_t("verji|add_existing|guest_org_failed", { orgUnit: orgUnit.name }));
@@ -144,9 +159,9 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
         }
     };
 
-    const onAddRooms = (space: Room): void => {
+    const onAddRooms = (orgUnit: OrgUnit, space: Room): void => {
         onFinished();
-        showAddExistingRoomToOrgUnitDialog(space);
+        showAddExistingRoomToOrgUnitDialog(space, orgUnit.name);
     };
 
     let content: JSX.Element;
@@ -172,7 +187,7 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
                     <AccessibleButton kind="secondary" onClick={onFinished}>
                         {_t("verji|add_existing|later")}
                     </AccessibleButton>
-                    <AccessibleButton kind="primary" onClick={() => onAddRooms(phase.space)}>
+                    <AccessibleButton kind="primary" onClick={() => onAddRooms(phase.orgUnit, phase.space)}>
                         {_t("verji|add_existing|add_rooms")}
                     </AccessibleButton>
                 </div>
@@ -212,7 +227,7 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
                             <AccessibleButton
                                 kind="primary_outline"
                                 className="mx_VerjiAddExistingToOrgUnit_add"
-                                disabled={phase.kind === "sending"}
+                                disabled={phase.kind === "sending" || forbidden.has(orgUnit.id)}
                                 onClick={() => void onAdd(orgUnit)}
                             >
                                 {_t("action|add")}
@@ -265,11 +280,12 @@ export default AddExistingGuestOrgDialog;
 
 /**
  * Open "Add existing Guest Organization" for a category space or the tenant's root space. Does
- * nothing for a room that is not a Verji space, which the menu never offers it on.
+ * nothing for a room that is not a Verji space whose `tenant_info` vsys sent, which the menu never
+ * offers it on.
  */
 export function showAddExistingGuestOrgDialog(space: Room): void {
     const ctx = resolveVerjiSpaceContext(space, SpaceStore.instance.spacePanelSpaces);
-    if (!ctx) return;
+    if (!ctx || ctx.sentByVsys !== true) return;
     Modal.createDialog(
         AddExistingGuestOrgDialog,
         { client: space.client, tenantId: ctx.tenantId, tenantName: ctx.tenantName },
