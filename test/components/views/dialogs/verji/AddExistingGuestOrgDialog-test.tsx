@@ -141,6 +141,8 @@ describe("<AddExistingGuestOrgDialog />", () => {
         mocked(assignDefaultOrgUnitCategory).mockReset().mockResolvedValue(undefined);
         mocked(showAddExistingRoomToOrgUnitDialog).mockReset();
         onFinished.mockReset();
+        // The menu's answers, and the bring-ins they wait for, are kept for the session: each test starts without any.
+        forgetHasOrgUnitWithoutCategory();
     });
 
     it("lists the tenant's guest orgs that have no category that the user may bring in, by name", async () => {
@@ -196,6 +198,27 @@ describe("<AddExistingGuestOrgDialog />", () => {
         expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBeUndefined();
         expect(knownHasOrgUnitWithoutCategory("tenant-2", 1)).toBe(true);
         forgetHasOrgUnitWithoutCategory();
+    });
+
+    it("keeps no answer for the menu from the bring-in's 202 until the guest org's space arrives", async () => {
+        renderDialog();
+        await clickAdd("org-a");
+        await screen.findByTestId("verji-guest-org-waiting");
+
+        // The Organization API may still list it without a category: no answer is kept meanwhile.
+        rememberHasOrgUnitWithoutCategory(TENANT, 1, true);
+        expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBeUndefined();
+
+        const space = makeSpace("!kari:server", TENANT, "org-a");
+        rooms = [space];
+        act(() => {
+            client.emit(ClientEvent.Room, space);
+        });
+        await screen.findByTestId("verji-guest-org-ready");
+
+        // Its space is there, so it has its category: answers are kept again.
+        rememberHasOrgUnitWithoutCategory(TENANT, 1, false);
+        expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBe(false);
     });
 
     it("keeps the tenant's answer when bringing one in fails", async () => {
@@ -303,6 +326,15 @@ describe("<AddExistingGuestOrgDialog />", () => {
         expect(addButton("org-b")).not.toHaveAttribute("aria-disabled", "true");
     });
 
+    it("says the user can no longer do this, without a Retry, when the Organization API refuses the list (403)", async () => {
+        mocked(getOrgUnitsWithoutCategory).mockRejectedValue(forbidden());
+        renderDialog();
+
+        expect(await screen.findByText("You can no longer do this here.")).toBeInTheDocument();
+        expect(screen.queryByText("Could not load the list. Try again.")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    });
+
     it("says the list could not be loaded, and retries", async () => {
         mocked(getOrgUnitsWithoutCategory).mockRejectedValueOnce(new Error("forbidden"));
         renderDialog();
@@ -387,6 +419,48 @@ describe("<AddExistingGuestOrgDialog />", () => {
             });
 
             expect(updatesAfterUnmount()).toEqual([]);
+        });
+    });
+
+    // From the adversarial review, round 2: each test below fails on the mutant named.
+    describe("adversarial review", () => {
+        // Kills: onAddRooms passing `space.name` (the fixture's spaces are all named "Kari AS", like the org unit).
+        it("passes the org unit's own name on, not its space's, when the two differ", async () => {
+            renderDialog();
+            await clickAdd("org-a");
+            await screen.findByTestId("verji-guest-org-waiting");
+
+            const space = {
+                ...makeSpace("!kari:server", TENANT, "org-a"),
+                name: "Kari's personal space",
+            } as unknown as Room;
+            rooms = [space];
+            act(() => {
+                client.emit(ClientEvent.Room, space);
+            });
+            await screen.findByTestId("verji-guest-org-ready");
+            await userEvent.click(screen.getByRole("button", { name: "Add existing rooms" }));
+
+            expect(showAddExistingRoomToOrgUnitDialog).toHaveBeenCalledWith(space, "Kari AS");
+        });
+
+        // Kills: moving markBringingIn below the `mounted.current` check.
+        it("forgets the tenant's kept answer even when the dialog closed before the bring-in returned", async () => {
+            const answer = deferred<void>();
+            mocked(assignDefaultOrgUnitCategory).mockReturnValue(answer.promise);
+            rememberHasOrgUnitWithoutCategory(TENANT, 1, true);
+            const { unmount } = renderDialog();
+            await screen.findByTestId("verji-guest-org-org-a");
+
+            fireEvent.click(addButton("org-a"));
+            unmount();
+            await act(async () => {
+                answer.resolve();
+                await answer.promise;
+            });
+
+            expect(knownHasOrgUnitWithoutCategory(TENANT, 1)).toBeUndefined();
+            forgetHasOrgUnitWithoutCategory();
         });
     });
 });

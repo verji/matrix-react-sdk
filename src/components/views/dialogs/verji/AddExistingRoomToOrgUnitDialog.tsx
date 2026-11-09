@@ -119,8 +119,6 @@ type RowState =
     | { kind: "added" }
     // Refused for good: disabled.
     | { kind: "refused"; message: string }
-    // The Organization API refused the user (403): they may no longer do this here. Disabled.
-    | { kind: "forbidden"; message: string }
     // Refused for now, or for a reason the client does not know: can be tried again.
     | { kind: "failed"; message: string };
 
@@ -141,7 +139,8 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
     );
     const [candidates, setCandidates] = useState<OrgUnitRoomCandidate[] | null>(null);
     // A list that did not load: refused to the user (403), which trying again does not change; the
-    // org unit without its space yet; or anything else.
+    // org unit without its space yet; or anything else. A 403 on assigning a room is the same refusal
+    // of the user, and takes the list away too.
     const [loadError, setLoadError] = useState<"forbidden" | "no-space" | "failed" | null>(null);
     const [showAll, setShowAll] = useState(false);
     const [query, setQuery] = useState("");
@@ -204,11 +203,13 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         } catch (e) {
             const reason = getConflictReason(e);
             if (reason === null && isForbidden(e)) {
-                // Not this room's doing, and not to be tried again: the user may no longer do this here.
+                // Not this room's doing, and not to be tried again: the user may no longer do this
+                // here, for any room. The Organization API refuses a 403 only to a caller who is not the
+                // tenant's PrimaryContact or the org unit's Owner, or may not reach the org unit.
                 logger.warn("[Verji.OrgUnitRooms] The Organization API refused the user", describeError(e));
                 if (!mounted.current) return;
-                const message = _t("verji|add_existing|forbidden");
-                setRows((r) => ({ ...r, [candidate.roomId]: { kind: "forbidden", message } }));
+                setRows((r) => ({ ...r, [candidate.roomId]: { kind: "idle" } }));
+                setLoadError("forbidden");
                 return;
             }
             if (reason === null) {
@@ -224,6 +225,12 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             const message = describeOrgUnitRoomConflict(reason, names);
             const kind = isPermanentRefusal(reason) ? "refused" : "failed";
             setRows((r) => ({ ...r, [candidate.roomId]: { kind, message } }));
+            // Refused, the row takes no name from the room's members, so a search that found it by
+            // one finds it no more: the refusal is said outside the list as well, by the row's new name.
+            if (kind === "refused") {
+                const room = candidate.name || _t("verji|add_existing|unnamed_room");
+                setError(_t("verji|add_existing|room_refused", { room, reason: message }));
+            }
         }
     };
 
@@ -265,7 +272,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
                   isPermanentRefusal(candidate.reason) ? candidate.reason : "MemberOutsideOrgUnit",
                   names,
               )
-            : row.kind === "refused" || row.kind === "forbidden" || row.kind === "failed"
+            : row.kind === "refused" || row.kind === "failed"
               ? row.message
               : undefined;
         let avatar: JSX.Element | null = null;

@@ -30,6 +30,7 @@
             "room_failed": "Rommet kunne ikke legges til. Prøv igjen.",
             "room_filter": "Søk i rom",
             "room_option": "Legg til eksisterende rom",
+            "room_refused": "%(room)s ble ikke lagt til. %(reason)s",
             "room_title": "Legg til eksisterende rom i %(orgUnit)s",
             "section_internal": "Bare personer fra %(tenant)s",
             "section_refused": "Kan ikke legges til",

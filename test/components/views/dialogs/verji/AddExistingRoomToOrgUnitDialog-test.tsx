@@ -199,18 +199,19 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
             expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
         });
 
-        it("says so on the room it refused, leaves it disabled, and asks nothing again", async () => {
+        it("says the same, without a Retry, when it refuses an assignment: the refusal is of the user, not the room", async () => {
             mocked(assignRoomToOrgUnit).mockRejectedValue(forbidden());
             renderDialog();
             await screen.findByTestId("verji-room-candidates-suggested");
 
             await clickAdd(SUGGESTED.roomId);
 
-            expect(within(row(SUGGESTED.roomId)).getByText("You can no longer do this here.")).toBeInTheDocument();
+            expect(screen.getByText("You can no longer do this here.")).toBeInTheDocument();
             expect(screen.queryByText("The room could not be added. Try again.")).not.toBeInTheDocument();
-            expect(addButton(SUGGESTED.roomId)).toHaveAttribute("aria-disabled", "true");
-            fireEvent.click(addButton(SUGGESTED.roomId));
+            expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
             expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(1);
+            // Nothing runs any more: Done closes it.
+            expect(screen.getByRole("button", { name: "Done" })).not.toHaveAttribute("aria-disabled", "true");
         });
     });
 
@@ -646,6 +647,83 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
             });
 
             expect(updatesAfterUnmount()).toEqual([]);
+        });
+    });
+
+    // From the adversarial review, round 2: each test below fails on the mutant named.
+    describe("adversarial review", () => {
+        // Kills: the search also matching the member-made name of a room LISTED as Refused.
+        it("the search never finds a room listed refused by a member's name", async () => {
+            const room = roomWithOutsider();
+            mocked(getOrgUnitRoomCandidates).mockResolvedValue([
+                candidate(room.roomId, null, "Refused", "MemberOutsideOrgUnit"),
+            ]);
+            renderDialog();
+            await screen.findByTestId("verji-room-candidates-refused");
+
+            search("eve");
+
+            expect(screen.queryByTestId(`verji-room-candidate-${room.roomId}`)).not.toBeInTheDocument();
+        });
+
+        // Kills: a 403 on one assignment disabling only that room's row. The Organization API answers
+        // an assignment 403 only to a caller who may not assign rooms to the org unit at all.
+        it("a 403 on one room's assignment leaves no room to choose", async () => {
+            mocked(assignRoomToOrgUnit).mockRejectedValueOnce(forbidden());
+            renderDialog();
+            await userEvent.click(await screen.findByRole("button", { name: "Show all rooms" }));
+
+            await clickAdd(SUGGESTED.roomId);
+
+            expect(screen.getByText("You can no longer do this here.")).toBeInTheDocument();
+            expect(screen.queryAllByTestId(/^verji-room-candidate-/)).toEqual([]);
+            expect(screen.queryAllByRole("button", { name: "Add" })).toEqual([]);
+        });
+
+        // Kills: a refusal said only on its row, which a search by a member's name then no longer finds.
+        it("says a refusal outside the list too, under the row's new name, when the search no longer finds the row", async () => {
+            const room = roomWithOutsider();
+            mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Suggested")]);
+            mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError("MemberOutsideOrgUnit"));
+            renderDialog();
+            await screen.findByTestId("verji-room-candidates-suggested");
+            // A row that fits shows the client's name for the room, here made up from its members: the search finds it by Eve.
+            search("eve");
+
+            await clickAdd(room.roomId);
+
+            // Refused, the row takes nothing from the room's members, so the search finds it no more.
+            expect(screen.queryByTestId(`verji-room-candidate-${room.roomId}`)).not.toBeInTheDocument();
+            const status = screen.getByRole("status");
+            expect(status).toHaveTextContent(
+                "Unnamed room was not added. Someone in this room is not part of Kari AS or Acme AS, so it cannot be added.",
+            );
+            expect(status).not.toHaveTextContent("Eve");
+        });
+
+        // Kills: dropping `mounted.current` from the getOrgUnitName effect.
+        it("sets no state when the guest org's name arrives after the dialog closed", async () => {
+            const errors = jest.spyOn(console, "error");
+            const name = deferred<string | undefined>();
+            mocked(getOrgUnitName).mockReturnValue(name.promise);
+            const { unmount } = render(
+                <AddExistingRoomToOrgUnitDialog
+                    client={client}
+                    tenantId="tenant-1"
+                    tenantName="Acme AS"
+                    orgUnitId="org-a"
+                    onFinished={onFinished}
+                />,
+            );
+
+            unmount();
+            await act(async () => {
+                name.resolve("Kari AS");
+                await name.promise;
+            });
+
+            expect(errors.mock.calls.filter((call) => String(call[0]).includes("unmounted component"))).toEqual([]);
+            errors.mockRestore();
         });
     });
 });

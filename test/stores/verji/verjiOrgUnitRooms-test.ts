@@ -21,8 +21,10 @@ import { getVerjiApiSdk } from "@verji/verji-api-sdk/lib/asyncInit";
 import { OrgUnitRoomConflictError } from "@verji/verji-api-sdk";
 
 import {
+    askHasOrgUnitWithoutCategory,
     assignDefaultOrgUnitCategory,
     assignRoomToOrgUnit,
+    BRING_IN_SETTLES_AFTER_MS,
     describeError,
     findOrgUnitSpace,
     forgetHasOrgUnitWithoutCategory,
@@ -33,6 +35,8 @@ import {
     isForbidden,
     isOrganizationApiConfigured,
     knownHasOrgUnitWithoutCategory,
+    markBringingIn,
+    markBroughtIn,
     rememberHasOrgUnitWithoutCategory,
 } from "../../../src/stores/verji/verjiOrgUnitRooms";
 import SdkConfig from "../../../src/SdkConfig";
@@ -250,6 +254,139 @@ describe("verjiOrgUnitRooms", () => {
 
             forgetHasOrgUnitWithoutCategory();
             expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBeUndefined();
+        });
+
+        /** A question whose answer the test gives. */
+        const question = (): { ask: () => Promise<boolean>; answer: (has: boolean) => void } => {
+            let answer!: (has: boolean) => void;
+            const promise = new Promise<boolean>((resolve) => (answer = resolve));
+            return { ask: () => promise, answer };
+        };
+
+        it("is asked once for every menu that asks while the question is in flight, and kept", async () => {
+            const slow = question();
+            const ask = jest.fn(slow.ask);
+
+            const first = askHasOrgUnitWithoutCategory("t1", 7, ask);
+            const second = askHasOrgUnitWithoutCategory("t1", 7, ask);
+            expect(second).toBe(first);
+            expect(ask).toHaveBeenCalledTimes(1);
+
+            slow.answer(true);
+            await expect(second).resolves.toBe(true);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(true);
+        });
+
+        it("is asked anew for another tenant, or under another access context", () => {
+            const ask = jest.fn(question().ask);
+
+            askHasOrgUnitWithoutCategory("t1", 7, ask);
+            askHasOrgUnitWithoutCategory("t2", 7, ask);
+            askHasOrgUnitWithoutCategory("t1", 8, ask);
+
+            expect(ask).toHaveBeenCalledTimes(3);
+        });
+
+        it("is asked again after a failure, which is not kept", async () => {
+            const ask = jest.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(true);
+
+            await expect(askHasOrgUnitWithoutCategory("t1", 7, ask)).rejects.toThrow("down");
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+            await expect(askHasOrgUnitWithoutCategory("t1", 7, ask)).resolves.toBe(true);
+            expect(ask).toHaveBeenCalledTimes(2);
+        });
+
+        it.each([
+            ["the tenant's", () => forgetHasOrgUnitWithoutCategory("t1")],
+            ["every tenant's", () => forgetHasOrgUnitWithoutCategory()],
+        ])("is never kept when asked before %s answer was forgotten, and asked anew after", async (_whose, forget) => {
+            const late = question();
+            const before = askHasOrgUnitWithoutCategory("t1", 7, late.ask);
+
+            forget();
+            const ask = jest.fn().mockResolvedValue(false);
+            await expect(askHasOrgUnitWithoutCategory("t1", 7, ask)).resolves.toBe(false);
+            expect(ask).toHaveBeenCalledTimes(1);
+
+            late.answer(true);
+            await expect(before).resolves.toBe(true);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
+        });
+
+        it("is not kept from a bring-in's 202 until the org unit's space arrives, nor when asked meanwhile", async () => {
+            rememberHasOrgUnitWithoutCategory("t1", 7, true);
+            rememberHasOrgUnitWithoutCategory("t2", 7, true);
+
+            markBringingIn("t1", "u1");
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+            expect(knownHasOrgUnitWithoutCategory("t2", 7)).toBe(true);
+
+            // The Organization API may still list u1 without a category: the answer is the menu's, and not kept.
+            await expect(askHasOrgUnitWithoutCategory("t1", 7, async () => true)).resolves.toBe(true);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+            rememberHasOrgUnitWithoutCategory("t1", 7, true);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+            // Asked meanwhile, answered once u1's space is there.
+            const late = question();
+            const meanwhile = askHasOrgUnitWithoutCategory("t1", 7, late.ask);
+            markBroughtIn("t1", "u1");
+            late.answer(true);
+            await meanwhile;
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+            // Asked after: kept.
+            await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
+        });
+
+        it("is kept again once every tenant's answer is forgotten, bring-ins and all", () => {
+            markBringingIn("t1", "u1");
+
+            forgetHasOrgUnitWithoutCategory();
+            rememberHasOrgUnitWithoutCategory("t1", 7, true);
+
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(true);
+        });
+
+        it("is not kept while another org unit of the tenant is still being brought in", async () => {
+            markBringingIn("t1", "u1");
+            markBringingIn("t1", "u2");
+
+            markBroughtIn("t1", "u1");
+            await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+            markBroughtIn("t1", "u2");
+            await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
+            expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
+        });
+
+        describe("when the org unit's space never shows it was brought in", () => {
+            let now: jest.SpyInstance;
+            beforeEach(() => {
+                now = jest.spyOn(Date, "now").mockReturnValue(1_000);
+            });
+            afterEach(() => now.mockRestore());
+
+            it("is kept again once the time a bring-in takes is up, but not when asked before", async () => {
+                markBringingIn("t1", "u1");
+
+                now.mockReturnValue(1_000 + BRING_IN_SETTLES_AFTER_MS - 1);
+                await askHasOrgUnitWithoutCategory("t1", 7, async () => true);
+                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+                const late = question();
+                const before = askHasOrgUnitWithoutCategory("t1", 7, late.ask);
+                now.mockReturnValue(1_000 + BRING_IN_SETTLES_AFTER_MS);
+                late.answer(true);
+                await before;
+                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBeUndefined();
+
+                await askHasOrgUnitWithoutCategory("t1", 7, async () => false);
+                expect(knownHasOrgUnitWithoutCategory("t1", 7)).toBe(false);
+            });
         });
     });
 

@@ -42,6 +42,8 @@ import { showAddExistingRoomToOrgUnitDialog } from "../../../../src/components/v
 import {
     forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
+    markBringingIn,
+    markBroughtIn,
 } from "../../../../src/stores/verji/verjiOrgUnitRooms"; // VERJI: verji/verji-src#2117
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
@@ -740,7 +742,7 @@ describe("<SpaceContextMenu />", () => {
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
                 expect(await openMenu()).toBe(true);
 
-                // What AddExistingGuestOrgDialog does once the Organization API took one in.
+                // What AddExistingGuestOrgDialog does first once the Organization API took one in.
                 mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
                 forgetHasOrgUnitWithoutCategory(TENANT);
 
@@ -797,6 +799,72 @@ describe("<SpaceContextMenu />", () => {
                     TENANT_2,
                     VerjiPermissionsStore.instance,
                 );
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+            });
+
+            it("asks once per tenant and version even when a menu reopens before the first answer lands", async () => {
+                mockStore(true, OWNER_OF_A);
+                // A slow Organization API: the first answer has not landed when the menu opens again.
+                mocked(getOrgUnitsWithoutCategory).mockReturnValue(new Promise(() => {}));
+
+                const first = renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                first.unmount();
+                renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                await settle();
+
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(1);
+            });
+
+            it("an answer asked before a bring-in, landing after it, does not undo the forget", async () => {
+                mockStore(true, OWNER_OF_A);
+                let lateAnswer!: (orgUnits: typeof WAITING) => void;
+                mocked(getOrgUnitsWithoutCategory).mockReturnValueOnce(new Promise((res) => (lateAnswer = res)));
+
+                // Menu 1 asks, and is closed before its (slow) answer lands.
+                renderComponent({ space: makeVerjiSpace(TENANT_INFO) }).unmount();
+                // Meanwhile the guest org is brought in: what AddExistingGuestOrgDialog does first on the 202.
+                forgetHasOrgUnitWithoutCategory(TENANT);
+                // Menu 1's question lands now, with the answer from before the bring-in.
+                await act(async () => {
+                    lateAnswer(WAITING);
+                });
+
+                // Nothing is left to bring in; the next menu must not offer the option from the stale answer.
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
+                expect(await openMenu()).toBe(false);
+            });
+
+            it("keeps no answer while a guest org is being brought in, and keeps one again once it has its space", async () => {
+                mockStore(true, OWNER_OF_A);
+                // The 202 only queued the work: the Organization API still lists the guest org without a category.
+                markBringingIn(TENANT, ORG_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+                expect(await openMenu()).toBe(true);
+
+                // It has its category now: the answer from before is not served, the next menu asks again.
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue([]);
+                expect(await openMenu()).toBe(false);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
+
+                // Its space arrived, which AddExistingGuestOrgDialog waits for: answers are kept again.
+                markBroughtIn(TENANT, ORG_A);
+                expect(await openMenu()).toBe(false);
+                expect(await openMenu()).toBe(false);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(3);
+            });
+
+            it("drops the answer of an access context that changed while the menu stays open", async () => {
+                mockStore(true, OWNER_OF_A);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue(WAITING);
+                renderComponent({ space: makeVerjiSpace(TENANT_INFO) });
+                expect(await screen.findByTestId("add-existing-guest-org-option")).toBeInTheDocument();
+
+                // The user's roles changed, and the new answer has not come: the old one no longer holds.
+                mocked(getOrgUnitsWithoutCategory).mockReturnValue(new Promise(() => {}));
+                act(() => VerjiPermissionsStore.instance["bumpVersion"]());
+                await settle();
+
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledTimes(2);
                 expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
             });
         });

@@ -22,10 +22,10 @@ import SpaceStore from "../stores/spaces/SpaceStore";
 import { VerjiPermissionsStore } from "../stores/verji/VerjiPermissionsStore";
 import { resolveVerjiSpaceContext } from "../stores/verji/VerjiSpaceContext";
 import {
+    askHasOrgUnitWithoutCategory,
     describeError,
     getOrgUnitsWithoutCategory,
     knownHasOrgUnitWithoutCategory,
-    rememberHasOrgUnitWithoutCategory,
 } from "../stores/verji/verjiOrgUnitRooms";
 import { isTenantPrimaryContact } from "../stores/verji/verjiRoles";
 
@@ -38,7 +38,8 @@ import { isTenantPrimaryContact } from "../stores/verji/verjiRoles";
  * Anyone else is asked of the Organization API once per tenant for the session, and the answer is
  * kept (`knownHasOrgUnitWithoutCategory`) until the access context changes or a guest org is
  * brought in, so a menu shows the option to an Owner only when one of theirs is waiting, a moment
- * after it first opens and at once after that. A failed answer reads as no, and is not kept: the
+ * after it first opens and at once after that. Menus that open before the answer lands share the
+ * one question (`askHasOrgUnitWithoutCategory`). A failed answer reads as no, and is not kept: the
  * option is left out, as for someone who has nothing to bring in, until a menu asks again.
  *
  * Reads the access context synchronously, as a gate does; the component re-renders on its changes
@@ -62,15 +63,19 @@ export function useHasOrgUnitWithoutCategory(space: Room | null | undefined, ask
     useEffect(() => {
         if (!tenantId || primaryContact || !client || known !== undefined) return;
         let mounted = true;
-        getOrgUnitsWithoutCategory(client, tenantId, store).then(
-            (orgUnits) => {
-                const has = orgUnits.length > 0;
-                // Kept for the next menu even when this one has closed.
-                rememberHasOrgUnitWithoutCategory(tenantId, version, has);
+        // Kept for the next menu even when this one has closed; shared with any menu that opens meanwhile.
+        askHasOrgUnitWithoutCategory(tenantId, version, async () => {
+            try {
+                return (await getOrgUnitsWithoutCategory(client, tenantId, store)).length > 0;
+            } catch (error) {
+                logger.warn("[Verji.OrgUnitRooms] Could not ask for the org units to bring in", describeError(error));
+                throw error;
+            }
+        }).then(
+            (has) => {
                 if (mounted) setAnswer({ tenantId, version, has });
             },
-            (error) => {
-                logger.warn("[Verji.OrgUnitRooms] Could not ask for the org units to bring in", describeError(error));
+            () => {
                 if (mounted) setAnswer({ tenantId, version, has: false });
             },
         );

@@ -30,6 +30,7 @@
             "room_failed": "The room could not be added. Try again.",
             "room_filter": "Search rooms",
             "room_option": "Add existing room",
+            "room_refused": "%(room)s was not added. %(reason)s",
             "room_title": "Add existing room to %(orgUnit)s",
             "section_internal": "Only people from %(tenant)s",
             "section_refused": "Cannot be added",

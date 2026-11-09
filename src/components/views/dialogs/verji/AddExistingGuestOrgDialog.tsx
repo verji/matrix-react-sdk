@@ -32,10 +32,11 @@ import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceCon
 import {
     assignDefaultOrgUnitCategory,
     findOrgUnitSpace,
-    forgetHasOrgUnitWithoutCategory,
     getOrgUnitsWithoutCategory,
     describeError,
     isForbidden,
+    markBringingIn,
+    markBroughtIn,
 } from "../../../../stores/verji/verjiOrgUnitRooms";
 import { showAddExistingRoomToOrgUnitDialog } from "./AddExistingRoomToOrgUnitDialog";
 
@@ -93,7 +94,8 @@ function useOrgUnitSpace(client: MatrixClient, tenantId: string, orgUnitId: stri
 
 const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantName, onFinished }) => {
     const [orgUnits, setOrgUnits] = useState<OrgUnit[] | null>(null);
-    const [loadError, setLoadError] = useState(false);
+    // A list that did not load: refused to the user (403), which trying again does not change, or anything else.
+    const [loadError, setLoadError] = useState<"forbidden" | "failed" | null>(null);
     const [query, setQuery] = useState("");
     const [phase, setPhase] = useState<Phase>({ kind: "pick" });
     const [error, setError] = useState<string | null>(null);
@@ -110,16 +112,18 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
     }, []);
 
     const load = useCallback(async (): Promise<void> => {
-        setLoadError(false);
+        setLoadError(null);
         setOrgUnits(null);
         try {
             const list = await getOrgUnitsWithoutCategory(client, tenantId, VerjiPermissionsStore.instance);
             if (!mounted.current) return;
             setOrgUnits([...list].sort((a, b) => a.name.localeCompare(b.name)));
         } catch (e) {
-            logger.error("[Verji.OrgUnitRooms] Failed to list the org units", describeError(e));
+            const forbidden = isForbidden(e);
+            if (forbidden) logger.warn("[Verji.OrgUnitRooms] The Organization API refused the user", describeError(e));
+            else logger.error("[Verji.OrgUnitRooms] Failed to list the org units", describeError(e));
             if (!mounted.current) return;
-            setLoadError(true);
+            setLoadError(forbidden ? "forbidden" : "failed");
         }
     }, [client, tenantId]);
 
@@ -130,16 +134,20 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
     const waitingFor = phase.kind === "waiting" ? phase.orgUnit : undefined;
     const arrived = useOrgUnitSpace(client, tenantId, waitingFor?.id);
     useEffect(() => {
-        if (waitingFor && arrived) setPhase({ kind: "ready", orgUnit: waitingFor, space: arrived });
-    }, [waitingFor, arrived]);
+        if (!waitingFor || !arrived) return;
+        // Its space is there, so it has its category: the menu may keep its answer again.
+        markBroughtIn(tenantId, waitingFor.id);
+        setPhase({ kind: "ready", orgUnit: waitingFor, space: arrived });
+    }, [tenantId, waitingFor, arrived]);
 
     const onAdd = async (orgUnit: OrgUnit): Promise<void> => {
         setError(null);
         setPhase({ kind: "sending", orgUnit });
         try {
             await assignDefaultOrgUnitCategory(client, tenantId, orgUnit.id);
-            // One of the user's org units has its category now: the menu asks again whether any is left.
-            forgetHasOrgUnitWithoutCategory(tenantId);
+            // One of the user's org units is getting its category: the menu asks again whether any is
+            // left, and keeps no answer until it has it.
+            markBringingIn(tenantId, orgUnit.id);
             if (!mounted.current) return;
             setPhase({ kind: "waiting", orgUnit });
         } catch (e) {
@@ -200,10 +208,16 @@ const AddExistingGuestOrgDialog: React.FC<IProps> = ({ client, tenantId, tenantN
         if (loadError) {
             list = (
                 <div className="mx_VerjiAddExistingToOrgUnit_message">
-                    <div>{_t("verji|add_existing|load_failed")}</div>
-                    <AccessibleButton kind="link" onClick={() => void load()}>
-                        {_t("action|retry")}
-                    </AccessibleButton>
+                    <div>
+                        {loadError === "forbidden"
+                            ? _t("verji|add_existing|forbidden")
+                            : _t("verji|add_existing|load_failed")}
+                    </div>
+                    {loadError !== "forbidden" && (
+                        <AccessibleButton kind="link" onClick={() => void load()}>
+                            {_t("action|retry")}
+                        </AccessibleButton>
+                    )}
                 </div>
             );
         } else if (!orgUnits) {
