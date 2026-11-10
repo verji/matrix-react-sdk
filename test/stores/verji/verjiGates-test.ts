@@ -404,7 +404,7 @@ describe("verjiGates", () => {
             getAddExistingRoomGate,
             [ORG_UNIT],
             ["the tenant PrimaryContact", "the Owner of the OrgUnit"],
-            true,
+            false,
         ],
     ] as const)("%s", (_name, gate, offeredAt, offeredTo, offeredToOutsideOwner) => {
         const ROLES: [string, Record<string, string[]>][] = [
@@ -433,7 +433,7 @@ describe("verjiGates", () => {
                 expect(isGateOffered(decision)).toBe(false);
             });
 
-            // Add existing guest org asks whether the user is a StandardUser, not an Owner: an
+            // Both options need the user to be a StandardUser (or the tenant's PrimaryContact): an
             // Owner who is no person of the tenant is a Guest, whom the Organization API refuses.
             it(`${toOutsideOwner} an Owner who is no person of the tenant`, () => {
                 expect(isGateOffered(gate(ctx, readerFor(true, OUTSIDE_OWNER_OF_A)))).toBe(offeredToOutsideOwner);

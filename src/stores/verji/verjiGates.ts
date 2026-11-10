@@ -19,9 +19,9 @@ import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
     isOrgUnitInContext,
     isOrgUnitMemberOrOwner,
+    isOrgUnitOwner,
     isStandardUser,
     isTenantPrimaryContact,
-    isTenantPrimaryContactOrOrgUnitOwner,
     VerjiRoleReader,
 } from "./verjiRoles";
 
@@ -261,8 +261,10 @@ export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader
  * Like {@link getAddExistingGuestOrgGate}, an affordance of the beta only: render it on
  * {@link isGateOffered}. Offered at an OrgUnit that carries its org unit id to the tenant's
  * PrimaryContact, in every guest org of the tenant — whether the context has heard of the OrgUnit
- * or not, since their standing is tenant-wide — and to the Owner of that OrgUnit. Hidden for
- * everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
+ * or not, since their standing is tenant-wide — and to the Owner of that OrgUnit while they are a
+ * StandardUser of the tenant: the Organization API admits the tenant's StandardUsers and its
+ * PrimaryContact to these routes, so an Owner who is no person of the tenant would only be refused.
+ * Hidden for everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
  * Only on a space whose `tenant_info` and `org_unit_info` vsys sent
  * ({@link VerjiSpaceContext.sentByVsys}), as for {@link getAddExistingGuestOrgGate}.
  */
@@ -271,7 +273,8 @@ export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: Ve
         c.sentByVsys === true &&
         c.kind === VerjiSpaceKind.OrgUnit &&
         !!c.orgUnitId &&
-        isTenantPrimaryContactOrOrgUnitOwner(reader, c.tenantId, c.orgUnitId)
+        (isTenantPrimaryContact(reader, c.tenantId) ||
+            (isStandardUser(reader, c.tenantId) && isOrgUnitOwner(reader, c.tenantId, c.orgUnitId)))
             ? ALLOWED
             : HIDDEN,
     );
