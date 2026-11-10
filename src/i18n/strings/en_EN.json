@@ -19,6 +19,7 @@
             "load_failed": "Could not load the list. Try again.",
             "no_rooms": "None of your rooms can be added to %(orgUnit)s.",
             "refused_already_in_org_unit": "This room is already in a guest organization.",
+            "refused_caller_may_not_change_room": "You need to be a moderator of this room to add it, because others are in it.",
             "refused_caller_not_in_room": "You are no longer in this room.",
             "refused_member_outside": "Someone in this room is not part of %(orgUnit)s or %(tenant)s, so it cannot be added.",
             "refused_no_space": "%(orgUnit)s does not have its space yet. Try again in a moment.",

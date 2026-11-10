@@ -49,7 +49,7 @@ import {
  * `m.space.child` itself, while here the server decides which rooms fit and does the assigning.
  *
  * Suggested rooms come first; rooms of the tenant's people only are behind "Show all rooms";
- * refused rooms are listed last, disabled, with why. A refused room has someone from outside the
+ * refused rooms are listed last, disabled, with why. A refused room may have someone from outside the
  * guest org in it, so its row shows nothing taken from its members: not the name matrix-js-sdk
  * makes up from them for a room that has none, nor their avatar. Nor does a room the Organization
  * API refuses when it is chosen, whatever the list said of it.
@@ -86,6 +86,8 @@ export function describeOrgUnitRoomConflict(reason: string | undefined, names: N
             return _t("verji|add_existing|refused_already_in_org_unit");
         case "CallerNotInRoom":
             return _t("verji|add_existing|refused_caller_not_in_room");
+        case "CallerMayNotChangeRoom":
+            return _t("verji|add_existing|refused_caller_may_not_change_room");
         case "NotPrivate":
             return _t("verji|add_existing|refused_not_private");
         case "RoomUnreadable":
@@ -100,6 +102,8 @@ export function describeOrgUnitRoomConflict(reason: string | undefined, names: N
 /**
  * The 409 reasons that hold whatever the client does next: a room refused for one of them stays
  * disabled. Any other reason, known or not, may pass, so the room can be tried again.
+ * `CallerMayNotChangeRoom` lifts only when the user's power level in the room changes, which this
+ * dialog does not do. Kept as strings: the SDK copy the fork builds against may not list them all.
  */
 const PERMANENT_REFUSALS: ReadonlySet<string> = new Set([
     "MemberOutsideOrgUnit",
@@ -107,6 +111,7 @@ const PERMANENT_REFUSALS: ReadonlySet<string> = new Set([
     "NotInTenant",
     "AlreadyInOrgUnit",
     "CallerNotInRoom",
+    "CallerMayNotChangeRoom",
     "NotPrivate",
 ]);
 

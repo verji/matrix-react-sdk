@@ -58,6 +58,15 @@ const SUGGESTED = candidate("!suggested:server", "Project Kari", "Suggested");
 const INTERNAL = candidate("!internal:server", "Board", "Internal");
 const REFUSED = candidate("!refused:server", "Mixed room", "Refused", "MemberOutsideOrgUnit");
 
+/**
+ * The refusal of a room with others in it to a user whose power level in it is below what changing
+ * the room takes (ruling P3). The SDK copy the fork builds against may not list it in its types yet;
+ * the Organization API sends it as this string either way.
+ */
+const CALLER_MAY_NOT_CHANGE_ROOM = "CallerMayNotChangeRoom" as string;
+const CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE =
+    "You need to be a moderator of this room to add it, because others are in it.";
+
 interface Deferred<T> {
     promise: Promise<T>;
     resolve: (value: T) => void;
@@ -454,6 +463,27 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         },
     );
 
+    it("explains a room listed as refused because the user may not change it, and never assigns it", async () => {
+        const moderated = candidate(
+            "!moderated:server",
+            "Team room",
+            "Refused",
+            CALLER_MAY_NOT_CHANGE_ROOM as OrgUnitRoomCandidate["reason"],
+        );
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([moderated]);
+        renderDialog();
+
+        await screen.findByTestId("verji-room-candidates-refused");
+        expect(row(moderated.roomId)).toHaveTextContent(CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE);
+        expect(row(moderated.roomId)).not.toHaveTextContent("Someone in this room");
+        expect(row(moderated.roomId)).not.toHaveTextContent("Try again");
+        expect(addButton(moderated.roomId)).toHaveAttribute("aria-disabled", "true");
+
+        await clickAdd(moderated.roomId);
+
+        expect(assignRoomToOrgUnit).not.toHaveBeenCalled();
+    });
+
     it("never assigns a refused room", async () => {
         renderDialog();
 
@@ -508,6 +538,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ["NotInTenant", "This room does not belong to Acme AS."],
         ["NotARoom", "Only rooms can be added, not spaces or direct messages."],
         ["NotPrivate", "Only private rooms can be added to a guest organization."],
+        [CALLER_MAY_NOT_CHANGE_ROOM, CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE],
     ])("shows a 409 with reason %s as a readable message on the room, and disables it", async (reason, message) => {
         mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError(reason));
         renderDialog();
@@ -542,6 +573,27 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(2);
         expect(addButton(SUGGESTED.roomId)).toHaveTextContent("Added");
         expect(row(SUGGESTED.roomId)).not.toHaveTextContent(message);
+    });
+
+    it("says on the status line why a room the user may not change was not added, by its row's name, and never sends it again", async () => {
+        const room = roomWithOutsider();
+        mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Suggested")]);
+        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError(CALLER_MAY_NOT_CHANGE_ROOM));
+        renderDialog();
+        await screen.findByTestId("verji-room-candidates-suggested");
+
+        await clickAdd(room.roomId);
+
+        expect(within(row(room.roomId)).getByText(CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE)).toBeInTheDocument();
+        expect(addButton(room.roomId)).toHaveAttribute("aria-disabled", "true");
+        const status = screen.getByRole("status");
+        expect(status).toHaveTextContent(`Unnamed room was not added. ${CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE}`);
+        expect(status).not.toHaveTextContent("Eve");
+        expect(row(room.roomId)).not.toHaveTextContent("Eve");
+
+        await clickAdd(room.roomId);
+
+        expect(assignRoomToOrgUnit).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a room that failed for another reason available, with a general message", async () => {

@@ -19,6 +19,7 @@
             "load_failed": "Kunne ikke laste listen. Prøv igjen.",
             "no_rooms": "Ingen av rommene dine kan legges til i %(orgUnit)s.",
             "refused_already_in_org_unit": "Dette rommet er allerede i en gjesteorganisasjon.",
+            "refused_caller_may_not_change_room": "Du må være moderator i dette rommet for å legge det til, fordi andre er med i det.",
             "refused_caller_not_in_room": "Du er ikke lenger med i dette rommet.",
             "refused_member_outside": "Noen i dette rommet hører ikke til %(orgUnit)s eller %(tenant)s, så det kan ikke legges til.",
             "refused_no_space": "%(orgUnit)s har ikke fått sitt område ennå. Prøv igjen om et øyeblikk.",
