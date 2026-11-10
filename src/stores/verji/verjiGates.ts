@@ -126,10 +126,10 @@ function evaluateGate(
  * The People sublist's "Persons+" button, which opens both onboarding and "Start new chat".
  *
  * Enabled for a StandardUser of the tenant; disabled with a hint for a Guest. The space's kind is
- * not consulted: starting a chat is every StandardUser's in every space, the button is the only
- * place a space offers it, and a space's People sublist lists only chats that exist already.
- * Whether the people invited from a guest org's space join that guest org is the invite dialog's
- * decision, by {@link getOnboardGate} (verji/verji-src#2177).
+ * not consulted: the button is the only place a space offers "Start new chat", and a space's People
+ * sublist lists only chats that exist already. What the dialog behind it does in a guest org's
+ * space is decided by {@link getOnboardGate} (verji/verji-src#2177): a user it denies starts chats
+ * only; a user it allows onboards the people they invite, picked ones included, into the guest org.
  */
 export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
