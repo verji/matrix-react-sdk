@@ -17,7 +17,6 @@ limitations under the License.
 import { _t } from "../../languageHandler";
 import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
-    isAnyOrgUnitOwner,
     isOrgUnitInContext,
     isOrgUnitMemberOrOwner,
     isStandardUser,
@@ -227,14 +226,16 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
  * its NotGated must hide it rather than keep today's behaviour: render it on
  * {@link isGateOffered}, never on {@link isGateVisible}. Offered at an OrgUnitCategory and at the
  * TenantRoot to the tenant's PrimaryContact, who may bring in any guest org of the tenant, and to
- * the Owner of an OrgUnit of the tenant, who may bring in their own; hidden for everyone else,
- * the OrgUnit's own PrimaryContact included, and at an OrgUnit. The TenantRoot carries it because
- * an Owner of a guest org from before Hierarchy V2 usually has no category space yet: it appears
- * once they belong to a guest org that is in. There is no one to show it disabled to.
+ * every StandardUser of the tenant, any of whom may be the Owner of a guest org and bring in their
+ * own; hidden from a Guest, the OrgUnit's own PrimaryContact who is one included, and at an OrgUnit.
+ * The Organization API admits the same people, and decides who owns a guest org from the tenant's
+ * records, not from the access context. The TenantRoot carries it because an Owner of a guest org
+ * from before Hierarchy V2 usually has no category space yet: it appears once they belong to a
+ * guest org that is in. There is no one to show it disabled to.
  *
- * For an Owner this is the half the access context can answer. Whether one of theirs still has no
- * category it cannot, so the menu asks the Organization API before it offers the option to an
- * Owner who is not the PrimaryContact (`useHasOrgUnitWithoutCategory`).
+ * For a StandardUser this is the half the access context can answer. Whether they own a guest org
+ * that still has no category it cannot, so the menu asks the Organization API before it offers the
+ * option to a StandardUser who is not the PrimaryContact (`useHasOrgUnitWithoutCategory`).
  *
  * The client cannot tell the tenant's default category from another one, and the backend gives
  * the org unit the default category whichever space the option is chosen on.
@@ -247,7 +248,7 @@ export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader
     return evaluateGate(ctx, reader, (c) =>
         c.sentByVsys === true &&
         (c.kind === VerjiSpaceKind.OrgUnitCategory || c.kind === VerjiSpaceKind.TenantRoot) &&
-        (isTenantPrimaryContact(reader, c.tenantId) || isAnyOrgUnitOwner(reader, c.tenantId))
+        (isTenantPrimaryContact(reader, c.tenantId) || isStandardUser(reader, c.tenantId))
             ? ALLOWED
             : HIDDEN,
     );

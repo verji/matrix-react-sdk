@@ -23,7 +23,7 @@ import { hasService } from "@verji/verji-api-sdk/lib/utils/isValidVerjiSdkConfig
 import type { OrgUnit, OrgUnitRoomCandidate, VerjiApiSdk } from "@verji/verji-api-sdk";
 import SdkConfig from "../../SdkConfig";
 import { resolveVerjiSpaceContext } from "./VerjiSpaceContext";
-import { isTenantPrimaryContactOrOrgUnitOwner, VerjiRoleReader } from "./verjiRoles";
+import { isStandardUser, isTenantPrimaryContact, VerjiRoleReader } from "./verjiRoles";
 
 /**
  * VERJI: the Organization API calls that bring a tenant's guest orgs and rooms from before
@@ -64,20 +64,21 @@ async function organizationApi(client: MatrixClient): Promise<[OrganizationServi
 
 /**
  * The tenant's org units that have no category yet and that the user may give one: every one for
- * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. The
- * Organization API lists a standard user only the org units they own; the roles are asked as well,
- * so the answer does not lean on that.
+ * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. Which ones a
+ * StandardUser owns is the Organization API's to say: it lists them the org units it records them
+ * as the owner of, and the access context's Owner rows can lag behind its records. A Guest is
+ * listed none, and the API is not asked: it admits only the tenant's StandardUsers and its
+ * PrimaryContact.
  */
 export async function getOrgUnitsWithoutCategory(
     client: MatrixClient,
     tenantId: string,
     roles: VerjiRoleReader,
 ): Promise<OrgUnit[]> {
+    if (!isTenantPrimaryContact(roles, tenantId) && !isStandardUser(roles, tenantId)) return [];
     const [organization, token] = await organizationApi(client);
     const page = await organization.getOrgUnits(token, tenantId);
-    return (page.results ?? []).filter(
-        (orgUnit) => !orgUnit.orgUnitCategoryId && isTenantPrimaryContactOrOrgUnitOwner(roles, tenantId, orgUnit.id),
-    );
+    return (page.results ?? []).filter((orgUnit) => !orgUnit.orgUnitCategoryId);
 }
 
 /**

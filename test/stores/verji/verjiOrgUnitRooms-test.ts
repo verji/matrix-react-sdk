@@ -97,12 +97,13 @@ describe("verjiOrgUnitRooms", () => {
     });
 
     // VERJI: verji/verji-src#2117 — the tenant's PrimaryContact brings in any, an Owner their own.
+    // The Organization API lists a StandardUser the ones it records them as the owner of, whether
+    // or not the access context has their Owner row yet, so the client keeps every one it lists.
     it.each([
-        ["the tenant's PrimaryContact, every one", PRIMARY_CONTACT, ["u2", "u3"]],
-        ["an Owner, their own", rolesFor({ "ClientOrganization-Owner": ["u3", "u1"] }), ["u3"]],
-        ["the org unit's own PrimaryContact, none", rolesFor({ "ClientOrganization-Manager#": ["u2"] }), []],
-        ["a StandardUser who owns nothing, none", rolesFor({ "Customer-User#": ["t1"] }), []],
-    ])("lists %s", async (_who, roles, expected) => {
+        ["the tenant's PrimaryContact", PRIMARY_CONTACT],
+        ["an Owner", rolesFor({ "Customer-User#": ["t1"], "ClientOrganization-Owner": ["u3", "u1"] })],
+        ["a StandardUser the access context has no Owner row for", rolesFor({ "Customer-User#": ["t1"] })],
+    ])("keeps, for %s, every org unit without a category the Organization API lists", async (_who, roles) => {
         organization.getOrgUnits.mockResolvedValue({
             results: [
                 { id: "u1", name: "In already", orgUnitCategoryId: "cat-1" },
@@ -113,7 +114,22 @@ describe("verjiOrgUnitRooms", () => {
 
         const listed = await getOrgUnitsWithoutCategory(client, "t1", roles);
 
-        expect(listed.map((orgUnit) => orgUnit.id)).toEqual(expected);
+        expect(listed.map((orgUnit) => orgUnit.id)).toEqual(["u2", "u3"]);
+    });
+
+    // The Organization API admits only the tenant's StandardUsers and its PrimaryContact.
+    it.each([
+        ["a Guest", rolesFor({})],
+        ["the org unit's own PrimaryContact who is a Guest", rolesFor({ "ClientOrganization-Manager#": ["u2"] })],
+        ["an Owner who is no person of the tenant", rolesFor({ "ClientOrganization-Owner": ["u2"] })],
+    ])("lists %s none, and asks the Organization API nothing", async (_who, roles) => {
+        organization.getOrgUnits.mockResolvedValue({
+            results: [{ id: "u2", name: "From before", orgUnitCategoryId: null }],
+        });
+
+        await expect(getOrgUnitsWithoutCategory(client, "t1", roles)).resolves.toEqual([]);
+        expect(organization.getOrgUnits).not.toHaveBeenCalled();
+        expect(getAccessToken).not.toHaveBeenCalled();
     });
 
     it("passes the tenant, the org unit and the room on to the Organization API", async () => {

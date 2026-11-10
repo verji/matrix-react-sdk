@@ -70,9 +70,9 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     const createRoomGate = useVerjiGate(space, getCreateRoomGate);
     // VERJI: the tenant's PrimaryContact, and a guest org's Owner for their own, bring guest orgs and
     // rooms from before Hierarchy V2 in (verji/verji-src#2117). Hooks too, so before the early return.
-    // The options call the Organization API, so they are offered only where it is configured. An
-    // Owner is offered "Add existing Guest Organization" once the API says one of theirs has no
-    // category yet.
+    // The options call the Organization API, so they are offered only where it is configured. A
+    // StandardUser is offered "Add existing Guest Organization" once the API says one they own has
+    // no category yet.
     const organizationApi = isOrganizationApiConfigured();
     const addExistingGuestOrgGate = useVerjiGate(space, getAddExistingGuestOrgGate);
     const addExistingRoomGate = useVerjiGate(space, getAddExistingRoomGate);

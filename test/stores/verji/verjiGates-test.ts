@@ -377,8 +377,10 @@ describe("verjiGates", () => {
     });
 
     // VERJI: verji/verji-src#2117 — affordances that exist only in the beta, so NotGated hides them.
-    // Offered to the tenant's PrimaryContact and to an OrgUnit's Owner, never to the OrgUnit's own
-    // PrimaryContact: the backend decides the same from the tenant's records.
+    // Add existing room is offered to the tenant's PrimaryContact and to the OrgUnit's Owner, never
+    // to the OrgUnit's own PrimaryContact. Add existing guest org is offered to the tenant's
+    // PrimaryContact and to every StandardUser, any of whom may own a guest org, never to a Guest:
+    // the Organization API admits the same people and decides ownership from the tenant's records.
     const OWNER_OF_A: Record<string, string[]> = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
     /** The Owner of ORG_A who is no person of the tenant: the Owner row is all they hold. */
     const OUTSIDE_OWNER_OF_A: Record<string, string[]> = { "ClientOrganization-Owner": [ORG_A] };
@@ -390,9 +392,21 @@ describe("verjiGates", () => {
     const MEMBER_OF_A: Record<string, string[]> = { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] };
 
     describe.each([
-        ["add existing guest org", getAddExistingGuestOrgGate, [TENANT_ROOT, CATEGORY]],
-        ["add existing room", getAddExistingRoomGate, [ORG_UNIT]],
-    ] as const)("%s", (_name, gate, offeredAt) => {
+        [
+            "add existing guest org",
+            getAddExistingGuestOrgGate,
+            [TENANT_ROOT, CATEGORY],
+            ["the tenant PrimaryContact", "the Owner of the OrgUnit", "a StandardUser", "a Member of the OrgUnit"],
+            false,
+        ],
+        [
+            "add existing room",
+            getAddExistingRoomGate,
+            [ORG_UNIT],
+            ["the tenant PrimaryContact", "the Owner of the OrgUnit"],
+            true,
+        ],
+    ] as const)("%s", (_name, gate, offeredAt, offeredTo, offeredToOutsideOwner) => {
         const ROLES: [string, Record<string, string[]>][] = [
             ["a Guest", GUEST],
             ["a StandardUser", STANDARD_USER],
@@ -401,7 +415,8 @@ describe("verjiGates", () => {
             ["the OrgUnit's own PrimaryContact", PRIMARY_CONTACT_OF_A],
             ["a Member of the OrgUnit", MEMBER_OF_A],
         ];
-        const OFFERED = ["the tenant PrimaryContact", "the Owner of the OrgUnit"];
+        const OFFERED: readonly string[] = offeredTo;
+        const toOutsideOwner = offeredToOutsideOwner ? "is offered to" : "is hidden from";
 
         describe.each(offeredAt.map((ctx) => [ctx.kind, ctx] as const))("at a %s space", (_kindName, ctx) => {
             it.each(ROLES.filter(([who]) => OFFERED.includes(who)))("is offered to %s", (_who, grants) => {
@@ -418,18 +433,39 @@ describe("verjiGates", () => {
                 expect(isGateOffered(decision)).toBe(false);
             });
 
-            it("is offered to an Owner who is no person of the tenant", () => {
-                expect(isGateOffered(gate(ctx, readerFor(true, OUTSIDE_OWNER_OF_A)))).toBe(true);
+            // Add existing guest org asks whether the user is a StandardUser, not an Owner: an
+            // Owner who is no person of the tenant is a Guest, whom the Organization API refuses.
+            it(`${toOutsideOwner} an Owner who is no person of the tenant`, () => {
+                expect(isGateOffered(gate(ctx, readerFor(true, OUTSIDE_OWNER_OF_A)))).toBe(offeredToOutsideOwner);
+            });
+
+            it("is offered to the tenant's PrimaryContact who holds no StandardUser row", () => {
+                // The Organization API admits the PrimaryContact by their own role, not as a StandardUser.
+                const decision = gate(ctx, readerFor(true, { "Customer-Manager#": [TENANT] }));
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.Allowed);
             });
 
             it("does not let the inherited Manager role stand in for the PrimaryContact", () => {
+                // A StandardUser is offered add existing guest org anyway, so it asks of a Guest.
+                const standing = OFFERED.includes("a StandardUser") ? {} : STANDARD_USER;
                 const decision = gate(
                     ctx,
                     readerFor(true, {
-                        ...STANDARD_USER,
+                        ...standing,
                         "Customer-Manager": [TENANT],
                         "ClientOrganization-Manager": [ORG_A],
                     }),
+                );
+
+                expect(isGateOffered(decision)).toBe(false);
+            });
+
+            it("does not let the inherited User role stand in for a StandardUser", () => {
+                // Only the directly granted `#` twin makes a StandardUser; a plain role is never read.
+                const decision = gate(
+                    ctx,
+                    readerFor(true, { "Customer-User": [TENANT], "ClientOrganization-User": [ORG_A] }),
                 );
 
                 expect(isGateOffered(decision)).toBe(false);
@@ -452,9 +488,9 @@ describe("verjiGates", () => {
         });
 
         it.each(ALL_CONTEXTS.filter(([, ctx]) => !(offeredAt as readonly VerjiSpaceContext[]).includes(ctx)))(
-            "is hidden from the tenant's PrimaryContact and the Owner at a %s space",
+            "is hidden from the tenant's PrimaryContact, the Owner and a StandardUser at a %s space",
             (_kindName, ctx) => {
-                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A]) {
+                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A, STANDARD_USER]) {
                     const decision = gate(ctx, readerFor(true, grants));
 
                     expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
@@ -480,17 +516,20 @@ describe("verjiGates", () => {
         it.each([
             ["someone other than vsys sent its Verji events", false],
             ["who sent its Verji events is not known", undefined],
-        ])("is hidden on a space %s, from the PrimaryContact and the Owner alike", (_why, sentByVsys) => {
-            // A space anyone could make and stamp with the tenant's and the OrgUnit's ids.
-            for (const ctx of offeredAt) {
-                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A]) {
-                    const decision = gate({ ...ctx, sentByVsys }, readerFor(true, grants));
+        ])(
+            "is hidden on a space %s, from the PrimaryContact, the Owner and a StandardUser alike",
+            (_why, sentByVsys) => {
+                // A space anyone could make and stamp with the tenant's and the OrgUnit's ids.
+                for (const ctx of offeredAt) {
+                    for (const grants of [PRIMARY_CONTACT, OWNER_OF_A, STANDARD_USER]) {
+                        const decision = gate({ ...ctx, sentByVsys }, readerFor(true, grants));
 
-                    expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
-                    expect(isGateOffered(decision)).toBe(false);
+                        expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                        expect(isGateOffered(decision)).toBe(false);
+                    }
                 }
-            }
-        });
+            },
+        );
     });
 
     it.each(ALL_GATES)("leaves the %s gate as it was, whoever sent the space's Verji events", (_name, gate) => {

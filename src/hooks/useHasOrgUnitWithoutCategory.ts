@@ -32,15 +32,17 @@ import { isTenantPrimaryContact } from "../stores/verji/verjiRoles";
 /**
  * VERJI: does the user have an org unit of the rendered space's tenant that has no category yet and
  * that they may give one (verji/verji-src#2117)? The half of "Add existing Guest Organization" the
- * access context cannot answer: it says whom an org unit belongs to, not whether it has a category.
+ * access context cannot answer: whether the guest orgs a StandardUser owns, by the tenant's records,
+ * still have no category.
  *
  * The tenant's PrimaryContact may bring in any org unit of the tenant, and is answered yes at once.
- * Anyone else is asked of the Organization API once per tenant for the session, and the answer is
- * kept (`knownHasOrgUnitWithoutCategory`) until the access context changes or a guest org is
- * brought in, so a menu shows the option to an Owner only when one of theirs is waiting, a moment
- * after it first opens and at once after that. Menus that open before the answer lands share the
- * one question (`askHasOrgUnitWithoutCategory`). A failed answer reads as no, and is not kept: the
- * option is left out, as for someone who has nothing to bring in, until a menu asks again.
+ * A StandardUser, the only other one the gate offers it to, is asked of the Organization API once
+ * per tenant for the session, and the answer is kept (`knownHasOrgUnitWithoutCategory`) until the
+ * access context changes or a guest org is brought in, so a menu shows them the option only when
+ * one they own is waiting, a moment after it first opens and at once after that. Menus that open
+ * before the answer lands share the one question (`askHasOrgUnitWithoutCategory`). A failed answer
+ * reads as no, and is not kept: the option is left out, as for someone who has nothing to bring in,
+ * until a menu asks again.
  *
  * Reads the access context synchronously, as a gate does; the component re-renders on its changes
  * through `useVerjiGate`, which it calls for the same space.

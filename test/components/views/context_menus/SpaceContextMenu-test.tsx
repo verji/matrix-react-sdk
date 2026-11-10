@@ -432,7 +432,9 @@ describe("<SpaceContextMenu />", () => {
     });
 
     // VERJI: verji/verji-src#2117 — the tenant's PrimaryContact, and a guest org's Owner for their
-    // own, bring guest orgs and rooms from before Hierarchy V2 in. The store's reads are real here,
+    // own, bring guest orgs and rooms from before Hierarchy V2 in; any StandardUser may be an Owner,
+    // so "Add existing Guest Organization" asks the Organization API for every StandardUser who is
+    // not the PrimaryContact, and never for a Guest. The store's reads are real here,
     // fed by a mocked SDK store, so the menu, the hooks, the gates and the role contract are tested
     // together; only the Organization API's list of org units stands in.
     describe("the Hierarchy V2 add-existing options", () => {
@@ -623,8 +625,73 @@ describe("<SpaceContextMenu />", () => {
             expect(errors.mock.calls.filter((call) => String(call[0]).includes("unmounted component"))).toEqual([]);
         });
 
+        // Any StandardUser may own a guest org, which the Organization API reads from the tenant's
+        // records: the access context's Owner rows are not asked, and the API's list decides.
         it.each([
-            ["a StandardUser", STANDARD_USER],
+            ["the tenant root", TENANT_INFO],
+            ["a category", CATEGORY],
+        ])(
+            "offers a StandardUser who owns nothing 'Add existing Guest Organization' at %s once the API lists one",
+            async (_where, events) => {
+                mockStore(true, STANDARD_USER);
+                mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                    { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+                ]);
+                const space = makeVerjiSpace(events);
+                renderComponent({ space });
+
+                // Not before the answer lands.
+                expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                await userEvent.click(await screen.findByTestId("add-existing-guest-org-option"));
+                expect(showAddExistingGuestOrgDialog).toHaveBeenCalledWith(space);
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalledWith(
+                    space.client,
+                    TENANT,
+                    VerjiPermissionsStore.instance,
+                );
+            },
+        );
+
+        it.each([
+            ["the API lists none", () => mocked(getOrgUnitsWithoutCategory).mockResolvedValue([])],
+            [
+                "the list cannot be read",
+                () => mocked(getOrgUnitsWithoutCategory).mockRejectedValue(new Error("forbidden")),
+            ],
+        ])(
+            "offers a StandardUser who owns nothing neither when %s, and leaves no Add header behind",
+            async (_when, answer) => {
+                mockStore(true, STANDARD_USER);
+                answer();
+
+                for (const events of [TENANT_INFO, CATEGORY, ORG_UNIT]) {
+                    const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                    await settle();
+                    expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                    expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                    expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
+                    unmount();
+                }
+                expect(getOrgUnitsWithoutCategory).toHaveBeenCalled();
+            },
+        );
+
+        it("asks nothing for a StandardUser at a guest org", async () => {
+            mockStore(true, STANDARD_USER);
+            mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+            ]);
+
+            renderComponent({ space: makeVerjiSpace(ORG_UNIT) });
+            await settle();
+
+            expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+            expect(getOrgUnitsWithoutCategory).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ["a Guest", {}],
             ["a Guest who is a Member of the guest org", { "ClientOrganization-User#": [ORG_A] }],
             [
                 "the guest org's own PrimaryContact",
@@ -632,6 +699,10 @@ describe("<SpaceContextMenu />", () => {
             ],
         ])("offers neither to %s, asks nothing, and leaves no Add header behind", async (_who, grants) => {
             mockStore(true, grants);
+            // Were it asked, the API's list would offer the option: a Guest is not asked.
+            mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+            ]);
 
             for (const events of [TENANT_INFO, CATEGORY, ORG_UNIT]) {
                 const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
@@ -676,6 +747,7 @@ describe("<SpaceContextMenu />", () => {
         it.each([
             ["the PrimaryContact", PRIMARY_CONTACT],
             ["the Owner", OWNER_OF_A],
+            ["a StandardUser", STANDARD_USER],
         ])("offers %s neither on a space whose Verji events someone other than vsys sent", async (_who, grants) => {
             mockStore(true, grants);
             mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
