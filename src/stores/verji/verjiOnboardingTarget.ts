@@ -31,8 +31,9 @@ export { isGateDisabled } from "./verjiGates";
  * (verji/verji-src#2177).
  *
  * The module asks this one function instead of reading room state, roles or settings itself, so
- * the decision it acts on is exactly the one the Persons+ button was rendered from, and the role
- * names stay in `verjiRoles`.
+ * its decision comes from the same state and roles as the gates, and the role names stay in
+ * `verjiRoles`. The Persons+ button follows the tenant rule; this decides what the dialog behind it
+ * may do in a guest org's space.
  */
 export interface VerjiOnboardingTarget {
     /** The tenant people are onboarded to. */
@@ -46,7 +47,7 @@ export interface VerjiOnboardingTarget {
     guestOrganizationId?: string;
     /** That guest org's name, from the space's `org_unit_info`, for the dialog's text. */
     guestOrganizationName?: string;
-    /** The Persons+ gate's decision for the space. The dialog refuses what the button would. */
+    /** The onboard decision for the space. In a guest org's space, the dialog onboards only when it allows. */
     decision: VerjiGateDecision;
 }
 

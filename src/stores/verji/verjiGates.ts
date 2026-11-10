@@ -123,11 +123,13 @@ function evaluateGate(
 }
 
 /**
- * Onboarding a user to the tenant, behind the People sublist's "Persons+" button, when onboarding
- * into a guest org is switched off (`UIFeature.VerjiGuestOrgOnboarding`).
+ * The People sublist's "Persons+" button, which opens both onboarding and "Start new chat".
  *
  * Enabled for a StandardUser of the tenant; disabled with a hint for a Guest. The space's kind is
- * not consulted: every space onboards to the tenant.
+ * not consulted: starting a chat is every StandardUser's in every space, the button is the only
+ * place a space offers it, and a space's People sublist lists only chats that exist already.
+ * Whether the people invited from a guest org's space join that guest org is the invite dialog's
+ * decision, by {@link getOnboardGate} (verji/verji-src#2177).
  */
 export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
@@ -137,8 +139,10 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
 }
 
 /**
- * Onboarding behind the People sublist's "Persons+" button, when onboarding into a guest org is
- * switched on (`UIFeature.VerjiGuestOrgOnboarding`, verji/verji-src#2177).
+ * Onboarding from the invite dialog behind "Persons+", when onboarding into a guest org is switched
+ * on (`UIFeature.VerjiGuestOrgOnboarding`, verji/verji-src#2177). The button itself follows
+ * {@link getOnboardToTenantGate}, so a user denied here can still start chats; the dialog then
+ * starts chats only, and shows this decision's hint.
  *
  * - TenantRoot and OrgUnitCategory: onboards to the tenant, so the tenant rule applies.
  * - OrgUnit: onboards **into that OrgUnit**, which is managing its persons. StandardUser **and**
@@ -147,7 +151,7 @@ export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: Ve
  *
  * At an OrgUnit, the staleness handling is the create-room gate's: the tenant's PrimaryContact is
  * allowed before it, and a context that has never heard of the OrgUnit reads Checking until the
- * re-fetch is used up.
+ * re-fetch is used up. The Rooms "+" in the same space asks for that re-fetch.
  */
 export function getOnboardGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {

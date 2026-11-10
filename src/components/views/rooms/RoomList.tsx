@@ -65,12 +65,10 @@ import AccessibleButton from "../elements/AccessibleButton";
 import { useVerjiGate } from "../../../hooks/useVerjiPermissions";
 import {
     getCreateRoomGate,
-    getOnboardGate,
     getOnboardToTenantGate,
     isGateDisabled,
     isGateVisible,
 } from "../../../stores/verji/verjiGates";
-import { isVerjiGuestOrgOnboardingEnabled } from "../../../stores/verji/verjiOnboardingTarget";
 
 interface IProps {
     onKeyDown: (ev: React.KeyboardEvent, state: IRovingTabIndexState) => void;
@@ -151,15 +149,10 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
     const showInviteUsers = shouldShowComponent(UIComponent.InviteUsers);
 
     // VERJI: onboarding a user to the tenant is for StandardUsers; a Guest sees the button
-    // disabled with a hint naming their own standing. With onboarding into a guest org switched
-    // on, Persons+ in a guest org's space onboards into that guest org, which only its Owner or
-    // PrimaryContact, or the tenant's PrimaryContact, may do (verji/verji-src#2177). Resolved from
-    // the space being rendered, not from a global active-tenant singleton. Verdict NotGated (the
-    // rollout switch is off for this tenant, or it has no cached record) renders exactly as today.
-    const onboardGate = useVerjiGate(
-        activeSpace,
-        isVerjiGuestOrgOnboardingEnabled() ? getOnboardGate : getOnboardToTenantGate,
-    );
+    // disabled with a hint naming their own standing. Resolved from the space being rendered, not
+    // from a global active-tenant singleton. Verdict NotGated (the rollout switch is off for this
+    // tenant, or it has no cached record) renders exactly as today.
+    const onboardGate = useVerjiGate(activeSpace, getOnboardToTenantGate);
 
     if (activeSpace && (showCreateRooms || showInviteUsers)) {
         let contextMenu: JSX.Element | undefined;
