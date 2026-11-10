@@ -51,10 +51,12 @@ describe("verjiOnboardingTarget", () => {
     let orgUnitSpace: Room;
     let flagOn: boolean;
 
-    /** The rollout is on for TENANT, and the user holds `grants` there. */
-    const givenRoles = (grants: Record<string, string[]>): void => {
+    /** The rollout is on for TENANT unless `rolloutOn` says otherwise, and the user holds `grants` there. */
+    const givenRoles = (grants: Record<string, string[]>, rolloutOn = true): void => {
         const store = VerjiPermissionsStore.instance;
-        jest.spyOn(store, "isCanonicalSpaceSyncEnabled").mockImplementation((tenantId) => tenantId === TENANT);
+        jest.spyOn(store, "isCanonicalSpaceSyncEnabled").mockImplementation(
+            (tenantId) => rolloutOn && tenantId === TENANT,
+        );
         jest.spyOn(store, "hasRole").mockImplementation(
             (tenantId, role, instance) => tenantId === TENANT && (grants[role] ?? []).includes(instance),
         );
@@ -136,6 +138,16 @@ describe("verjiOnboardingTarget", () => {
         expect(target.tenantId).toBe(TENANT);
         expect(target.guestOrganizationId).toBeUndefined();
         expect(target.decision.verdict).toBe(VerjiGateVerdict.Allowed);
+    });
+
+    it("names no guest org outside the rollout, so Persons+ onboards to the tenant as today", () => {
+        // Switched off for the tenant, or no access context yet: the spaces keep their org_unit_info all the same
+        givenRoles({ "Customer-User#": [TENANT], "ClientOrganization-User#": [ORG_A] }, false);
+
+        const target = resolveVerjiOnboardingTarget(orgUnitSpace)!;
+
+        expect(target.guestOrganizationId).toBeUndefined();
+        expect(target.decision.verdict).toBe(VerjiGateVerdict.NotGated);
     });
 
     it("names no guest org with the flag off, and decides on the tenant rule", () => {

@@ -21,7 +21,7 @@ import { UIFeature } from "../../settings/UIFeature";
 import SpaceStore from "../spaces/SpaceStore";
 import { VerjiPermissionsStore } from "./VerjiPermissionsStore";
 import { resolveVerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
-import { getOnboardGate, getOnboardToTenantGate, VerjiGateDecision } from "./verjiGates";
+import { getOnboardGate, getOnboardToTenantGate, VerjiGateDecision, VerjiGateVerdict } from "./verjiGates";
 
 /** Re-exported so the module reads a decision the way the button does, through this one import. */
 export { isGateDisabled } from "./verjiGates";
@@ -70,12 +70,16 @@ export function resolveVerjiOnboardingTarget(space: Room | null | undefined): Ve
         return { tenantId: ctx.tenantId, tenantName: ctx.tenantName, decision: getOnboardToTenantGate(ctx, reader) };
     }
 
-    const intoGuestOrg = ctx.kind === VerjiSpaceKind.OrgUnit && !!ctx.orgUnitId;
+    // Outside the rollout (NotGated: switched off for the tenant, or no access context yet) Persons+ onboards to the
+    // tenant, as today, wherever it is pressed. Only a gated decision names the guest org, for the dialog to act on or refuse.
+    const decision = getOnboardGate(ctx, reader);
+    const intoGuestOrg =
+        ctx.kind === VerjiSpaceKind.OrgUnit && !!ctx.orgUnitId && decision.verdict !== VerjiGateVerdict.NotGated;
     return {
         tenantId: ctx.tenantId,
         tenantName: ctx.tenantName,
         guestOrganizationId: intoGuestOrg ? ctx.orgUnitId : undefined,
         guestOrganizationName: intoGuestOrg ? ctx.orgUnitName ?? space?.name : undefined,
-        decision: getOnboardGate(ctx, reader),
+        decision,
     };
 }
