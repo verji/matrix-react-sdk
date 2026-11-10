@@ -16,6 +16,7 @@ limitations under the License.
 
 import {
     getCreateRoomGate,
+    getOnboardGate,
     getOnboardToTenantGate,
     getSpaceSettingsGate,
     isGateDisabled,
@@ -70,6 +71,7 @@ const JOINED_A_ROOM_IN_ORG_A = { "ClientOrganization-SmsRoomMember": [ORG_A] };
 
 const ALL_GATES = [
     ["onboard to tenant", getOnboardToTenantGate],
+    ["onboard, into a guest org at an OrgUnit", getOnboardGate],
     ["create room", getCreateRoomGate],
     ["space settings", getSpaceSettingsGate],
 ] as const;
@@ -153,6 +155,94 @@ describe("verjiGates", () => {
             expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
             expect(isGateDisabled(decision)).toBe(true);
             expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot invite new users to this space.");
+        });
+    });
+
+    describe("onboard, with onboarding into a guest org switched on", () => {
+        const NOT_OWNER_OR_PRIMARY_CONTACT =
+            "You are neither the owner nor the primary contact of this organisation, so you cannot invite people to it.";
+
+        it.each([
+            ["TenantRoot", TENANT_ROOT],
+            ["OrgUnitCategory", CATEGORY],
+        ])("onboards to the tenant at a %s space: StandardUser allowed, Guest denied", (_kindName, ctx) => {
+            expect(getOnboardGate(ctx, readerFor(true, STANDARD_USER)).verdict).toBe(VerjiGateVerdict.Allowed);
+
+            const guest = getOnboardGate(ctx, readerFor(true, GUEST));
+            expect(guest.verdict).toBe(VerjiGateVerdict.Denied);
+            expect(guest.hint).toBe("You are a guest in Acme AS, so you cannot invite new users to this space.");
+        });
+
+        describe("at an OrgUnit space", () => {
+            it("allows a StandardUser who is the Owner", () => {
+                const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
+
+                expect(getOnboardGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Allowed);
+            });
+
+            it("allows a StandardUser who is the OrgUnit's PrimaryContact", () => {
+                const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Manager#": [ORG_A] });
+
+                expect(getOnboardGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Allowed);
+            });
+
+            it("allows the tenant's PrimaryContact, even when the context has not heard of the OrgUnit", () => {
+                // Not Checking: the PrimaryContact's standing is tenant-wide, so a stale context
+                // cannot change the answer.
+                expect(getOnboardGate(ORG_UNIT, readerFor(true, PRIMARY_CONTACT)).verdict).toBe(
+                    VerjiGateVerdict.Allowed,
+                );
+            });
+
+            it("denies a StandardUser who is only a Member — adding people is not a Member's to do", () => {
+                const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+                const decision = getOnboardGate(ORG_UNIT, reader);
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                expect(decision.hint).toBe(NOT_OWNER_OR_PRIMARY_CONTACT);
+            });
+
+            it("does not count the inherited ClientOrganization-Manager — only the direct '#' role", () => {
+                // Every manager of the tenant holds the plain role on every OrgUnit by inheritance.
+                const reader = readerFor(true, { ...STANDARD_USER, "ClientOrganization-Manager": [ORG_A] });
+
+                expect(getOnboardGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Denied);
+            });
+
+            it("denies the Owner or PrimaryContact of another OrgUnit", () => {
+                const reader = readerFor(true, {
+                    ...STANDARD_USER,
+                    "ClientOrganization-Owner": [ORG_B],
+                    "ClientOrganization-Manager#": [ORG_B],
+                    ...JOINED_A_ROOM_IN_ORG_A,
+                });
+
+                expect(getOnboardGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Denied);
+            });
+
+            it("denies a Guest, even the OrgUnit's own PrimaryContact, with the guest hint", () => {
+                const reader = readerFor(true, { "ClientOrganization-Manager#": [ORG_A] });
+                const decision = getOnboardGate(ORG_UNIT, reader);
+
+                expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+                expect(decision.hint).toBe("You are a guest in Acme AS, so you cannot invite new users to this space.");
+            });
+
+            it("reads Checking while the context has never heard of the OrgUnit, then Denied once the re-fetch is used up", () => {
+                const checking = getOnboardGate(ORG_UNIT, readerFor(true, STANDARD_USER));
+                expect(checking.verdict).toBe(VerjiGateVerdict.Checking);
+                expect(isGateDisabled(checking)).toBe(true);
+
+                const exhausted = getOnboardGate(ORG_UNIT, readerFor(true, STANDARD_USER, [ORG_A]));
+                expect(exhausted.verdict).toBe(VerjiGateVerdict.Denied);
+                expect(exhausted.hint).toBe(NOT_OWNER_OR_PRIMARY_CONTACT);
+            });
+
+            it("denies, not Checking, once the context mentions the OrgUnit under another role", () => {
+                const reader = readerFor(true, { ...STANDARD_USER, ...JOINED_A_ROOM_IN_ORG_A });
+
+                expect(getOnboardGate(ORG_UNIT, reader).verdict).toBe(VerjiGateVerdict.Denied);
+            });
         });
     });
 

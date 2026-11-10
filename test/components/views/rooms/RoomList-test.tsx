@@ -567,7 +567,11 @@ describe("Verji Hierarchy V2 gates", () => {
         store.setActiveSpace(spaceId);
 
         mocked(shouldShowComponent).mockReturnValue(true);
-        jest.spyOn(SettingsStore, "getValue").mockImplementation(() => true);
+        // Every setting on except onboarding into a guest org, so these tests pin Persons+ as it
+        // ships with that switched off; the tests that switch it on say so.
+        jest.spyOn(SettingsStore, "getValue").mockImplementation(
+            (name: string) => name !== UIFeature.VerjiGuestOrgOnboarding,
+        );
 
         stampSpace(space, { "app.verji.tenant_info": { tenant_id: TENANT } });
     });
@@ -891,6 +895,67 @@ describe("Verji Hierarchy V2 gates", () => {
 
                 expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
             });
+        });
+    });
+
+    /**
+     * verji/verji-src#2177: with onboarding into a guest org switched on, Persons+ in a guest org's
+     * space onboards into that guest org, so it follows who may add people to it — its Owner or
+     * PrimaryContact, or the tenant's PrimaryContact — and no longer the tenant rule.
+     */
+    describe("with onboarding into a guest org switched on, at an OrgUnit space", () => {
+        beforeEach(() => {
+            jest.spyOn(SettingsStore, "getValue").mockImplementation(() => true);
+            stampSpace(store.activeSpaceRoom!, {
+                "app.verji.org_unit_info": { org_unit_id: ORG_A, org_unit_name: "Org A" },
+                "app.verji.canonical_parent_space": { canonical_parent_space_id: "!parent:server" },
+            });
+        });
+
+        it.each([
+            ["the Owner", { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] }],
+            ["the OrgUnit's PrimaryContact", { ...STANDARD_USER, "ClientOrganization-Manager#": [ORG_A] }],
+            ["the tenant's PrimaryContact", { ...STANDARD_USER, "Customer-Manager#": [TENANT] }],
+        ])("enables Persons+ for %s", (_who, grants) => {
+            mockStore(true, grants);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
+        it("disables Persons+ for a Member who is neither, with the owner-or-primary-contact hint", async () => {
+            // The Rooms + stays enabled for them: a Member may create rooms but not add people.
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add people");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByLabelText("Add room")).not.toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "neither the owner nor the primary contact of this organisation");
+        });
+
+        it("disables Persons+ for a Guest, even the OrgUnit's own PrimaryContact, with the guest hint", async () => {
+            mockStore(true, { "ClientOrganization-Manager#": [ORG_A] });
+
+            render(getComponent());
+
+            const button = screen.getByLabelText("Add people");
+            expect(button).toHaveAttribute("aria-disabled", "true");
+            await expectHint(button, "so you cannot invite new users");
+        });
+
+        it("keeps Persons+ enabled for a plain StandardUser at the tenant's root space", () => {
+            stampSpace(store.activeSpaceRoom!, {});
+            mocked(store.activeSpaceRoom!.currentState).getStateEvents.mockImplementation(
+                mockStateEventImplementation(spaceState.filter((event) => event.getType() === "app.verji.tenant_info")),
+            );
+            mockStore(true, STANDARD_USER);
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
         });
     });
 
