@@ -57,6 +57,8 @@ export interface VerjiSpaceContext {
     tenantId: string;
     /** From `app.verji.org_unit_info.org_unit_id`. Present on OrgUnit spaces only. */
     orgUnitId?: string;
+    /** From `app.verji.org_unit_info.org_unit_name`. Descriptive only, for text that names the OrgUnit. */
+    orgUnitName?: string;
     /** Sibling coalesced with parent — the platform-wide pre-split reader rule. Diagnostics. */
     canonicalSpaceId?: string;
     kind: VerjiSpaceKind;
@@ -142,6 +144,7 @@ export function resolveVerjiSpaceContext(
     return {
         tenantId,
         orgUnitId: readString(space, EV_ORG_UNIT_INFO, "org_unit_id"),
+        orgUnitName: readString(space, EV_ORG_UNIT_INFO, "org_unit_name"),
         canonicalSpaceId:
             readString(space, EV_CANONICAL_SIBLING_SPACE, "canonical_sibling_space_id") ??
             readString(space, EV_CANONICAL_PARENT_SPACE, "canonical_parent_space_id"),

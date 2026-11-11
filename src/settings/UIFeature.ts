@@ -118,6 +118,9 @@ export const enum UIFeature {
     // VERJI: whether #/new, #/dm and #/directory open their dialog straight from the URL. Verji turns
     // this off because every button that opens those dialogs is hidden or gated (verji/verji-src#1510).
     EnableDialogDeepLinks = "UIFeature.enableDialogDeepLinks",
+    // VERJI: whether Persons+ in a guest org's space onboards people into that guest org, for the
+    // users allowed to (verji/verji-src#2177). Off: every space onboards to the tenant, as before.
+    VerjiGuestOrgOnboarding = "UIFeature.verjiGuestOrgOnboarding",
 }
 
 export enum UIComponent {

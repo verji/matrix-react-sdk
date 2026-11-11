@@ -19,6 +19,8 @@ import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
     isOrgUnitInContext,
     isOrgUnitMemberOrOwner,
+    isOrgUnitOwner,
+    isOrgUnitPrimaryContact,
     isStandardUser,
     isTenantPrimaryContact,
     VerjiRoleReader,
@@ -121,15 +123,61 @@ function evaluateGate(
 }
 
 /**
- * Onboarding a user to the tenant, behind the People sublist's "Persons+" button.
+ * The People sublist's "Persons+" button, which opens both onboarding and "Start new chat".
  *
- * Enabled for a StandardUser of the tenant; disabled with a hint for a Guest. The button follows
- * the active tenant context rather than depth, so the space's kind is not consulted.
+ * Enabled for a StandardUser of the tenant; disabled with a hint for a Guest. The space's kind is
+ * not consulted: the button is the only place a space offers "Start new chat", and a space's People
+ * sublist lists only chats that exist already. What the dialog behind it does in a guest org's
+ * space is decided by {@link getOnboardGate} (verji/verji-src#2177): a user it denies starts chats
+ * only; a user it allows onboards the people they invite, picked ones included, into the guest org.
  */
 export function getOnboardToTenantGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
         if (isStandardUser(reader, c.tenantId)) return ALLOWED;
         return denied(_t("verji|gate|onboard_denied_guest", { tenant: c.tenantName }));
+    });
+}
+
+/**
+ * Onboarding from the invite dialog behind "Persons+", when onboarding into a guest org is switched
+ * on (`UIFeature.VerjiGuestOrgOnboarding`, verji/verji-src#2177). The button itself follows
+ * {@link getOnboardToTenantGate}, so a user denied here can still start chats; the dialog then
+ * starts chats only, and shows this decision's hint.
+ *
+ * - TenantRoot and OrgUnitCategory: onboards to the tenant, so the tenant rule applies.
+ * - OrgUnit: onboards **into that OrgUnit**, which is managing its persons. StandardUser **and**
+ *   (the OrgUnit's Owner **or** its PrimaryContact, **or** the tenant's PrimaryContact). A Member
+ *   is denied, unlike for creating rooms. The onboarding API decides on the same roles.
+ *
+ * At an OrgUnit, the staleness handling is the create-room gate's: the tenant's PrimaryContact is
+ * allowed before it, and a context that has never heard of the OrgUnit reads Checking until the
+ * re-fetch is used up. The Rooms "+" in the same space asks for that re-fetch.
+ */
+export function getOnboardGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) => {
+        if (!isStandardUser(reader, c.tenantId)) {
+            return denied(_t("verji|gate|onboard_denied_guest", { tenant: c.tenantName }));
+        }
+        if (c.kind !== VerjiSpaceKind.OrgUnit) return ALLOWED;
+
+        if (!c.orgUnitId) {
+            // Unreachable via resolveVerjiSpaceContext, as for the create-room gate; fails closed.
+            return denied(_t("verji|gate|onboard_denied_not_org_owner_or_primary_contact"));
+        }
+        if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
+        if (
+            isOrgUnitOwner(reader, c.tenantId, c.orgUnitId) ||
+            isOrgUnitPrimaryContact(reader, c.tenantId, c.orgUnitId)
+        ) {
+            return ALLOWED;
+        }
+        if (
+            !isOrgUnitInContext(reader, c.tenantId, c.orgUnitId) &&
+            !reader.isOrgUnitRefreshExhausted(c.tenantId, c.orgUnitId)
+        ) {
+            return checking();
+        }
+        return denied(_t("verji|gate|onboard_denied_not_org_owner_or_primary_contact"));
     });
 }
 

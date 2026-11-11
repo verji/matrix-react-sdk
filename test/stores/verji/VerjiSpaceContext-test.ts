@@ -90,6 +90,7 @@ describe("VerjiSpaceContext", () => {
 
             expect(ctx.tenantId).toBe(TENANT);
             expect(ctx.orgUnitId).toBe(ORG_A);
+            expect(ctx.orgUnitName).toBe("Org A");
         });
 
         describe("the tenant name — what the hints must say", () => {
