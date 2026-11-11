@@ -192,7 +192,7 @@ exports[`<RoomPreviewBar /> with an error renders other errors 1`] = `
     <span>
       Something_else was returned while trying to access the room or space. If you think you're seeing this message in error, please 
       <a
-        href="https://github.com/vector-im/element-web/issues/new/choose"
+        href="https://rageshake.staging.verji.app/api/submit"
         rel="noreferrer noopener"
         target="_blank"
       >

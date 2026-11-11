@@ -25,7 +25,7 @@ import { ReadyWatchingStore } from "../ReadyWatchingStore";
 import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
-import { isOrgUnitMemberOrOwner, isTenantPrimaryContact } from "./verjiRoles";
+import { isOrgUnitMemberOrOwner, isOrgUnitPrimaryContact, isTenantPrimaryContact } from "./verjiRoles";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -225,13 +225,18 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     }
 
     /**
-     * Does the context now show what the create-room gate allows on at this OrgUnit — the user is
-     * its Member or Owner, or the tenant's PrimaryContact? Kept to the gate's role condition, so a
-     * schedule never runs on after the gate has already settled on Allowed. The gate's StandardUser
+     * Does the context now show what a gate at this OrgUnit allows on — the user is its Member,
+     * Owner or PrimaryContact, or the tenant's PrimaryContact? It is the union of the create-room
+     * and onboard gates' role conditions, so a schedule never runs on after either has settled on
+     * Allowed; one gate may still read Denied, for a role the other accepts. The gates' StandardUser
      * check is left out: a user who fails it is denied outright and never starts a schedule.
      */
     private isOrgUnitSettled(tenantId: string, orgUnitId: string): boolean {
-        return isTenantPrimaryContact(this, tenantId) || isOrgUnitMemberOrOwner(this, tenantId, orgUnitId);
+        return (
+            isTenantPrimaryContact(this, tenantId) ||
+            isOrgUnitMemberOrOwner(this, tenantId, orgUnitId) ||
+            isOrgUnitPrimaryContact(this, tenantId, orgUnitId)
+        );
     }
 
     private async runOrgUnitAttempt(

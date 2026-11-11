@@ -5,6 +5,7 @@
     "verji": {
         "gate": {
             "onboard_denied_guest": "You are a guest in %(tenant)s, so you cannot invite new users to this space.",
+            "onboard_denied_not_org_owner_or_primary_contact": "You are neither the owner nor the primary contact of this organisation, so you cannot invite people to it.",
             "create_room_denied_guest": "You are a guest in %(tenant)s, so you cannot create rooms in this space.",
             "create_room_denied_not_org_member": "You are not a member of this organisation, so you cannot create rooms here.",
             "checking": "Checking your access…",
@@ -94,6 +95,10 @@
         "invite_process_error": "Oops, something went wrong during the invitation process. Navigate to: ",
         "invite_dialog": {
             "invite_new_users": "Invite new users to %(tenant)s",
+            "invite_new_users_to_org_unit": "Invite people to %(orgUnit)s",
+            "org_unit_mode_help": "Everyone you invite here becomes a member of %(orgUnit)s.",
+            "not_allowed": "You may not invite people to %(orgUnit)s.",
+            "user_label": "User",
             "invalid_phonenumber": "Invalid phone number",
             "invalid_mobilephonenumber": "Invalid mobilephone number",
             "warning" : "Number might not support SMS"

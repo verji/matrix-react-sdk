@@ -57,14 +57,14 @@ export const DEFAULTS: DeepReadonly<IConfigOptions> = {
         max_length: 4 * 60 * 60, // four hours
     },
 
-//    feedback: {
-//        existing_issues_url:
-//            "https://github.com/vector-im/element-web/issues?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc",
-//        new_issue_url: "https://github.com/vector-im/element-web/issues/new/choose",
-//    },
+    //    feedback: {
+    //        existing_issues_url:
+    //            "https://github.com/vector-im/element-web/issues?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc",
+    //        new_issue_url: "https://github.com/vector-im/element-web/issues/new/choose",
+    //    },
     feedback: {
         existing_issues_url:
-            "https://https://rageshake.staging.verji.app/api/submit?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc",
+            "https://rageshake.staging.verji.app/api/submit?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc",
         new_issue_url: "https://rageshake.staging.verji.app/api/submit",
     },
 

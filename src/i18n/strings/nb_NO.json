@@ -5,6 +5,7 @@
     "verji": {
         "gate": {
             "onboard_denied_guest": "Du er gjest i %(tenant)s, så du kan ikke invitere nye brukere til dette området.",
+            "onboard_denied_not_org_owner_or_primary_contact": "Du er verken eier eller primærkontakt for denne organisasjonen, så du kan ikke invitere personer til den.",
             "create_room_denied_guest": "Du er gjest i %(tenant)s, så du kan ikke opprette rom i dette området.",
             "create_room_denied_not_org_member": "Du er ikke medlem av denne organisasjonen, så du kan ikke opprette rom her.",
             "checking": "Sjekker tilgangen din…",
@@ -94,6 +95,10 @@
         "invite_process_error": "Oi, noe gikk galt under invitasjonsprosessen. Du kan spore invitasjonene dine ved å åpne 'Administrasjonsportal or navigere til: ",
         "invite_dialog": {
             "invite_new_users": "Inviter nye brukere til %(tenant)s",
+            "invite_new_users_to_org_unit": "Inviter personer til %(orgUnit)s",
+            "org_unit_mode_help": "Alle du inviterer her blir medlem av %(orgUnit)s.",
+            "not_allowed": "Du kan ikke invitere personer til %(orgUnit)s.",
+            "user_label": "Bruker",
             "invalid_phonenumber": "Ugyldig telefonnummer",
             "invalid_mobilephonenumber": "Ugyldig mobilnummer",
             "warning" : "Tlfnr støtter muligense ikke SMS"

@@ -451,6 +451,23 @@ describe("VerjiPermissionsStore", () => {
             expect(permissions.refreshContext).toHaveBeenCalledTimes(1);
         });
 
+        it("stops as soon as a re-fetch shows the user is the OrgUnit's PrimaryContact", async () => {
+            // verji/verji-src#2177: the onboard gate allows the OrgUnit's own PrimaryContact, the
+            // direct '#' role, so it settles a schedule as the Owner row does.
+            const store = await startedStore();
+            permissions.refreshContext.mockImplementation(async () => {
+                if (permissions.refreshContext.mock.calls.length === 2) {
+                    permissions.context.roles["ClientOrganization-Manager#"] = [ORG_A];
+                }
+            });
+
+            store.requestOrgUnitRefresh(TENANT, ORG_A);
+            await jest.advanceTimersByTimeAsync(LONG_AFTER);
+
+            expect(permissions.refreshContext).toHaveBeenCalledTimes(2);
+            expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(true);
+        });
+
         it("skips the fetch when another one already showed the user is the tenant's PrimaryContact", async () => {
             const store = await startedStore();
 
