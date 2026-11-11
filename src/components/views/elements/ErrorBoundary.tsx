@@ -88,7 +88,7 @@ export default class ErrorBoundary extends React.PureComponent<Props, IState> {
         );
 
         if (this.state.error) {
-            const newIssueUrl = SdkConfig.get().feedback.new_issue_url;
+            // const newIssueUrl = SdkConfig.get().feedback.new_issue_url;
 
             let bugReportSection;
             if (SdkConfig.get().bug_report_endpoint_url) {
