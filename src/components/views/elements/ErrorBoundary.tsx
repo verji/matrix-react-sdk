@@ -94,7 +94,7 @@ export default class ErrorBoundary extends React.PureComponent<Props, IState> {
             if (SdkConfig.get().bug_report_endpoint_url) {
                 bugReportSection = (
                     <React.Fragment>
-                        <p>
+                        {/* <p>
                             {_t(
                                 "bug_reporting|create_new_issue",
                                 {},
@@ -108,7 +108,7 @@ export default class ErrorBoundary extends React.PureComponent<Props, IState> {
                                     },
                                 },
                             )}
-                        </p>
+                        </p> */}
                         <p>
                             {_t("bug_reporting|introduction")}
                             &nbsp;
