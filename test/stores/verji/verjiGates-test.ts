@@ -50,13 +50,17 @@ const ORG_UNIT = ctxFor(VerjiSpaceKind.OrgUnit, ORG_A);
  * @param grants role name -> instances the user holds it on, in TENANT only — so a read keyed by
  *     the wrong tenant gets a wrong answer rather than the same one
  * @param exhausted OrgUnits of TENANT whose re-fetch the store has used up
+ * @param joinExistingOn whether joining existing org units and rooms to Hierarchy V2 is on for TENANT; read on its own,
+ *     so a gate that does not ask for it is seen
  */
 const readerFor = (
     rolloutOn: boolean,
     grants: Record<string, string[]> = {},
     exhausted: string[] = [],
+    joinExistingOn = true,
 ): VerjiGateReader => ({
     isCanonicalSpaceSyncEnabled: (tenantId) => rolloutOn && tenantId === TENANT,
+    isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId) => joinExistingOn && tenantId === TENANT,
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
     isInstanceReferenced: (tenantId, instanceId) =>
         tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
@@ -119,6 +123,7 @@ describe("verjiGates", () => {
                     // "checking" either: the cold-cache "checking…" state is deliberately not built.
                     const coldCache: VerjiGateReader = {
                         isCanonicalSpaceSyncEnabled: () => false,
+                        isJoinExistingOrgUnitsAndRoomsEnabled: () => false,
                         hasRole: () => false,
                         isInstanceReferenced: () => false,
                         getRoleInstances: () => [],
@@ -513,6 +518,37 @@ describe("verjiGates", () => {
             expect(isGateOffered(gate(null, readerFor(true, PRIMARY_CONTACT)))).toBe(false);
         });
 
+        it("is hidden where it is offered, when joining existing org units and rooms is off, from the PrimaryContact, the Owner and a StandardUser alike", () => {
+            // Hierarchy V2 on, so the gate goes past the rollout switch; the option's own flag off.
+            for (const ctx of offeredAt) {
+                for (const grants of [PRIMARY_CONTACT, OWNER_OF_A, STANDARD_USER]) {
+                    expect(isGateOffered(gate(ctx, readerFor(true, grants)))).toBe(
+                        grants !== STANDARD_USER || ctx !== ORG_UNIT,
+                    );
+                    const decision = gate(ctx, readerFor(true, grants, [], false));
+
+                    expect(decision.verdict).toBe(VerjiGateVerdict.Hidden);
+                    expect(isGateOffered(decision)).toBe(false);
+                }
+            }
+        });
+
+        it("asks whether joining existing org units and rooms is on for the rendered space's tenant", () => {
+            const tenantsAsked: string[] = [];
+            const reader: VerjiGateReader = {
+                ...readerFor(true, PRIMARY_CONTACT),
+                isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId) => {
+                    tenantsAsked.push(tenantId);
+                    return true;
+                },
+            };
+
+            for (const ctx of offeredAt) expect(isGateOffered(gate(ctx, reader))).toBe(true);
+
+            expect(tenantsAsked).toHaveLength(offeredAt.length);
+            expect(tenantsAsked.filter((tenantId) => tenantId !== TENANT)).toEqual([]);
+        });
+
         it.each([
             ["someone other than vsys sent its Verji events", false],
             ["who sent its Verji events is not known", undefined],
@@ -540,6 +576,10 @@ describe("verjiGates", () => {
                     const asBefore = gate({ ...ctx, sentByVsys: undefined }, readerFor(rolloutOn, grants));
                     expect(gate({ ...ctx, sentByVsys: false }, readerFor(rolloutOn, grants))).toEqual(asBefore);
                     expect(gate({ ...ctx, sentByVsys: true }, readerFor(rolloutOn, grants))).toEqual(asBefore);
+                    // Nor does any of them read whether joining existing org units and rooms is on.
+                    expect(gate(ctx, readerFor(rolloutOn, grants, [], false))).toEqual(
+                        gate(ctx, readerFor(rolloutOn, grants)),
+                    );
                 }
             }
         }
@@ -638,6 +678,7 @@ describe("verjiGates", () => {
             };
             const readerKnowingOnlyTenant1: VerjiGateReader = {
                 isCanonicalSpaceSyncEnabled: (tenantId) => tenantId === TENANT,
+                isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId) => tenantId === TENANT,
                 hasRole: (tenantId, roleName, instanceId) =>
                     tenantId === TENANT && roleName === "Customer-User#" && instanceId === TENANT,
                 isInstanceReferenced: (tenantId, instanceId) => tenantId === TENANT && instanceId === TENANT,
@@ -660,6 +701,10 @@ describe("verjiGates", () => {
                 const reader: VerjiGateReader = {
                     // Switch on, so the gate goes past the short-circuit into its role reads.
                     isCanonicalSpaceSyncEnabled: (tenantId) => {
+                        tenantsAsked.push(tenantId);
+                        return true;
+                    },
+                    isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId) => {
                         tenantsAsked.push(tenantId);
                         return true;
                     },

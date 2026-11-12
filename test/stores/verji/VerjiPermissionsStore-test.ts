@@ -64,6 +64,7 @@ const makePermissions = () => {
     return {
         init: jest.fn().mockResolvedValue(undefined),
         isCanonicalSpaceSyncEnabled: jest.fn((tenantId: string) => tenantId === TENANT),
+        isJoinExistingOrgUnitsAndRoomsEnabled: jest.fn((tenantId: string) => tenantId === TENANT),
         hasRole: jest.fn(
             (tenantId: string, roleName: string, instanceId: string) =>
                 tenantId === TENANT && (context.roles[roleName] ?? []).includes(instanceId),
@@ -166,6 +167,7 @@ describe("VerjiPermissionsStore", () => {
     describe("with no SDK store to ask", () => {
         const expectOutsideTheBeta = (store: VerjiPermissionsStore): void => {
             expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(false);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled(TENANT)).toBe(false);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(false);
             expect(store.peekContext(TENANT)).toEqual({ status: "uninitialized" });
             expect(store.isInstanceReferenced(TENANT, TENANT)).toBe(false);
@@ -206,6 +208,9 @@ describe("VerjiPermissionsStore", () => {
 
             expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(true);
             expect(store.isCanonicalSpaceSyncEnabled("tenant-2")).toBe(false);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled(TENANT)).toBe(true);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled("tenant-2")).toBe(false);
+            expect(permissions.isJoinExistingOrgUnitsAndRoomsEnabled).toHaveBeenCalledWith(TENANT);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(true);
             expect(permissions.hasRole).toHaveBeenCalledWith(TENANT, "Customer-User#", TENANT);
             expect(store.peekContext(TENANT).status).toBe("fresh");

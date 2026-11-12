@@ -107,6 +107,16 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     }
 
     /**
+     * Whether bringing existing org units and rooms into Hierarchy V2 is switched on for a tenant and this user
+     * (`hierarchy-v2.join-existing-org-units-and-rooms`, a flag of its own on top of the rollout switch). The options that
+     * do it are offered only where it is. False wherever {@link isCanonicalSpaceSyncEnabled} is false, and when the tenant has
+     * no cached record yet.
+     */
+    public isJoinExistingOrgUnitsAndRoomsEnabled(tenantId: string): boolean {
+        return this.permissions?.isJoinExistingOrgUnitsAndRoomsEnabled(tenantId) ?? false;
+    }
+
+    /**
      * Mirrors the backend's `AcContext.HasRole`. Default-deny — false for an unknown tenant, an
      * unknown role, or a context that has not loaded. Ask through the predicates in `verjiRoles`,
      * never with a role name spelled at the call site.

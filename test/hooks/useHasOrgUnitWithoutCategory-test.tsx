@@ -88,6 +88,7 @@ describe("useHasOrgUnitWithoutCategory", () => {
         SdkConfig.put({ verjiItopsUrl: "https://itops.test", verjiOrganizationUrl: "https://org.test" } as never);
         store.permissions = {
             isCanonicalSpaceSyncEnabled: (tenantId: string) => tenantId === TENANT,
+            isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId: string) => tenantId === TENANT,
             hasRole: (tenantId: string, roleName: string, instanceId: string) =>
                 tenantId === TENANT && ((grants as Record<string, string[]>)[roleName] ?? []).includes(instanceId),
             peekContext: () => ({ status: "fresh", record: { roles: grants } }),

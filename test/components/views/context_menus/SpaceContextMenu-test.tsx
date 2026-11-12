@@ -474,9 +474,11 @@ describe("<SpaceContextMenu />", () => {
         };
 
         /** Feeds the bridge store's real reads from a stand-in for the SDK's access-context store. */
-        const mockStore = (rolloutOn: boolean, grants: Record<string, string[]>): void => {
+        const mockStore = (rolloutOn: boolean, grants: Record<string, string[]>, joinExistingOn = true): void => {
             const permissions = {
                 isCanonicalSpaceSyncEnabled: (tenantId: string) => rolloutOn && tenantId === TENANT,
+                isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId: string) =>
+                    rolloutOn && joinExistingOn && tenantId === TENANT,
                 hasRole: (tenantId: string, roleName: string, instanceId: string) =>
                     tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
                 peekContext: () => ({ status: "fresh", record: { roles: grants } }),
@@ -715,6 +717,26 @@ describe("<SpaceContextMenu />", () => {
             expect(getOrgUnitsWithoutCategory).not.toHaveBeenCalled();
         });
 
+        it("offers neither, asks nothing, and leaves no Add header, when joining existing org units and rooms is off", async () => {
+            // Hierarchy V2 on: the options have a flag of their own. Were they asked, the API's list would offer one.
+            mocked(getOrgUnitsWithoutCategory).mockResolvedValue([
+                { id: ORG_A, name: "Kari AS", orgUnitCategoryId: null },
+            ]);
+
+            for (const grants of [PRIMARY_CONTACT, OWNER_OF_A]) {
+                mockStore(true, grants, false);
+                for (const events of [TENANT_INFO, CATEGORY, ORG_UNIT]) {
+                    const { unmount } = renderComponent({ space: makeVerjiSpace(events) });
+                    await settle();
+                    expect(screen.queryByTestId("add-existing-guest-org-option")).not.toBeInTheDocument();
+                    expect(screen.queryByTestId("add-existing-room-option")).not.toBeInTheDocument();
+                    expect(screen.queryByTestId("add-to-space-header")).not.toBeInTheDocument();
+                    unmount();
+                }
+            }
+            expect(getOrgUnitsWithoutCategory).not.toHaveBeenCalled();
+        });
+
         it("offers neither, and no Add header, when the Organization API is not configured", () => {
             mockStore(true, PRIMARY_CONTACT);
             SdkConfig.put({ verjiItopsUrl: "https://itops.test" } as never);
@@ -841,6 +863,7 @@ describe("<SpaceContextMenu />", () => {
                 };
                 (VerjiPermissionsStore.instance as unknown as { permissions: unknown }).permissions = {
                     isCanonicalSpaceSyncEnabled: (tenantId: string) => tenantId in roles,
+                    isJoinExistingOrgUnitsAndRoomsEnabled: (tenantId: string) => tenantId in roles,
                     hasRole: (tenantId: string, roleName: string, instanceId: string) =>
                         (roles[tenantId]?.[roleName] ?? []).includes(instanceId),
                     peekContext: (tenantId: string) => ({ status: "fresh", record: { roles: roles[tenantId] ?? {} } }),

@@ -96,6 +96,11 @@ const checking = (): VerjiGateDecision => ({ verdict: VerjiGateVerdict.Checking,
 export interface VerjiGateReader extends VerjiRoleReader {
     isCanonicalSpaceSyncEnabled(tenantId: string): boolean;
     /**
+     * Is bringing existing org units and rooms into Hierarchy V2 switched on for the tenant? Its own flag, on top of the
+     * rollout switch; only the add-existing gates read it, and hide their option where it is off.
+     */
+    isJoinExistingOrgUnitsAndRoomsEnabled(tenantId: string): boolean;
+    /**
      * Is the store's one bounded re-fetch for this OrgUnit used up — out of attempts, or ended
      * early because the user turned out to be its Member or Owner, or the tenant's PrimaryContact?
      * Once it is, an OrgUnit the context does not mention reads as denied, so a wrong staleness
@@ -243,9 +248,14 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
  * Only on a space whose `tenant_info` vsys sent ({@link VerjiSpaceContext.sentByVsys}): a space
  * anyone made and stamped with a tenant's id is not that tenant's, and the option would call the
  * Organization API for the tenant it names.
+ *
+ * Only where bringing existing org units and rooms into Hierarchy V2 is switched on for the tenant as
+ * well ({@link VerjiGateReader.isJoinExistingOrgUnitsAndRoomsEnabled}), a flag of its own on top of the
+ * rollout switch, which the Organization API's routes for it require too: hidden elsewhere.
  */
 export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
+        reader.isJoinExistingOrgUnitsAndRoomsEnabled(c.tenantId) &&
         c.sentByVsys === true &&
         (c.kind === VerjiSpaceKind.OrgUnitCategory || c.kind === VerjiSpaceKind.TenantRoot) &&
         (isTenantPrimaryContact(reader, c.tenantId) || isStandardUser(reader, c.tenantId))
@@ -266,10 +276,12 @@ export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader
  * PrimaryContact to these routes, so an Owner who is no person of the tenant would only be refused.
  * Hidden for everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
  * Only on a space whose `tenant_info` and `org_unit_info` vsys sent
- * ({@link VerjiSpaceContext.sentByVsys}), as for {@link getAddExistingGuestOrgGate}.
+ * ({@link VerjiSpaceContext.sentByVsys}), and only where bringing existing org units and rooms into
+ * Hierarchy V2 is switched on for the tenant, as for {@link getAddExistingGuestOrgGate}.
  */
 export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) =>
+        reader.isJoinExistingOrgUnitsAndRoomsEnabled(c.tenantId) &&
         c.sentByVsys === true &&
         c.kind === VerjiSpaceKind.OrgUnit &&
         !!c.orgUnitId &&
