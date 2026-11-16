@@ -56,6 +56,7 @@ describe("verjiOrgUnitRooms", () => {
     const getAccessToken = jest.fn();
     const organization = {
         getOrgUnits: jest.fn(),
+        getOrgUnitCandidates: jest.fn(),
         assignDefaultOrgUnitCategory: jest.fn(),
         getOrgUnitRoomCandidates: jest.fn(),
         assignRoomToOrgUnit: jest.fn(),
@@ -82,7 +83,7 @@ describe("verjiOrgUnitRooms", () => {
     const PRIMARY_CONTACT = rolesFor({ "Customer-Manager#": ["t1"] });
 
     it("lists only the org units that have no category, with a token minted from the client's macaroon", async () => {
-        organization.getOrgUnits.mockResolvedValue({
+        organization.getOrgUnitCandidates.mockResolvedValue({
             results: [
                 { id: "u1", name: "In already", orgUnitCategoryId: "cat-1" },
                 { id: "u2", name: "From before", orgUnitCategoryId: null },
@@ -93,7 +94,9 @@ describe("verjiOrgUnitRooms", () => {
             { id: "u2", name: "From before", orgUnitCategoryId: null },
         ]);
         expect(getAccessToken).toHaveBeenCalledWith("macaroon");
-        expect(organization.getOrgUnits).toHaveBeenCalledWith(TOKEN, "t1");
+        expect(organization.getOrgUnitCandidates).toHaveBeenCalledWith(TOKEN, "t1");
+        // The list of every org unit leaves out one no grant reaches yet: the candidates are read from the tenant's records.
+        expect(organization.getOrgUnits).not.toHaveBeenCalled();
     });
 
     // VERJI: verji/verji-src#2117 — the tenant's PrimaryContact brings in any, an Owner their own.
@@ -104,7 +107,7 @@ describe("verjiOrgUnitRooms", () => {
         ["an Owner", rolesFor({ "Customer-User#": ["t1"], "ClientOrganization-Owner": ["u3", "u1"] })],
         ["a StandardUser the access context has no Owner row for", rolesFor({ "Customer-User#": ["t1"] })],
     ])("keeps, for %s, every org unit without a category the Organization API lists", async (_who, roles) => {
-        organization.getOrgUnits.mockResolvedValue({
+        organization.getOrgUnitCandidates.mockResolvedValue({
             results: [
                 { id: "u1", name: "In already", orgUnitCategoryId: "cat-1" },
                 { id: "u2", name: "From before", orgUnitCategoryId: null },
@@ -123,12 +126,12 @@ describe("verjiOrgUnitRooms", () => {
         ["the org unit's own PrimaryContact who is a Guest", rolesFor({ "ClientOrganization-Manager#": ["u2"] })],
         ["an Owner who is no person of the tenant", rolesFor({ "ClientOrganization-Owner": ["u2"] })],
     ])("lists %s none, and asks the Organization API nothing", async (_who, roles) => {
-        organization.getOrgUnits.mockResolvedValue({
+        organization.getOrgUnitCandidates.mockResolvedValue({
             results: [{ id: "u2", name: "From before", orgUnitCategoryId: null }],
         });
 
         await expect(getOrgUnitsWithoutCategory(client, "t1", roles)).resolves.toEqual([]);
-        expect(organization.getOrgUnits).not.toHaveBeenCalled();
+        expect(organization.getOrgUnitCandidates).not.toHaveBeenCalled();
         expect(getAccessToken).not.toHaveBeenCalled();
     });
 
@@ -631,14 +634,13 @@ describe("verjiOrgUnitRooms", () => {
 
     it("reads a refusal's reason, and nothing from any other failure", () => {
         expect(getRefusalReason(new OrgUnitRoomRefusedError("MemberOutsideOrgUnit"))).toBe("MemberOutsideOrgUnit");
-        expect(getRefusalReason(new OrgUnitRoomRefusedError(undefined))).toBeUndefined();
         expect(getRefusalReason(new Error("down"))).toBeNull();
         expect(getRefusalReason("down")).toBeNull();
     });
 
-    it("reads a refusal whose reason is not text as one without a reason", () => {
+    it("reads a refusal whose reason is missing or not text as one without a reason", () => {
         // A second copy of the SDK, or a changed one, could carry anything there: only text is a reason.
-        for (const reason of [42, { reason: "MemberOutsideOrgUnit" }, ["NotARoom"], true, null]) {
+        for (const reason of [undefined, 42, { reason: "MemberOutsideOrgUnit" }, ["NotARoom"], true, null]) {
             const refusal = Object.assign(new Error("refused"), { name: "OrgUnitRoomRefusedError", reason });
             expect(getRefusalReason(refusal)).toBeUndefined();
         }

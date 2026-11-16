@@ -64,9 +64,10 @@ async function organizationApi(client: MatrixClient): Promise<[OrganizationServi
 
 /**
  * The tenant's org units that have no category yet and that the user may give one: every one for
- * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. Which ones a
- * StandardUser owns is the Organization API's to say: it lists them the org units it records them
- * as the owner of, and the access context's Owner rows can lag behind its records. A Guest is
+ * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. Which ones
+ * those are is the Organization API's to say: it reads them from the tenant's records, so it lists
+ * an org unit no grant reaches yet, one from before its access-control index was kept, and the
+ * access context's Owner rows can lag behind its records. A Guest is
  * listed none, and the API is not asked: it admits only the tenant's StandardUsers and its
  * PrimaryContact.
  */
@@ -77,7 +78,7 @@ export async function getOrgUnitsWithoutCategory(
 ): Promise<OrgUnit[]> {
     if (!isTenantPrimaryContact(roles, tenantId) && !isStandardUser(roles, tenantId)) return [];
     const [organization, token] = await organizationApi(client);
-    const page = await organization.getOrgUnits(token, tenantId);
+    const page = await organization.getOrgUnitCandidates(token, tenantId);
     return (page.results ?? []).filter((orgUnit) => !orgUnit.orgUnitCategoryId);
 }
 

@@ -555,9 +555,14 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ["RoomUnreadable", "This room could not be read. Try again later."],
         ["OrgUnitHasNoSpace", "Kari AS does not have its space yet. Try again in a moment."],
         ["SpaceTenantNotFound", "The room could not be added. Try again."],
+        // A refusal with no reason comes only from another copy of the SDK: built by its shape, as the store reads it.
         [undefined, "The room could not be added. Try again."],
     ])("shows a refusal with reason %s on the room only, and lets it be tried again", async (reason, message) => {
-        mocked(assignRoomToOrgUnit).mockRejectedValueOnce(new OrgUnitRoomRefusedError(reason));
+        mocked(assignRoomToOrgUnit).mockRejectedValueOnce(
+            reason === undefined
+                ? Object.assign(new Error("Refused"), { name: "OrgUnitRoomRefusedError", reason })
+                : new OrgUnitRoomRefusedError(reason),
+        );
         renderDialog();
 
         await screen.findByTestId("verji-room-candidates-suggested");
@@ -618,7 +623,11 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
 
     it.each([
         ["a refusal with a reason the client does not know", () => new OrgUnitRoomRefusedError("SomethingNew")],
-        ["a refusal with no reason", () => new OrgUnitRoomRefusedError(undefined)],
+        // The SDK throws a 400 that names no reason as it came: the framework's or a proxy's, no refusal of the rooms.
+        [
+            "a 400 that names no reason",
+            () => Object.assign(new Error("Request failed with status code 400"), { response: { status: 400 } }),
+        ],
         ["any other failure", () => new Error("down")],
     ])("says the list could not be loaded for %s, and retries", async (_what, failure) => {
         mocked(getOrgUnitRoomCandidates).mockRejectedValueOnce(failure());
