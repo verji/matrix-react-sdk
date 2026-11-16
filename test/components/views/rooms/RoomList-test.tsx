@@ -820,6 +820,18 @@ describe("Verji Hierarchy V2 gates", () => {
             expect(screen.getByLabelText("Add room")).toHaveAttribute("aria-disabled", "true");
         });
 
+        it("keeps Persons+ enabled for a Member who may not invite into the guest org, with onboarding into it on", () => {
+            // verji/verji-src#2177: Persons+ also holds "Start new chat", which a Member keeps; the
+            // invite dialog behind it decides that they cannot invite into the guest org.
+            // Every setting on, onboarding into a guest org included
+            jest.spyOn(SettingsStore, "getValue").mockImplementation(() => true);
+            mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+
+            render(getComponent());
+
+            expect(screen.getByLabelText("Add people")).not.toHaveAttribute("aria-disabled", "true");
+        });
+
         it("disables Persons+ for a Guest with the invite hint", async () => {
             mockStore(true, { "ClientOrganization-User#": [ORG_A] });
 

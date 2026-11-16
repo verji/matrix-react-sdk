@@ -1560,6 +1560,12 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_UI_FEATURE,
         default: true,
     },
+    // VERJI: off by default, so a client never sends a guest org to an onboarding API that would
+    // ignore it. Verji deployments turn it on in config once the API is live.
+    [UIFeature.VerjiGuestOrgOnboarding]: {
+        supportedLevels: LEVELS_UI_FEATURE,
+        default: false,
+    },
 
     // Electron-specific settings, they are stored by Electron and set/read over an IPC.
     // We store them over there are they are necessary to know before the renderer process launches.

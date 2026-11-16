@@ -48,7 +48,7 @@ describe("SdkConfig", () => {
             const feedback = SdkConfig.getObject("feedback");
             expect(feedback.get("existing_issues_url")).toMatchInlineSnapshot(`"https://existing"`);
             expect(feedback.get("new_issue_url")).toMatchInlineSnapshot(
-                `"https://github.com/vector-im/element-web/issues/new/choose"`,
+                `"https://rageshake.staging.verji.app/api/submit"`,
             );
         });
     });

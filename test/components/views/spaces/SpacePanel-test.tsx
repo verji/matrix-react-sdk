@@ -204,6 +204,38 @@ describe("<SpacePanel />", () => {
         });
     });
 
+    // verji/verji-src#2090: opening the panel by expanding a space re-renders every root button,
+    // while the subspaces' buttons register with the roving tab index in the same commit
+    it("expands a space with subspaces from the collapsed panel without crashing", () => {
+        const subspace = mkStubRoom("!subspace:server", "Subspace", mockClient);
+        (SpaceStore.instance.spacePanelSpaces as any) = [
+            mkStubRoom("!space1:server", "Space 1", mockClient),
+            mkStubRoom("!space2:server", "Space 2", mockClient),
+        ];
+        SpaceStore.instance.getChildSpaces = (roomId: string) => (roomId === "!space1:server" ? [subspace] : []);
+        DMRoomMap.makeShared(mockClient);
+
+        try {
+            const { container, getByLabelText, queryByLabelText } = render(<SpacePanel />);
+            const expandSpace1 = (): void => {
+                fireEvent.click(getByLabelText("Space 1").querySelector(".mx_SpaceButton_toggleCollapse")!);
+            };
+
+            expandSpace1();
+            expect(container.querySelector(".mx_SpacePanel")).not.toHaveClass("collapsed");
+            expect(getByLabelText("Subspace")).toBeInTheDocument();
+
+            // close the panel, which hides the subspaces, then expand from the closed panel again
+            fireEvent.click(container.querySelector(".mx_SpacePanel_toggleCollapse")!);
+            expect(queryByLabelText("Subspace")).toBeNull();
+            expandSpace1();
+            expect(getByLabelText("Subspace")).toBeInTheDocument();
+        } finally {
+            (SpaceStore.instance.spacePanelSpaces as any) = [];
+            SpaceStore.instance.getChildSpaces = () => [];
+        }
+    });
+
     it("should allow rearranging via drag and drop", async () => {
         (SpaceStore.instance.spacePanelSpaces as any) = [
             mkStubRoom("!room1:server", "Room 1", mockClient),
