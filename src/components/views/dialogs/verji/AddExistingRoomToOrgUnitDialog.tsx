@@ -32,7 +32,7 @@ import SpaceStore from "../../../../stores/spaces/SpaceStore";
 import { resolveVerjiSpaceContext } from "../../../../stores/verji/VerjiSpaceContext";
 import {
     assignRoomToOrgUnit,
-    getConflictReason,
+    getRefusalReason,
     getOrgUnitName,
     getOrgUnitRoomCandidates,
     describeError,
@@ -73,8 +73,8 @@ interface Names {
     orgUnit: string;
 }
 
-/** A readable message for a 409's reason. */
-export function describeOrgUnitRoomConflict(reason: string | undefined, names: Names): string {
+/** A readable message for the reason of a refused room (HTTP 400). */
+export function describeOrgUnitRoomRefusal(reason: string | undefined, names: Names): string {
     switch (reason) {
         case "MemberOutsideOrgUnit":
             return _t("verji|add_existing|refused_member_outside", { orgUnit: names.orgUnit, tenant: names.tenant });
@@ -100,7 +100,7 @@ export function describeOrgUnitRoomConflict(reason: string | undefined, names: N
 }
 
 /**
- * The 409 reasons that hold whatever the client does next: a room refused for one of them stays
+ * The refusal reasons that hold whatever the client does next: a room refused for one of them stays
  * disabled. Any other reason, known or not, may pass, so the room can be tried again.
  * `CallerMayNotChangeRoom` lifts only when the user's power level in the room changes, which this
  * dialog does not do. Kept as strings: the SDK copy the fork builds against may not list them all.
@@ -169,7 +169,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             if (!mounted.current) return;
             setCandidates(list);
         } catch (e) {
-            const reason = getConflictReason(e);
+            const reason = getRefusalReason(e);
             const forbidden = reason === null && isForbidden(e);
             if (reason === null && !forbidden)
                 logger.error("[Verji.OrgUnitRooms] Failed to list the room candidates", describeError(e));
@@ -206,7 +206,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             if (!mounted.current) return;
             setRows((r) => ({ ...r, [candidate.roomId]: { kind: "added" } }));
         } catch (e) {
-            const reason = getConflictReason(e);
+            const reason = getRefusalReason(e);
             if (reason === null && isForbidden(e)) {
                 // Not this room's doing, and not to be tried again: the user may no longer do this
                 // here, for any room. The Organization API refuses a 403 only to a caller who is not the
@@ -227,7 +227,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
             if (!mounted.current) return;
             // The server's answer for this room, shown on its row: disabled for a permanent refusal,
             // left to be tried again for any other.
-            const message = describeOrgUnitRoomConflict(reason, names);
+            const message = describeOrgUnitRoomRefusal(reason, names);
             const kind = isPermanentRefusal(reason) ? "refused" : "failed";
             setRows((r) => ({ ...r, [candidate.roomId]: { kind, message } }));
             // Refused, the row takes no name from the room's members, so a search that found it by
@@ -273,7 +273,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
         // not one the client knows: someone in it is from outside the guest org. Any other: what the
         // Organization API answered when it was chosen.
         const hint = listedRefused
-            ? describeOrgUnitRoomConflict(
+            ? describeOrgUnitRoomRefusal(
                   isPermanentRefusal(candidate.reason) ? candidate.reason : "MemberOutsideOrgUnit",
                   names,
               )
@@ -322,7 +322,7 @@ const AddExistingRoomToOrgUnitDialog: React.FC<IProps> = ({
                     {loadError === "forbidden"
                         ? _t("verji|add_existing|forbidden")
                         : loadError === "no-space"
-                          ? describeOrgUnitRoomConflict("OrgUnitHasNoSpace", names)
+                          ? describeOrgUnitRoomRefusal("OrgUnitHasNoSpace", names)
                           : _t("verji|add_existing|load_failed")}
                 </div>
                 {loadError !== "forbidden" && (

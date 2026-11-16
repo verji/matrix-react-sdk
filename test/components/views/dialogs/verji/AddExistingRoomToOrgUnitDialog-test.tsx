@@ -20,7 +20,7 @@ import userEvent from "@testing-library/user-event";
 import { MatrixClient, PendingEventOrdering, Room } from "matrix-js-sdk/src/matrix";
 import { KnownMembership } from "matrix-js-sdk/src/types";
 import { mocked } from "jest-mock";
-import { OrgUnitRoomConflictError } from "@verji/verji-api-sdk";
+import { OrgUnitRoomRefusedError } from "@verji/verji-api-sdk";
 
 import type { OrgUnitRoomCandidate } from "@verji/verji-api-sdk";
 import { mkEvent, mkMembership, mockStateEventImplementation, stubClient } from "../../../../test-utils";
@@ -35,7 +35,7 @@ import {
 import Modal from "../../../../../src/Modal";
 import DMRoomMap from "../../../../../src/utils/DMRoomMap";
 
-// VERJI: verji/verji-src#2117 — the Organization API calls are mocked; reading a conflict's reason, or a 403, is not.
+// VERJI: verji/verji-src#2117 — the Organization API calls are mocked; reading a refusal's reason, or a 403, is not.
 jest.mock("../../../../../src/stores/verji/verjiOrgUnitRooms", () => ({
     ...jest.requireActual("../../../../../src/stores/verji/verjiOrgUnitRooms"),
     getOrgUnitRoomCandidates: jest.fn(),
@@ -158,7 +158,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         const room = roomWithOutsider();
         // The list said Internal; by the time it is chosen, someone from outside is in it.
         mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Internal")]);
-        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError("MemberOutsideOrgUnit"));
+        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomRefusedError("MemberOutsideOrgUnit"));
         renderDialog();
         await userEvent.click(await screen.findByRole("button", { name: "Show all rooms" }));
 
@@ -539,8 +539,8 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ["NotARoom", "Only rooms can be added, not spaces or direct messages."],
         ["NotPrivate", "Only private rooms can be added to a guest organization."],
         [CALLER_MAY_NOT_CHANGE_ROOM, CALLER_MAY_NOT_CHANGE_ROOM_MESSAGE],
-    ])("shows a 409 with reason %s as a readable message on the room, and disables it", async (reason, message) => {
-        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError(reason));
+    ])("shows a refusal with reason %s as a readable message on the room, and disables it", async (reason, message) => {
+        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomRefusedError(reason));
         renderDialog();
 
         await screen.findByTestId("verji-room-candidates-suggested");
@@ -556,8 +556,8 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         ["OrgUnitHasNoSpace", "Kari AS does not have its space yet. Try again in a moment."],
         ["SpaceTenantNotFound", "The room could not be added. Try again."],
         [undefined, "The room could not be added. Try again."],
-    ])("shows a 409 with reason %s on the room only, and lets it be tried again", async (reason, message) => {
-        mocked(assignRoomToOrgUnit).mockRejectedValueOnce(new OrgUnitRoomConflictError(reason));
+    ])("shows a refusal with reason %s on the room only, and lets it be tried again", async (reason, message) => {
+        mocked(assignRoomToOrgUnit).mockRejectedValueOnce(new OrgUnitRoomRefusedError(reason));
         renderDialog();
 
         await screen.findByTestId("verji-room-candidates-suggested");
@@ -578,7 +578,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
     it("says on the status line why a room the user may not change was not added, by its row's name, and never sends it again", async () => {
         const room = roomWithOutsider();
         mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Suggested")]);
-        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError(CALLER_MAY_NOT_CHANGE_ROOM));
+        mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomRefusedError(CALLER_MAY_NOT_CHANGE_ROOM));
         renderDialog();
         await screen.findByTestId("verji-room-candidates-suggested");
 
@@ -608,7 +608,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
     });
 
     it("says why when the guest org has no space yet", async () => {
-        mocked(getOrgUnitRoomCandidates).mockRejectedValue(new OrgUnitRoomConflictError("OrgUnitHasNoSpace"));
+        mocked(getOrgUnitRoomCandidates).mockRejectedValue(new OrgUnitRoomRefusedError("OrgUnitHasNoSpace"));
         renderDialog();
 
         expect(
@@ -617,8 +617,8 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
     });
 
     it.each([
-        ["a 409 with a reason the client does not know", () => new OrgUnitRoomConflictError("SomethingNew")],
-        ["a 409 with no reason", () => new OrgUnitRoomConflictError(undefined)],
+        ["a refusal with a reason the client does not know", () => new OrgUnitRoomRefusedError("SomethingNew")],
+        ["a refusal with no reason", () => new OrgUnitRoomRefusedError(undefined)],
         ["any other failure", () => new Error("down")],
     ])("says the list could not be loaded for %s, and retries", async (_what, failure) => {
         mocked(getOrgUnitRoomCandidates).mockRejectedValueOnce(failure());
@@ -685,7 +685,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
             ["the assignment fails", (answer: Deferred<void>) => answer.reject(new Error("down"))],
             [
                 "the room is refused",
-                (answer: Deferred<void>) => answer.reject(new OrgUnitRoomConflictError("MemberOutsideOrgUnit")),
+                (answer: Deferred<void>) => answer.reject(new OrgUnitRoomRefusedError("MemberOutsideOrgUnit")),
             ],
             ["the user is refused (403)", (answer: Deferred<void>) => answer.reject(forbidden())],
         ])("changes nothing when %s", async (_what, settle) => {
@@ -739,7 +739,7 @@ describe("<AddExistingRoomToOrgUnitDialog />", () => {
         it("says a refusal outside the list too, under the row's new name, when the search no longer finds the row", async () => {
             const room = roomWithOutsider();
             mocked(getOrgUnitRoomCandidates).mockResolvedValue([candidate(room.roomId, null, "Suggested")]);
-            mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomConflictError("MemberOutsideOrgUnit"));
+            mocked(assignRoomToOrgUnit).mockRejectedValue(new OrgUnitRoomRefusedError("MemberOutsideOrgUnit"));
             renderDialog();
             await screen.findByTestId("verji-room-candidates-suggested");
             // A row that fits shows the client's name for the room, here made up from its members: the search finds it by Eve.

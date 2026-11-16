@@ -299,7 +299,7 @@ export async function getOrgUnitRoomCandidates(
     return page.results ?? [];
 }
 
-/** Assign the room to the org unit's space. Throws `OrgUnitRoomConflictError` when it cannot be. */
+/** Assign the room to the org unit's space. Throws `OrgUnitRoomRefusedError` when it cannot be. */
 export async function assignRoomToOrgUnit(
     client: MatrixClient,
     tenantId: string,
@@ -319,11 +319,11 @@ export function describeError(error: unknown): string {
 }
 
 /**
- * The reason of an `OrgUnitRoomConflictError` (HTTP 409); `null` for any other failure. Read by
- * name rather than `instanceof`, so a second copy of the SDK in the bundle cannot hide a conflict.
+ * The reason of an `OrgUnitRoomRefusedError` (HTTP 400); `null` for any other failure. Read by
+ * name rather than `instanceof`, so a second copy of the SDK in the bundle cannot hide a refusal.
  */
-export function getConflictReason(error: unknown): string | undefined | null {
-    if (error instanceof Error && error.name === "OrgUnitRoomConflictError") {
+export function getRefusalReason(error: unknown): string | undefined | null {
+    if (error instanceof Error && error.name === "OrgUnitRoomRefusedError") {
         const reason = (error as Error & { reason?: unknown }).reason;
         return typeof reason === "string" ? reason : undefined;
     }
@@ -334,7 +334,7 @@ export function getConflictReason(error: unknown): string | undefined | null {
  * Did the Organization API refuse the user (HTTP 403)? They are no longer the tenant's
  * PrimaryContact or the org unit's Owner, or the org unit is not the tenant's: trying again changes
  * nothing. The SDK passes the request's error on for a 403, so it is read off that error's HTTP
- * status, by shape rather than `instanceof`, as {@link getConflictReason} reads a conflict.
+ * status, by shape rather than `instanceof`, as {@link getRefusalReason} reads a refusal.
  */
 export function isForbidden(error: unknown): boolean {
     if (typeof error !== "object" || error === null) return false;

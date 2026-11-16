@@ -18,7 +18,7 @@ import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
 import { KnownMembership, Membership } from "matrix-js-sdk/src/types";
 import { mocked } from "jest-mock";
 import { getVerjiApiSdk } from "@verji/verji-api-sdk/lib/asyncInit";
-import { OrgUnitRoomConflictError } from "@verji/verji-api-sdk";
+import { OrgUnitRoomRefusedError } from "@verji/verji-api-sdk";
 
 import {
     askHasOrgUnitWithoutCategory,
@@ -30,7 +30,7 @@ import {
     describeError,
     findOrgUnitSpace,
     forgetHasOrgUnitWithoutCategory,
-    getConflictReason,
+    getRefusalReason,
     getOrgUnitName,
     getOrgUnitRoomCandidates,
     getOrgUnitsWithoutCategory,
@@ -616,10 +616,10 @@ describe("verjiOrgUnitRooms", () => {
         expect(isForbidden(forbidden)).toBe(true);
         expect(isForbidden({ response: { status: 403 } })).toBe(true);
         for (const other of [
-            Object.assign(new Error("x"), { response: { status: 409 } }),
+            Object.assign(new Error("x"), { response: { status: 400 } }),
             Object.assign(new Error("x"), { response: { status: 500 } }),
             Object.assign(new Error("x"), { response: { status: "403" } }),
-            new OrgUnitRoomConflictError("MemberOutsideOrgUnit"),
+            new OrgUnitRoomRefusedError("MemberOutsideOrgUnit"),
             new Error("down"),
             "403",
             null,
@@ -629,18 +629,18 @@ describe("verjiOrgUnitRooms", () => {
         }
     });
 
-    it("reads a conflict's reason, and nothing from any other failure", () => {
-        expect(getConflictReason(new OrgUnitRoomConflictError("MemberOutsideOrgUnit"))).toBe("MemberOutsideOrgUnit");
-        expect(getConflictReason(new OrgUnitRoomConflictError(undefined))).toBeUndefined();
-        expect(getConflictReason(new Error("down"))).toBeNull();
-        expect(getConflictReason("down")).toBeNull();
+    it("reads a refusal's reason, and nothing from any other failure", () => {
+        expect(getRefusalReason(new OrgUnitRoomRefusedError("MemberOutsideOrgUnit"))).toBe("MemberOutsideOrgUnit");
+        expect(getRefusalReason(new OrgUnitRoomRefusedError(undefined))).toBeUndefined();
+        expect(getRefusalReason(new Error("down"))).toBeNull();
+        expect(getRefusalReason("down")).toBeNull();
     });
 
-    it("reads a conflict whose reason is not text as one without a reason", () => {
+    it("reads a refusal whose reason is not text as one without a reason", () => {
         // A second copy of the SDK, or a changed one, could carry anything there: only text is a reason.
         for (const reason of [42, { reason: "MemberOutsideOrgUnit" }, ["NotARoom"], true, null]) {
-            const conflict = Object.assign(new Error("conflict"), { name: "OrgUnitRoomConflictError", reason });
-            expect(getConflictReason(conflict)).toBeUndefined();
+            const refusal = Object.assign(new Error("refused"), { name: "OrgUnitRoomRefusedError", reason });
+            expect(getRefusalReason(refusal)).toBeUndefined();
         }
     });
 
