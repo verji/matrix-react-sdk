@@ -77,7 +77,7 @@ import { RoomPermalinkCreator } from "../../utils/permalinks/Permalinks";
 import SettingsStore from "../../settings/SettingsStore";
 // VERJI: Space settings also opens for whoever may rename the guest org (verji/verji-src#2377)
 import { useVerjiGate } from "../../hooks/useVerjiPermissions";
-import { getSpaceNameGate, VerjiGateVerdict } from "../../stores/verji/verjiGates";
+import { getSpaceNameGate, spaceNameGateOpensSettings } from "../../stores/verji/verjiGates";
 
 interface IProps {
     space: Room;
@@ -250,7 +250,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
     }
 
     let settingsButton;
-    if (shouldShowSpaceSettings(space) || spaceNameGate.verdict === VerjiGateVerdict.Allowed) {
+    if (shouldShowSpaceSettings(space) || spaceNameGateOpensSettings(spaceNameGate, myMembership)) {
         settingsButton = (
             <AccessibleButton
                 className="mx_SpaceRoomView_landing_settingsButton"

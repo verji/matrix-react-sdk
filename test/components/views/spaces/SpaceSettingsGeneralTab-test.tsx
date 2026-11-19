@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from "react";
 import { mocked } from "jest-mock";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, RenderResult, screen } from "@testing-library/react";
 import { EventType, MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -91,8 +91,13 @@ describe("<SpaceSettingsGeneralTab />", () => {
         jest.spyOn(store, "refreshTenant").mockImplementation(() => {});
     };
 
-    const renderTab = (): void => {
-        render(<SpaceSettingsGeneralTab matrixClient={client} space={space} />);
+    const renderTab = (): RenderResult => render(<SpaceSettingsGeneralTab matrixClient={client} space={space} />);
+    /** Save, flushing with fake timers, which would never run flushPromises' own timer. */
+    const saveWithFakeTimers = async (): Promise<void> => {
+        await act(async () => {
+            fireEvent.click(screen.getByText(_t("room_settings|general|save")));
+            await jest.advanceTimersByTimeAsync(0);
+        });
     };
     const nameField = (): HTMLInputElement => screen.getByLabelText(_t("common|name")) as HTMLInputElement;
     const typeName = (name: string): void => {
@@ -173,6 +178,76 @@ describe("<SpaceSettingsGeneralTab />", () => {
 
         expect(screen.getByText(_t("verji|space_name|slow"))).toBeInTheDocument();
         expect(screen.queryByText(_t("verji|space_name|saved_pending"))).not.toBeInTheDocument();
+    });
+
+    it("unlocks the name, Save and Cancel once the rename is taking long, as the name may never come", async () => {
+        jest.useFakeTimers();
+        mockStore(true, OWNER);
+        renderTab();
+
+        typeName("New name");
+        await saveWithFakeTimers();
+        expect(nameField()).toBeDisabled();
+
+        act(() => {
+            jest.advanceTimersByTime(SLOW_RENAME_MS);
+        });
+
+        expect(screen.getByText(_t("verji|space_name|slow"))).toBeInTheDocument();
+        expect(nameField()).not.toBeDisabled();
+        expect(screen.getByText(_t("room_settings|general|save"))).not.toHaveAttribute("aria-disabled", "true");
+
+        // Cancel puts the space's name back and drops the note.
+        fireEvent.click(screen.getByText(_t("action|cancel")));
+        expect(nameField()).toHaveValue("Old name");
+        expect(screen.queryByText(_t("verji|space_name|slow"))).not.toBeInTheDocument();
+    });
+
+    it("waits for nothing when only whitespace changed, since the server then writes no name", async () => {
+        mockStore(true, OWNER);
+        renderTab();
+
+        typeName("Old name  ");
+        await save();
+
+        expect(setOrgUnitNameThroughVerji).toHaveBeenCalledWith(client, TENANT, ORG_A, "Old name  ");
+        expect(screen.queryByText(_t("verji|space_name|saved_pending"))).not.toBeInTheDocument();
+        expect(nameField()).toHaveValue("Old name");
+        expect(nameField()).not.toBeDisabled();
+    });
+
+    it("waits for nothing when the new name arrived before the answer", async () => {
+        mockStore(true, OWNER);
+        mocked(setOrgUnitNameThroughVerji).mockImplementation(async () => {
+            // The copy, written by vsys, synced before the Organization API answered.
+            space.currentState.setStateEvents([stateEvent(EventType.RoomName, { name: "New name" }, "")]);
+            space.recalculate();
+            return OrgUnitRenameOutcome.Accepted;
+        });
+        renderTab();
+
+        typeName("New name");
+        await save();
+
+        expect(screen.queryByText(_t("verji|space_name|saved_pending"))).not.toBeInTheDocument();
+        expect(nameField()).toHaveValue("New name");
+        expect(nameField()).not.toBeDisabled();
+    });
+
+    it("does not send a name once the gate no longer allows it, and says why", async () => {
+        mockStore(true, OWNER);
+        const { container, rerender } = renderTab();
+        typeName("New name");
+
+        // A fresh access context lands while the name is typed: the user is now a plain Member.
+        mockStore(true, MEMBER);
+        rerender(<SpaceSettingsGeneralTab matrixClient={client} space={space} />);
+        await save();
+
+        expect(setOrgUnitNameThroughVerji).not.toHaveBeenCalled();
+        expect(container.querySelector(".mx_SpaceRoomView_errorText")?.textContent).toBe(
+            _t("verji|gate|space_name_denied_not_org_owner_or_primary_contact"),
+        );
     });
 
     it.each([

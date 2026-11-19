@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { KnownMembership } from "matrix-js-sdk/src/types";
+
 import { _t } from "../../languageHandler";
 import { VerjiSpaceContext, VerjiSpaceKind } from "./VerjiSpaceContext";
 import {
@@ -308,6 +310,15 @@ export function getSpaceNameGate(ctx: VerjiSpaceContext | null, reader: VerjiGat
         }
         return denied(_t("verji|gate|space_name_denied_not_org_owner_or_primary_contact"));
     });
+}
+
+/**
+ * Does {@link getSpaceNameGate}'s decision open Space settings for the user, beside Matrix's own
+ * `shouldShowSpaceSettings`? Only when it allows, and only in a space the user has joined, as Matrix's
+ * check requires: in a space they are invited to, the entry would take the place of rejecting the invite.
+ */
+export function spaceNameGateOpensSettings(decision: VerjiGateDecision, myMembership: string): boolean {
+    return myMembership === KnownMembership.Join && decision.verdict === VerjiGateVerdict.Allowed;
 }
 
 /** Should the affordance render at all? False only for {@link VerjiGateVerdict.Hidden}. */

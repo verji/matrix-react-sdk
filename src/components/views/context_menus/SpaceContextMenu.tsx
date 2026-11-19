@@ -47,7 +47,7 @@ import {
     getSpaceNameGate,
     isGateDisabled,
     isGateVisible,
-    VerjiGateVerdict,
+    spaceNameGateOpensSettings,
 } from "../../../stores/verji/verjiGates";
 
 interface IProps extends IContextMenuProps {
@@ -91,7 +91,7 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
 
     let settingsOption: JSX.Element | null = null;
     let leaveOption: JSX.Element | null = null;
-    if (shouldShowSpaceSettings(space) || spaceNameGate.verdict === VerjiGateVerdict.Allowed) {
+    if (shouldShowSpaceSettings(space) || spaceNameGateOpensSettings(spaceNameGate, space.getMyMembership())) {
         const onSettingsClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();

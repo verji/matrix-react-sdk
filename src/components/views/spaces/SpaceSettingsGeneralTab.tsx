@@ -87,8 +87,12 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
     const nameChanged = name !== space.name;
 
     // VERJI: a name the Organization API accepted, until the space shows it; and whether that is taking long.
+    // The controls wait for it only until it is taking long: the name may never come (the guest org was
+    // renamed again meanwhile, or already had that name while the space's name had drifted), so waiting
+    // is never a resting state.
     const [pendingName, setPendingName] = useState<string | null>(null);
     const [renameSlow, setRenameSlow] = useState(false);
+    const waitingForName = pendingName !== null && !renameSlow;
     useTypedEventEmitter(space, RoomEvent.Name, () => {
         if (pendingName !== null && space.name === pendingName) {
             setPendingName(null);
@@ -111,10 +115,15 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
         setNewAvatar(null);
         setName(space.name);
         setTopic(currentTopic);
+        setPendingName(null);
     };
 
     const onSave = async (): Promise<void> => {
-        // VERJI: a name the Organization API would refuse is not sent.
+        // VERJI: a name the gate no longer allows, or the Organization API would refuse, is not sent.
+        if (nameChanged && nameThroughVerji && !canSetName) {
+            setError(nameGate.hint ?? _t("verji|space_name|no_longer_allowed"));
+            return;
+        }
         if (nameChanged && nameThroughVerji && !isOrgUnitNameAcceptable(name)) {
             setError(_t("verji|space_name|invalid"));
             return;
@@ -146,7 +155,11 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
                     if (!ctx?.orgUnitId) throw new Error("No OrgUnit for this space");
                     const outcome = await setOrgUnitNameThroughVerji(cli, ctx.tenantId, ctx.orgUnitId, name);
                     if (outcome === OrgUnitRenameOutcome.Accepted) {
-                        setPendingName(name.trim());
+                        const trimmed = name.trim();
+                        // Nothing to wait for when the space already shows it: only whitespace changed, which
+                        // writes nothing, or the copy arrived before the answer did.
+                        if (space.name === trimmed) setName(trimmed);
+                        else setPendingName(trimmed);
                         return;
                     }
                     if (outcome === OrgUnitRenameOutcome.NoLongerAllowed) {
@@ -192,7 +205,7 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
                         avatarDisabled={busy || !canSetAvatar}
                         setAvatar={setNewAvatar}
                         name={name}
-                        nameDisabled={busy || !canSetName || pendingName !== null}
+                        nameDisabled={busy || !canSetName || waitingForName}
                         nameMaxLength={nameThroughVerji ? MAX_ORG_UNIT_NAME_LENGTH : undefined}
                         setName={setName}
                         topic={topic}
@@ -212,12 +225,12 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
 
                     <AccessibleButton
                         onClick={onCancel}
-                        disabled={busy || pendingName !== null || !(avatarChanged || nameChanged || topicChanged)}
+                        disabled={busy || waitingForName || !(avatarChanged || nameChanged || topicChanged)}
                         kind="link"
                     >
                         {_t("action|cancel")}
                     </AccessibleButton>
-                    <AccessibleButton onClick={onSave} disabled={busy || pendingName !== null} kind="primary">
+                    <AccessibleButton onClick={onSave} disabled={busy || waitingForName} kind="primary">
                         {busy ? _t("common|saving") : _t("room_settings|general|save")}
                     </AccessibleButton>
                 </div>

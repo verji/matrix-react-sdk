@@ -22,6 +22,7 @@ import {
     getSpaceSettingsGate,
     isGateDisabled,
     isGateVisible,
+    spaceNameGateOpensSettings,
     VerjiGateReader,
     VerjiGateVerdict,
 } from "../../../src/stores/verji/verjiGates";
@@ -589,6 +590,28 @@ describe("verjiGates", () => {
             expect(getSpaceNameGate(ctxFor(VerjiSpaceKind.OrgUnit), readerFor(true, owner)).verdict).toBe(
                 VerjiGateVerdict.Denied,
             );
+        });
+    });
+
+    describe("whether the space name gate opens Space settings", () => {
+        it("opens them when it allows, in a joined space", () => {
+            expect(spaceNameGateOpensSettings({ verdict: VerjiGateVerdict.Allowed }, "join")).toBe(true);
+        });
+
+        it.each(["invite", "leave", "ban", "knock"])(
+            "does not open them in a space the user's membership is %s in, so an invite keeps its reject option",
+            (membership) => {
+                expect(spaceNameGateOpensSettings({ verdict: VerjiGateVerdict.Allowed }, membership)).toBe(false);
+            },
+        );
+
+        it.each([
+            VerjiGateVerdict.NotGated,
+            VerjiGateVerdict.Denied,
+            VerjiGateVerdict.Checking,
+            VerjiGateVerdict.Hidden,
+        ])("does not open them when the gate reads %s", (verdict) => {
+            expect(spaceNameGateOpensSettings({ verdict }, "join")).toBe(false);
         });
     });
 
