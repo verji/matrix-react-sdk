@@ -90,6 +90,8 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     /** How many mounted gates read each tenant. While any do, {@link staleCheckTimer} runs. */
     private watchedTenants = new Map<string, number>();
     private staleCheckTimer?: ReturnType<typeof setInterval>;
+    /** Did the SDK come up with an Organization service (`verjiOrganizationUrl`)? */
+    private organizationServiceAvailable = false;
 
     public constructor(dispatcher: MatrixDispatcher) {
         super(dispatcher);
@@ -132,6 +134,26 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     /** See `VerjiGateReader.isOrgUnitRefreshExhausted`. */
     public isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean {
         return this.orgUnitRefreshes.get(orgUnitKey(tenantId, orgUnitId))?.exhausted ?? false;
+    }
+
+    /** See `VerjiGateReader.isOrganizationServiceAvailable`. */
+    public isOrganizationServiceAvailable(): boolean {
+        return this.organizationServiceAvailable;
+    }
+
+    /**
+     * Fetch the tenant's access context again now, whatever its age: the server has just refused the
+     * user something the cached copy allowed, so the copy is wrong, not merely old. The copy is kept
+     * until the new one lands, so no gate falls back to NotGated meanwhile; the gates re-render then.
+     * Called from an event handler, never from a gate or during render.
+     */
+    public refreshTenant(tenantId: string): void {
+        const permissions = this.permissions;
+        if (!permissions) return;
+        permissions.refreshContext(tenantId).catch((error) => {
+            // eslint-disable-next-line no-console
+            console.warn("[Verji.Permissions] Failed to refresh the access context for tenant", tenantId, error);
+        });
     }
 
     // ---------------------------------------------------------------- freshness (from effects only)
@@ -344,6 +366,7 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         try {
             await initVerjiApiSdkAsync(() => convertToVerjiSdkConfig(appConfig));
             const sdk = await getVerjiApiSdk();
+            this.organizationServiceAvailable = !!sdk.api.organizationService;
             permissions = sdk.permissions;
             if (!permissions) {
                 if (!this.warnedMissingStore) {
@@ -395,6 +418,7 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.permissions = undefined;
         this.initialisedForUserId = undefined;
         this.primedForUserId = undefined;
+        this.organizationServiceAvailable = false;
         // The re-fetch budget and the throttle belong to the user who spent them.
         this.resetFreshnessRequests();
         this.bumpVersion();

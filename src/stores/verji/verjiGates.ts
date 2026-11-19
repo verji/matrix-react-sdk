@@ -103,6 +103,11 @@ export interface VerjiGateReader extends VerjiRoleReader {
      * guess cannot hold an affordance at "checking" forever.
      */
     isOrgUnitRefreshExhausted(tenantId: string, orgUnitId: string): boolean;
+    /**
+     * Is the Organization service configured (`verjiOrganizationUrl`)? A guest org is renamed through
+     * it, so without it {@link getSpaceNameGate} reads NotGated and the name field stays Matrix's.
+     */
+    isOrganizationServiceAvailable(): boolean;
 }
 
 /**
@@ -245,10 +250,10 @@ export function getCreateRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGa
 /**
  * The space settings entry.
  *
- * Specified here so the decision model is complete and testable, but **not yet wired to a
- * surface**. It waits on vsys-mediated avatar propagation across a canonical's personal spaces,
- * which has no design yet; enabling the settings entry before that would show a door that opens
- * onto nothing — personal spaces set `m.room.avatar` at PL 50 while users sit at -10.
+ * Specified here so the decision model is complete and testable, but **not wired to a surface**.
+ * The entry opens when Matrix's power levels allow one of the settings, or when
+ * {@link getSpaceNameGate} allows renaming the guest org (verji/verji-src#2377); each field inside
+ * then keeps its own rule. Wiring this gate instead would take a design for the whole entry.
  */
 export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
     return evaluateGate(ctx, reader, (c) => {
@@ -262,6 +267,46 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
         }
         if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
         return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.tenantName }));
+    });
+}
+
+/**
+ * Renaming a guest org's space, in Space settings (verji/verji-src#2377).
+ *
+ * The name of an OrgUnit space is the guest org's name, so it is changed by renaming the guest org
+ * through the Verji API, and copied to every copy of the space by `vsys`. Matrix power levels play no
+ * part: `m.room.name` stays above every person's level, and this gate takes the field's place.
+ *
+ * - Outside OrgUnit spaces, or with no Organization service configured: NotGated, so the field is
+ *   Matrix's, as today.
+ * - OrgUnit: the tenant's PrimaryContact, **or** the OrgUnit's Owner **or** its PrimaryContact. **No
+ *   StandardUser check**, unlike {@link getOnboardGate}: the guest org's PrimaryContact is a Guest of
+ *   the tenant, and may rename it. The Organization API checks the same three roles.
+ *
+ * As for the other OrgUnit gates, the tenant's PrimaryContact is allowed before the staleness check,
+ * and a context that has never heard of the OrgUnit reads Checking until the re-fetch is used up.
+ */
+export function getSpaceNameGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) => {
+        if (c.kind !== VerjiSpaceKind.OrgUnit || !reader.isOrganizationServiceAvailable()) return NOT_GATED;
+        if (!c.orgUnitId) {
+            // Unreachable via resolveVerjiSpaceContext, as for the other OrgUnit gates; fails closed.
+            return denied(_t("verji|gate|space_name_denied_not_org_owner_or_primary_contact"));
+        }
+        if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
+        if (
+            isOrgUnitOwner(reader, c.tenantId, c.orgUnitId) ||
+            isOrgUnitPrimaryContact(reader, c.tenantId, c.orgUnitId)
+        ) {
+            return ALLOWED;
+        }
+        if (
+            !isOrgUnitInContext(reader, c.tenantId, c.orgUnitId) &&
+            !reader.isOrgUnitRefreshExhausted(c.tenantId, c.orgUnitId)
+        ) {
+            return checking();
+        }
+        return denied(_t("verji|gate|space_name_denied_not_org_owner_or_primary_contact"));
     });
 }
 

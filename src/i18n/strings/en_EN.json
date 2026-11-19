@@ -10,7 +10,15 @@
             "create_room_denied_not_org_member": "You are not a member of this organisation, so you cannot create rooms here.",
             "checking": "Checking your access…",
             "settings_denied_not_primary_contact": "You are not the primary contact for %(tenant)s, so you cannot change these settings.",
-            "settings_denied_not_org_member_or_owner": "You are neither a member nor an owner of this organisation, so you cannot change these settings."
+            "settings_denied_not_org_member_or_owner": "You are neither a member nor an owner of this organisation, so you cannot change these settings.",
+            "space_name_denied_not_org_owner_or_primary_contact": "You are neither the owner nor the primary contact of this organisation, so you cannot rename it."
+        },
+        "space_name": {
+            "saved_pending": "Saved. Everyone sees the new name in a few seconds.",
+            "slow": "This is taking longer than usual. The new name will appear when it is ready.",
+            "invalid": "The name must be between 1 and 255 characters.",
+            "no_longer_allowed": "You can no longer rename this organisation.",
+            "rate_limited": "Too many changes right now. Try again in a moment."
         },
         "auto_logout": "Automatic signout",
         "turned_off": "Turned off",

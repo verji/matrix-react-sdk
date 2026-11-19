@@ -18,6 +18,7 @@ import {
     getCreateRoomGate,
     getOnboardGate,
     getOnboardToTenantGate,
+    getSpaceNameGate,
     getSpaceSettingsGate,
     isGateDisabled,
     isGateVisible,
@@ -46,17 +47,20 @@ const ORG_UNIT = ctxFor(VerjiSpaceKind.OrgUnit, ORG_A);
  * @param grants role name -> instances the user holds it on, in TENANT only — so a read keyed by
  *     the wrong tenant gets a wrong answer rather than the same one
  * @param exhausted OrgUnits of TENANT whose re-fetch the store has used up
+ * @param organizationService whether the Organization service is configured
  */
 const readerFor = (
     rolloutOn: boolean,
     grants: Record<string, string[]> = {},
     exhausted: string[] = [],
+    organizationService = true,
 ): VerjiGateReader => ({
     isCanonicalSpaceSyncEnabled: (tenantId) => rolloutOn && tenantId === TENANT,
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
     isInstanceReferenced: (tenantId, instanceId) =>
         tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
     isOrgUnitRefreshExhausted: (tenantId, orgUnitId) => tenantId === TENANT && exhausted.includes(orgUnitId),
+    isOrganizationServiceAvailable: () => organizationService,
 });
 
 const STANDARD_USER = { "Customer-User#": [TENANT] };
@@ -74,6 +78,7 @@ const ALL_GATES = [
     ["onboard, into a guest org at an OrgUnit", getOnboardGate],
     ["create room", getCreateRoomGate],
     ["space settings", getSpaceSettingsGate],
+    ["space name", getSpaceNameGate],
 ] as const;
 
 const ALL_CONTEXTS = [
@@ -118,6 +123,7 @@ describe("verjiGates", () => {
                         hasRole: () => false,
                         isInstanceReferenced: () => false,
                         isOrgUnitRefreshExhausted: () => false,
+                        isOrganizationServiceAvailable: () => true,
                     };
 
                     const decision = gate(ctx, coldCache);
@@ -502,6 +508,90 @@ describe("verjiGates", () => {
         });
     });
 
+    describe("space name (renaming a guest org's space)", () => {
+        const NOT_OWNER_OR_PRIMARY_CONTACT =
+            "You are neither the owner nor the primary contact of this organisation, so you cannot rename it.";
+
+        it.each([
+            ["the tenant's PrimaryContact", PRIMARY_CONTACT],
+            ["the OrgUnit's Owner", { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] }],
+            ["the OrgUnit's PrimaryContact", { ...STANDARD_USER, "ClientOrganization-Manager#": [ORG_A] }],
+            // The trap getOnboardGate would set: it refuses a Guest first. The name gate has no
+            // StandardUser check, as the Organization API has none.
+            ["the OrgUnit's PrimaryContact who is a Guest of the tenant", { "ClientOrganization-Manager#": [ORG_A] }],
+            ["the OrgUnit's Owner who is a Guest of the tenant", { "ClientOrganization-Owner": [ORG_A] }],
+        ])("allows %s", (_who, grants) => {
+            expect(getSpaceNameGate(ORG_UNIT, readerFor(true, grants))).toEqual({ verdict: VerjiGateVerdict.Allowed });
+        });
+
+        it.each([
+            ["a Member", { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] }],
+            ["a Member who is a Guest of the tenant", { "ClientOrganization-User#": [ORG_A] }],
+            // Every manager of the tenant holds the plain role on every OrgUnit by inheritance.
+            [
+                "the inherited ClientOrganization-Manager, not the direct '#' role",
+                { ...STANDARD_USER, "ClientOrganization-Manager": [ORG_A] },
+            ],
+            [
+                "the Owner and PrimaryContact of another OrgUnit",
+                {
+                    ...STANDARD_USER,
+                    "ClientOrganization-Owner": [ORG_B],
+                    "ClientOrganization-Manager#": [ORG_B],
+                    ...JOINED_A_ROOM_IN_ORG_A,
+                },
+            ],
+        ])("denies %s, with the hint", (_who, grants) => {
+            const decision = getSpaceNameGate(ORG_UNIT, readerFor(true, grants));
+
+            expect(decision.verdict).toBe(VerjiGateVerdict.Denied);
+            expect(decision.hint).toBe(NOT_OWNER_OR_PRIMARY_CONTACT);
+            expect(isGateDisabled(decision)).toBe(true);
+        });
+
+        it.each([
+            ["TenantRoot", TENANT_ROOT],
+            ["OrgUnitCategory", CATEGORY],
+        ])("is NotGated at a %s space, where the name stays Matrix's", (_kindName, ctx) => {
+            expect(getSpaceNameGate(ctx, readerFor(true, PRIMARY_CONTACT)).verdict).toBe(VerjiGateVerdict.NotGated);
+            expect(getSpaceNameGate(ctx, readerFor(true, GUEST)).verdict).toBe(VerjiGateVerdict.NotGated);
+        });
+
+        it("is NotGated with no Organization service configured, even for someone it would allow", () => {
+            const owner = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
+
+            expect(getSpaceNameGate(ORG_UNIT, readerFor(true, owner, [], false)).verdict).toBe(
+                VerjiGateVerdict.NotGated,
+            );
+            expect(getSpaceNameGate(ORG_UNIT, readerFor(true, GUEST, [], false)).verdict).toBe(
+                VerjiGateVerdict.NotGated,
+            );
+        });
+
+        it("allows the tenant's PrimaryContact even when the context has not heard of the OrgUnit", () => {
+            // PRIMARY_CONTACT names no OrgUnit, so the context has not heard of ORG_A: not Checking.
+            expect(getSpaceNameGate(ORG_UNIT, readerFor(true, PRIMARY_CONTACT)).verdict).toBe(VerjiGateVerdict.Allowed);
+        });
+
+        it("reads Checking while the context has never heard of the OrgUnit, then Denied once the re-fetch is used up", () => {
+            const checking = getSpaceNameGate(ORG_UNIT, readerFor(true, STANDARD_USER));
+            expect(checking.verdict).toBe(VerjiGateVerdict.Checking);
+            expect(isGateDisabled(checking)).toBe(true);
+
+            const exhausted = getSpaceNameGate(ORG_UNIT, readerFor(true, STANDARD_USER, [ORG_A]));
+            expect(exhausted.verdict).toBe(VerjiGateVerdict.Denied);
+            expect(exhausted.hint).toBe(NOT_OWNER_OR_PRIMARY_CONTACT);
+        });
+
+        it("denies at an OrgUnit space without an OrgUnit id, failing closed", () => {
+            const owner = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
+
+            expect(getSpaceNameGate(ctxFor(VerjiSpaceKind.OrgUnit), readerFor(true, owner)).verdict).toBe(
+                VerjiGateVerdict.Denied,
+            );
+        });
+    });
+
     describe("tenant isolation — the classic bug in this shape", () => {
         it("never answers with a decision belonging to a different tenant", () => {
             // The user has navigated to tenant B's space; only tenant A is cached and rolled out.
@@ -516,6 +606,7 @@ describe("verjiGates", () => {
                     tenantId === TENANT && roleName === "Customer-User#" && instanceId === TENANT,
                 isInstanceReferenced: (tenantId, instanceId) => tenantId === TENANT && instanceId === TENANT,
                 isOrgUnitRefreshExhausted: () => false,
+                isOrganizationServiceAvailable: () => true,
             };
 
             // Tenant 2 is simply not gated — it must not inherit tenant 1's rollout or roles.
@@ -545,6 +636,7 @@ describe("verjiGates", () => {
                         tenantsAsked.push(tenantId);
                         return false;
                     },
+                    isOrganizationServiceAvailable: () => true,
                 };
 
                 gate(ctx, reader);

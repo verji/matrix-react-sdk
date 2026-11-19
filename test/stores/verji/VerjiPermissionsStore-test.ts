@@ -292,6 +292,62 @@ describe("VerjiPermissionsStore", () => {
         });
     });
 
+    describe("the Organization service, for renaming a guest org", () => {
+        it("is available when the SDK came up with it, and not after logout", async () => {
+            mocked(getVerjiApiSdk).mockResolvedValue({
+                permissions: permissions as unknown as PermissionStore,
+                api: { identityService: { getAccessToken: identityGetAccessToken }, organizationService: {} },
+            } as never);
+
+            const store = await startedStore();
+            expect(store.isOrganizationServiceAvailable()).toBe(true);
+
+            await dispatchAndSettle({ action: Action.OnLoggedOut });
+            expect(store.isOrganizationServiceAvailable()).toBe(false);
+        });
+
+        it("is not available when the SDK has no Organization service", async () => {
+            const store = await startedStore();
+
+            expect(store.isOrganizationServiceAvailable()).toBe(false);
+        });
+
+        it("is not available before any client is ready", () => {
+            expect(new VerjiPermissionsStore(dispatcher).isOrganizationServiceAvailable()).toBe(false);
+        });
+    });
+
+    describe("refreshing a tenant after the server refused something", () => {
+        it("forces a fetch past the TTL and keeps the cached copy meanwhile", async () => {
+            const store = await startedStore();
+
+            store.refreshTenant(TENANT);
+
+            expect(permissions.refreshContext).toHaveBeenCalledWith(TENANT);
+            expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(true);
+        });
+
+        it("logs a failed fetch rather than throwing", async () => {
+            const store = await startedStore();
+            permissions.refreshContext.mockRejectedValueOnce(new Error("down"));
+
+            store.refreshTenant(TENANT);
+            await flushPromises();
+
+            expect(console.warn).toHaveBeenCalledWith(
+                "[Verji.Permissions] Failed to refresh the access context for tenant",
+                TENANT,
+                expect.any(Error),
+            );
+        });
+
+        it("does nothing with no SDK store", () => {
+            new VerjiPermissionsStore(dispatcher).refreshTenant(TENANT);
+
+            expect(permissions.refreshContext).not.toHaveBeenCalled();
+        });
+    });
+
     describe("on a user switch", () => {
         it("disposes the first user's store before initialising for the second", async () => {
             await startedStore();

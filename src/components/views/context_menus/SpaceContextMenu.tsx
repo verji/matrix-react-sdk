@@ -42,7 +42,13 @@ import PosthogTrackers from "../../../PosthogTrackers";
 import { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
 // VERJI: Hierarchy V2 per-user gating
 import { useVerjiGate } from "../../../hooks/useVerjiPermissions";
-import { getCreateRoomGate, isGateDisabled, isGateVisible } from "../../../stores/verji/verjiGates";
+import {
+    getCreateRoomGate,
+    getSpaceNameGate,
+    isGateDisabled,
+    isGateVisible,
+    VerjiGateVerdict,
+} from "../../../stores/verji/verjiGates";
 
 interface IProps extends IContextMenuProps {
     space?: Room;
@@ -57,6 +63,8 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
     // VERJI: the same create-room rule as the Rooms sublist "+", resolved for the space this menu
     // belongs to. Called before the early return below — it is a hook.
     const createRoomGate = useVerjiGate(space, getCreateRoomGate);
+    // VERJI: Space settings also opens for whoever may rename the guest org (verji/verji-src#2377).
+    const spaceNameGate = useVerjiGate(space, getSpaceNameGate);
 
     if (!space) return null;
 
@@ -83,7 +91,7 @@ const SpaceContextMenu: React.FC<IProps> = ({ space, hideHeader, onFinished, ...
 
     let settingsOption: JSX.Element | null = null;
     let leaveOption: JSX.Element | null = null;
-    if (shouldShowSpaceSettings(space)) {
+    if (shouldShowSpaceSettings(space) || spaceNameGate.verdict === VerjiGateVerdict.Allowed) {
         const onSettingsClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();

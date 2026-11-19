@@ -26,6 +26,8 @@ interface IProps {
     avatarDisabled?: boolean;
     name: string;
     nameDisabled?: boolean;
+    // VERJI: a guest org's name is at most 255 characters (verji/verji-src#2377); no limit otherwise.
+    nameMaxLength?: number;
     topic?: string;
     topicDisabled?: boolean;
     setAvatar(avatar?: File): void;
@@ -122,6 +124,7 @@ const SpaceBasicSettings: React.FC<IProps> = ({
     setAvatar,
     name = "",
     nameDisabled = false,
+    nameMaxLength,
     setName,
     topic = "",
     topicDisabled = false,
@@ -138,6 +141,7 @@ const SpaceBasicSettings: React.FC<IProps> = ({
                 value={name}
                 onChange={(ev: ChangeEvent<HTMLInputElement>) => setName(ev.target.value)}
                 disabled={nameDisabled}
+                maxLength={nameMaxLength}
             />
 
             <Field

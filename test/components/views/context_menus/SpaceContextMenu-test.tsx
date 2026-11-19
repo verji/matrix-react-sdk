@@ -403,6 +403,62 @@ describe("<SpaceContextMenu />", () => {
                 expect((await screen.findByRole("tooltip")).textContent).toContain("not a member of this organisation");
             });
         });
+
+        // VERJI: verji/verji-src#2377 — Space settings opens for whoever may rename the guest org.
+        describe("Space settings, through the space name gate", () => {
+            const ORG_UNIT_SPACE = { ...TENANT_INFO, ...PARENT, "app.verji.org_unit_info": { org_unit_id: ORG_A } };
+
+            beforeEach(() => {
+                // Matrix's power levels allow none of the settings, as for a person in their personal space.
+                mocked(shouldShowSpaceSettings).mockReturnValue(false);
+                jest.spyOn(VerjiPermissionsStore.instance, "isOrganizationServiceAvailable").mockReturnValue(true);
+            });
+
+            it("offers Space settings to the guest org's Owner, and opens them", async () => {
+                mockStore(true, { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] });
+                const space = makeVerjiSpace(ORG_UNIT_SPACE);
+                const onFinished = jest.fn();
+                renderComponent({ space, onFinished });
+
+                await userEvent.click(screen.getByTestId("settings-option"));
+                expect(showSpaceSettings).toHaveBeenCalledWith(space);
+            });
+
+            it("offers Space settings to the guest org's PrimaryContact who is a Guest of the tenant", () => {
+                mockStore(true, { "ClientOrganization-Manager#": [ORG_A] });
+                renderComponent({ space: makeVerjiSpace(ORG_UNIT_SPACE) });
+
+                expect(screen.getByTestId("settings-option")).toBeInTheDocument();
+            });
+
+            it("does not offer Space settings to a Member", () => {
+                mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+                renderComponent({ space: makeVerjiSpace(ORG_UNIT_SPACE) });
+
+                expect(screen.queryByTestId("settings-option")).not.toBeInTheDocument();
+            });
+
+            it("does not offer Space settings with the rollout switch off, or with no Organization service", () => {
+                const owner = { ...STANDARD_USER, "ClientOrganization-Owner": [ORG_A] };
+                mockStore(false, owner);
+                const { unmount } = renderComponent({ space: makeVerjiSpace(ORG_UNIT_SPACE) });
+                expect(screen.queryByTestId("settings-option")).not.toBeInTheDocument();
+                unmount();
+
+                mockStore(true, owner);
+                jest.spyOn(VerjiPermissionsStore.instance, "isOrganizationServiceAvailable").mockReturnValue(false);
+                renderComponent({ space: makeVerjiSpace(ORG_UNIT_SPACE) });
+                expect(screen.queryByTestId("settings-option")).not.toBeInTheDocument();
+            });
+
+            it("still offers Space settings when Matrix allows them, whatever the gate says", () => {
+                mocked(shouldShowSpaceSettings).mockReturnValue(true);
+                mockStore(true, { ...STANDARD_USER, "ClientOrganization-User#": [ORG_A] });
+                renderComponent({ space: makeVerjiSpace(ORG_UNIT_SPACE) });
+
+                expect(screen.getByTestId("settings-option")).toBeInTheDocument();
+            });
+        });
     });
 
     describe("UIFeature.ShowLeaveSpaceInContextMenu", () => {

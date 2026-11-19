@@ -75,6 +75,9 @@ import RightPanel from "./RightPanel";
 import SpaceHierarchy, { showRoom } from "./SpaceHierarchy";
 import { RoomPermalinkCreator } from "../../utils/permalinks/Permalinks";
 import SettingsStore from "../../settings/SettingsStore";
+// VERJI: Space settings also opens for whoever may rename the guest org (verji/verji-src#2377)
+import { useVerjiGate } from "../../hooks/useVerjiPermissions";
+import { getSpaceNameGate, VerjiGateVerdict } from "../../stores/verji/verjiGates";
 
 interface IProps {
     space: Room;
@@ -213,6 +216,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
     const cli = useContext(MatrixClientContext);
     const myMembership = useMyRoomMembership(space);
     const userId = cli.getSafeUserId();
+    const spaceNameGate = useVerjiGate(space, getSpaceNameGate);
 
     const storeIsShowingSpaceMembers = useCallback(
         () =>
@@ -246,7 +250,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
     }
 
     let settingsButton;
-    if (shouldShowSpaceSettings(space)) {
+    if (shouldShowSpaceSettings(space) || spaceNameGate.verdict === VerjiGateVerdict.Allowed) {
         settingsButton = (
             <AccessibleButton
                 className="mx_SpaceRoomView_landing_settingsButton"
