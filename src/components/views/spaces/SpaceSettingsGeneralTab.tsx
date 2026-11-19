@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Room, EventType, MatrixClient, RoomEvent } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -93,11 +93,16 @@ const SpaceSettingsGeneralTab: React.FC<IProps> = ({ matrixClient: cli, space })
     const [pendingName, setPendingName] = useState<string | null>(null);
     const [renameSlow, setRenameSlow] = useState(false);
     const waitingForName = pendingName !== null && !renameSlow;
+    // VERJI: the space's name the field last matched, so a name that arrives later replaces only an
+    // unedited field (or the name the user typed, trimmed) and never what the user is typing. Otherwise a
+    // Save could send a stale name and rename the guest org back.
+    const lastSpaceName = useRef(space.name);
     useTypedEventEmitter(space, RoomEvent.Name, () => {
-        if (pendingName !== null && space.name === pendingName) {
-            setPendingName(null);
-            setName(space.name);
-        }
+        const arrived = space.name;
+        const before = lastSpaceName.current;
+        lastSpaceName.current = arrived;
+        setName((shown) => (shown === before || shown.trim() === arrived ? arrived : shown));
+        if (pendingName !== null && arrived === pendingName) setPendingName(null);
     });
     useEffect(() => {
         if (pendingName === null) return;

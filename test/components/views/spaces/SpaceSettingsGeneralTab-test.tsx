@@ -250,6 +250,52 @@ describe("<SpaceSettingsGeneralTab />", () => {
         );
     });
 
+    it("keeps what the user is typing when an earlier rename arrives after the unlock", async () => {
+        jest.useFakeTimers();
+        mockStore(true, OWNER);
+        renderTab();
+
+        typeName("First");
+        await saveWithFakeTimers();
+        act(() => {
+            jest.advanceTimersByTime(SLOW_RENAME_MS);
+        });
+        typeName("Second");
+        nameArrives("First");
+
+        expect(nameField()).toHaveValue("Second");
+        expect(screen.queryByText(_t("verji|space_name|slow"))).not.toBeInTheDocument();
+    });
+
+    it("never renames the guest org back when its new name arrives after Cancel", async () => {
+        jest.useFakeTimers();
+        mockStore(true, OWNER);
+        renderTab();
+
+        typeName("First");
+        await saveWithFakeTimers();
+        act(() => {
+            jest.advanceTimersByTime(SLOW_RENAME_MS);
+        });
+        fireEvent.click(screen.getByText(_t("action|cancel")));
+        nameArrives("First");
+
+        // The field follows the space's new name, so nothing is left to save.
+        expect(nameField()).toHaveValue("First");
+        await saveWithFakeTimers();
+        expect(setOrgUnitNameThroughVerji).toHaveBeenCalledTimes(1);
+        expect(setOrgUnitNameThroughVerji).not.toHaveBeenCalledWith(client, TENANT, ORG_A, "Old name");
+    });
+
+    it("follows a rename made elsewhere while the field is unedited", () => {
+        mockStore(true, OWNER);
+        renderTab();
+
+        nameArrives("Renamed in vmxPortal");
+
+        expect(nameField()).toHaveValue("Renamed in vmxPortal");
+    });
+
     it.each([
         [OrgUnitRenameOutcome.Invalid, "verji|space_name|invalid"],
         [OrgUnitRenameOutcome.NoLongerAllowed, "verji|space_name|no_longer_allowed"],
