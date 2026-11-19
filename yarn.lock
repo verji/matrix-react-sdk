@@ -2791,8 +2791,10 @@
     graphemer "^1.4.0"
     vaul "^0.7.0"
 
-"@verji/verji-api-sdk@1.10.0":
-  version "1.10.0"
+"@verji/verji-api-sdk@1.18.0":
+  version "1.18.0"
+  resolved "https://npm.pkg.github.com/download/@verji/verji-api-sdk/1.18.0/0866356bb6302e1a62f9358f5805ce929090617d#0866356bb6302e1a62f9358f5805ce929090617d"
+  integrity sha512-jeSdRAAqfS5zJH4vq5SxcIZ1gQIXj2sJfMVn8vZFrdFPfF7NC9A4HRHpiY5Z7XoVJ8fANKyKAElun9JE9LRKSw==
   dependencies:
     axios "^1.9.0"
 
