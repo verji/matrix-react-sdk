@@ -1,0 +1,358 @@
+/*
+Copyright 2026 Verji Tech AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+import { KnownMembership } from "matrix-js-sdk/src/types";
+import { MatrixClient, Room } from "matrix-js-sdk/src/matrix";
+import { getVerjiApiSdk } from "@verji/verji-api-sdk/lib/asyncInit";
+import { convertToVerjiSdkConfig, VerjiAppConfig } from "@verji/verji-api-sdk/lib/utils/convertConfig";
+import { hasService } from "@verji/verji-api-sdk/lib/utils/isValidVerjiSdkConfig";
+
+import type { OrgUnit, OrgUnitRoomCandidate, VerjiApiSdk } from "@verji/verji-api-sdk";
+import SdkConfig from "../../SdkConfig";
+import { resolveVerjiSpaceContext } from "./VerjiSpaceContext";
+import { isStandardUser, isTenantPrimaryContact, VerjiRoleReader } from "./verjiRoles";
+
+/**
+ * VERJI: the Organization API calls that bring a tenant's guest orgs and rooms from before
+ * Hierarchy V2 in (verji/verji-src#2117), for the tenant's PrimaryContact and a guest org's Owner.
+ *
+ * Every write goes through the Organization API, which checks the caller and the room again and
+ * starts the backend's own flows. The client never writes the space tree itself: no
+ * `m.space.child` from here.
+ *
+ * The SDK is the one `VerjiPermissionsStore` initialises. The options that lead here are offered
+ * only once that store has a tenant's access context, so the SDK is up by then.
+ */
+
+/**
+ * Is the Organization API configured? Without `verjiOrganizationUrl` the SDK has no
+ * `organizationService` and every call below fails, so the options that lead here are not
+ * offered. Asked of the config the SDK is created from, the same way, so the menu can ask it
+ * synchronously.
+ */
+export function isOrganizationApiConfigured(): boolean {
+    // `IConfigOptions` does not declare the Verji URLs; `VerjiPermissionsStore` casts the same way.
+    const appConfig = SdkConfig.get() as Partial<VerjiAppConfig>;
+    return hasService(convertToVerjiSdkConfig(appConfig), "organization");
+}
+
+type OrganizationService = NonNullable<VerjiApiSdk["api"]["organizationService"]>;
+type VerjiAccessToken = Parameters<OrganizationService["getOrgUnits"]>[0];
+
+async function organizationApi(client: MatrixClient): Promise<[OrganizationService, VerjiAccessToken]> {
+    const sdk = await getVerjiApiSdk();
+    const organization = sdk.api.organizationService;
+    if (!organization) throw new Error("[Verji.OrgUnitRooms] verjiOrganizationUrl is not configured");
+    const identity = sdk.api.identityService;
+    if (!identity) throw new Error("[Verji.OrgUnitRooms] verjiIdUrl is not configured");
+    const token = await identity.getAccessToken(client.getAccessToken() ?? "");
+    return [organization, token];
+}
+
+/**
+ * The tenant's org units that have no category yet and that the user may give one: every one for
+ * the tenant's PrimaryContact, their own for an OrgUnit's Owner, none for anyone else. Which ones
+ * those are is the Organization API's to say: it reads them from the tenant's records, so it lists
+ * an org unit no grant reaches yet, one from before its access-control index was kept, and the
+ * access context's Owner rows can lag behind its records. A Guest is
+ * listed none, and the API is not asked: it admits only the tenant's StandardUsers and its
+ * PrimaryContact.
+ */
+export async function getOrgUnitsWithoutCategory(
+    client: MatrixClient,
+    tenantId: string,
+    roles: VerjiRoleReader,
+): Promise<OrgUnit[]> {
+    if (!isTenantPrimaryContact(roles, tenantId) && !isStandardUser(roles, tenantId)) return [];
+    const [organization, token] = await organizationApi(client);
+    const page = await organization.getOrgUnitCandidates(token, tenantId);
+    return (page.results ?? []).filter((orgUnit) => !orgUnit.orgUnitCategoryId);
+}
+
+/**
+ * Whether the user has an org unit of the tenant to bring in, as the Organization API last answered
+ * it: per tenant, so that a menu opening does not ask again. An answer holds only for the access
+ * context it was asked under (`version`, the permissions store's): once that changes, the user's
+ * org units may have too. An answer never replaces one asked under a later access context. A failed
+ * question is not kept: the next menu asks again. Every menu that opens while the tenant's question
+ * is in flight shares it.
+ *
+ * Bringing a guest org in forgets the tenant's answer, and keeps no other until the org unit has its
+ * category: the Organization API answers 202 and gives it the category later, over its message bus,
+ * so meanwhile it may still list the org unit without one. The tenant is settled again when the
+ * org unit's space arrives, or after {@link BRING_IN_SETTLES_AFTER_MS} when nobody waited for it.
+ *
+ * The answers are one Matrix user's ({@link setSignedInUser}, which `VerjiPermissionsStore` calls),
+ * and last until another user signs in: the first call made once one has forgets them all first,
+ * bring-ins included. A soft logout and a sign-in again as the same user keep them, and so does a
+ * call made while nobody is signed in, as by a dialog or a menu of the client signed out. A
+ * bring-in's 202 is marked while the answers are still those of the user who sent its POST, and
+ * not once they are another user's; a question's answer that lands after the sign-in it was asked
+ * in has ended is not kept, even for the same user.
+ */
+interface TenantAnswer {
+    /** Bumped by every forget: an answer to a question asked before it is never kept. */
+    generation: number;
+    known?: { version: number; has: boolean };
+    /** The question in flight, under the access context `version`. */
+    asking?: { version: number; answer: Promise<boolean> };
+    /**
+     * The org units being brought in that may have no category yet, each with when it is taken to
+     * have one, on {@link bringInClock}.
+     */
+    bringingIn: Map<string, number>;
+}
+
+/** How long after a bring-in's 202 the org unit is taken to have its category, if its space never showed it. */
+export const BRING_IN_SETTLES_AFTER_MS = 5 * 60 * 1000;
+
+/**
+ * The clock a bring-in is timed on, in milliseconds: monotonic, so a wall clock set back or forward
+ * neither stretches nor shortens {@link BRING_IN_SETTLES_AFTER_MS}. It may stand still while the
+ * machine sleeps, so the window counts time awake. Tests drive it through `now`.
+ */
+export const bringInClock = { now: (): number => performance.now() };
+
+const tenantAnswers = new Map<string, TenantAnswer>();
+/** The Matrix user whose answers {@link tenantAnswers} holds. */
+let answersUser: string | undefined;
+/** The Matrix user signed in now, as `VerjiPermissionsStore` last said; undefined while nobody is. */
+let signedInUser: string | undefined;
+/** The sign-in now: a new one starts as a user signs in and as they sign out. */
+let signIn = 0;
+
+/**
+ * `VerjiPermissionsStore`: the user signed in, or, with undefined, signed out (logout, a soft logout,
+ * or a switch to another user). Either way a new sign-in starts. Forgets nothing itself: the answers
+ * are forgotten at the first call made once another user is signed in, so the same user signing in
+ * again keeps them.
+ */
+export function setSignedInUser(userId: string | undefined): void {
+    signedInUser = userId;
+    signIn++;
+}
+
+/** The user signed in now. A bring-in takes it along when it sends its POST, for {@link markBringingIn}. */
+export function currentSignedInUser(): string | undefined {
+    return signedInUser;
+}
+
+/** The tenant's entry in the answers held now, with every bring-in whose time is up settled. */
+function tenantAnswer(tenantId: string): TenantAnswer {
+    // Another user is signed in: none of the answers holds, bring-ins included. While nobody is, they
+    // stay the last user's, for that user to sign in again to.
+    if (signedInUser !== undefined && answersUser !== signedInUser) {
+        forgetHasOrgUnitWithoutCategory();
+        answersUser = signedInUser;
+    }
+    let entry = tenantAnswers.get(tenantId);
+    if (!entry) {
+        entry = { generation: 0, bringingIn: new Map() };
+        tenantAnswers.set(tenantId, entry);
+    }
+    const now = bringInClock.now();
+    for (const [orgUnitId, settlesAt] of entry.bringingIn) {
+        if (settlesAt > now) continue;
+        entry.bringingIn.delete(orgUnitId);
+        forgetAnswer(entry);
+    }
+    return entry;
+}
+
+function forgetAnswer(entry: TenantAnswer): void {
+    entry.generation++;
+    entry.known = undefined;
+    entry.asking = undefined;
+}
+
+/** The kept answer for the tenant under the access context `version`; undefined when there is none. */
+export function knownHasOrgUnitWithoutCategory(tenantId: string, version: number): boolean | undefined {
+    const known = tenantAnswer(tenantId).known;
+    return known?.version === version ? known.has : undefined;
+}
+
+/**
+ * Keep the answer for the tenant, asked under the access context `version`: none while a bring-in
+ * settles, and none over an answer asked under a later access context, which an older question
+ * landing last would otherwise replace.
+ */
+export function rememberHasOrgUnitWithoutCategory(tenantId: string, version: number, has: boolean): void {
+    const entry = tenantAnswer(tenantId);
+    if (entry.bringingIn.size > 0) return;
+    if (entry.known && entry.known.version > version) return;
+    entry.known = { version, has };
+}
+
+/**
+ * Ask whether the user has an org unit of the tenant to bring in, under the access context
+ * `version`: `ask` is sent only when no question for it is in flight, else that one is shared. The
+ * answer is kept unless the sign-in it was asked in has ended, the tenant's answer was forgotten
+ * after it was asked, a bring-in is still settling, or an answer asked under a later access context
+ * is kept already.
+ */
+export function askHasOrgUnitWithoutCategory(
+    tenantId: string,
+    version: number,
+    ask: () => Promise<boolean>,
+): Promise<boolean> {
+    const entry = tenantAnswer(tenantId);
+    if (entry.asking?.version === version) return entry.asking.answer;
+    const askedIn = signIn;
+    const generation = entry.generation;
+    const answer = ask().then((has) => {
+        // Not kept once the sign-in it was asked in has ended, even for the same user: the next menu asks again.
+        if (signIn === askedIn && tenantAnswer(tenantId).generation === generation) {
+            rememberHasOrgUnitWithoutCategory(tenantId, version, has);
+        }
+        return has;
+    });
+    entry.asking = { version, answer };
+    // Only its own: a question from before a forget, landing late, leaves the one asked after it shared.
+    const done = (): void => {
+        if (entry.asking?.answer === answer) entry.asking = undefined;
+    };
+    answer.then(done, done);
+    return answer;
+}
+
+/**
+ * Forget the tenant's answer, and any question in flight for it; or, with no tenant, every tenant's,
+ * bring-ins included, as when the answers stop being the signed-in user's: the next user's answers
+ * are not held back by the bring-ins of the one before.
+ */
+export function forgetHasOrgUnitWithoutCategory(tenantId?: string): void {
+    if (tenantId !== undefined) {
+        forgetAnswer(tenantAnswer(tenantId));
+        return;
+    }
+    for (const entry of tenantAnswers.values()) {
+        entry.bringingIn.clear();
+        forgetAnswer(entry);
+    }
+}
+
+/**
+ * The Organization API took the org unit in (202): forget the tenant's answer, and keep none until
+ * the org unit has its category ({@link markBroughtIn}), or {@link BRING_IN_SETTLES_AFTER_MS} has passed.
+ * `sentBy` is the user signed in as its POST was sent ({@link currentSignedInUser}): the 202 is
+ * marked while the answers are still that user's, over a soft logout too, and marks nothing once
+ * they are another user's, so it never holds back their answers.
+ */
+export function markBringingIn(tenantId: string, orgUnitId: string, sentBy: string | undefined): void {
+    const entry = tenantAnswer(tenantId);
+    if (answersUser !== sentBy) return;
+    entry.bringingIn.set(orgUnitId, bringInClock.now() + BRING_IN_SETTLES_AFTER_MS);
+    forgetAnswer(entry);
+}
+
+/** The org unit's space arrived, so it has its category: forget what was asked before, and keep answers again. */
+export function markBroughtIn(tenantId: string, orgUnitId: string): void {
+    const entry = tenantAnswer(tenantId);
+    entry.bringingIn.delete(orgUnitId);
+    forgetAnswer(entry);
+}
+
+/**
+ * The org unit's own name, as the Organization API lists the tenant's org units to the user;
+ * undefined when it does not list it. The name a space carries is that space's, not the org unit's.
+ */
+export async function getOrgUnitName(
+    client: MatrixClient,
+    tenantId: string,
+    orgUnitId: string,
+): Promise<string | undefined> {
+    const [organization, token] = await organizationApi(client);
+    const page = await organization.getOrgUnits(token, tenantId);
+    return (page.results ?? []).find((orgUnit) => orgUnit.id === orgUnitId)?.name || undefined;
+}
+
+/** Give the org unit the tenant's default category; its space follows asynchronously. */
+export async function assignDefaultOrgUnitCategory(
+    client: MatrixClient,
+    tenantId: string,
+    orgUnitId: string,
+): Promise<void> {
+    const [organization, token] = await organizationApi(client);
+    await organization.assignDefaultOrgUnitCategory(token, tenantId, orgUnitId);
+}
+
+/** The rooms the caller is in that could be assigned to the org unit, each with how it fits. */
+export async function getOrgUnitRoomCandidates(
+    client: MatrixClient,
+    tenantId: string,
+    orgUnitId: string,
+): Promise<OrgUnitRoomCandidate[]> {
+    const [organization, token] = await organizationApi(client);
+    const page = await organization.getOrgUnitRoomCandidates(token, tenantId, orgUnitId);
+    return page.results ?? [];
+}
+
+/** Assign the room to the org unit's space. Throws `OrgUnitRoomRefusedError` when it cannot be. */
+export async function assignRoomToOrgUnit(
+    client: MatrixClient,
+    tenantId: string,
+    orgUnitId: string,
+    roomId: string,
+): Promise<void> {
+    const [organization, token] = await organizationApi(client);
+    await organization.assignRoomToOrgUnit(token, tenantId, orgUnitId, roomId);
+}
+
+/**
+ * A failure as one line of text, for the log. Never the error itself: an axios error carries the
+ * request, and with it the caller's Verji access token, and the log goes into bug reports.
+ */
+export function describeError(error: unknown): string {
+    return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
+/**
+ * The reason of an `OrgUnitRoomRefusedError` (HTTP 400); `null` for any other failure. Read by
+ * name rather than `instanceof`, so a second copy of the SDK in the bundle cannot hide a refusal.
+ */
+export function getRefusalReason(error: unknown): string | undefined | null {
+    if (error instanceof Error && error.name === "OrgUnitRoomRefusedError") {
+        const reason = (error as Error & { reason?: unknown }).reason;
+        return typeof reason === "string" ? reason : undefined;
+    }
+    return null;
+}
+
+/**
+ * Did the Organization API refuse the user (HTTP 403)? They are no longer the tenant's
+ * PrimaryContact or the org unit's Owner, or the org unit is not the tenant's: trying again changes
+ * nothing. The SDK passes the request's error on for a 403, so it is read off that error's HTTP
+ * status, by shape rather than `instanceof`, as {@link getRefusalReason} reads a refusal.
+ */
+export function isForbidden(error: unknown): boolean {
+    if (typeof error !== "object" || error === null) return false;
+    return (error as { response?: { status?: unknown } }).response?.status === 403;
+}
+
+/**
+ * The space the client has joined for the org unit: a space of the tenant whose `org_unit_info`
+ * names it, both sent by vsys. For the tenant's PrimaryContact or the guest org's Owner, their
+ * personal space of it.
+ */
+export function findOrgUnitSpace(client: MatrixClient, tenantId: string, orgUnitId: string): Room | null {
+    return (
+        client.getRooms().find((room) => {
+            if (room.getMyMembership() !== KnownMembership.Join) return false;
+            const ctx = resolveVerjiSpaceContext(room, []);
+            return ctx?.sentByVsys === true && ctx.tenantId === tenantId && ctx.orgUnitId === orgUnitId;
+        }) ?? null
+    );
+}

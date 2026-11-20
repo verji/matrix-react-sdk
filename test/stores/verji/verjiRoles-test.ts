@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import {
+    isAnyOrgUnitOwner,
     isOrgUnitInContext,
     isOrgUnitMember,
     isOrgUnitMemberOrOwner,
@@ -22,6 +23,7 @@ import {
     isOrgUnitPrimaryContact,
     isStandardUser,
     isTenantPrimaryContact,
+    isTenantPrimaryContactOrOrgUnitOwner,
     VerjiRoleReader,
     VERJI_ROLE_NAMES_FOR_TEST,
 } from "../../../src/stores/verji/verjiRoles";
@@ -36,6 +38,7 @@ const readerFor = (grants: Record<string, string[]>): VerjiRoleReader => ({
     hasRole: (tenantId, roleName, instanceId) => tenantId === TENANT && (grants[roleName] ?? []).includes(instanceId),
     isInstanceReferenced: (tenantId, instanceId) =>
         tenantId === TENANT && Object.values(grants).some((instances) => instances.includes(instanceId)),
+    getRoleInstances: (tenantId, roleName) => (tenantId === TENANT ? grants[roleName] ?? [] : []),
 });
 
 /** A reader that records every (tenant, role, instance) it is asked about, and denies all. */
@@ -51,6 +54,10 @@ const recordingReader = (): { reader: VerjiRoleReader; asked: Array<[string, str
             isInstanceReferenced: (tenantId, instanceId) => {
                 asked.push([tenantId, "<any role>", instanceId]);
                 return false;
+            },
+            getRoleInstances: (tenantId, roleName) => {
+                asked.push([tenantId, roleName, "<its instances>"]);
+                return [];
             },
         },
     };
@@ -145,6 +152,43 @@ describe("verjiRoles — the client's role contract with itops", () => {
                 [TENANT, "ClientOrganization-User#", ORG_A],
                 [TENANT, "ClientOrganization-Owner", ORG_A],
             ]);
+        });
+    });
+
+    // VERJI: verji/verji-src#2117 — who brings an OrgUnit from before Hierarchy V2 in, and its rooms.
+    describe("isTenantPrimaryContactOrOrgUnitOwner", () => {
+        it.each([
+            ["the tenant's PrimaryContact", { "Customer-Manager#": [TENANT] }, true],
+            ["the Owner of the OrgUnit", { "ClientOrganization-Owner": [ORG_A] }, true],
+            ["the OrgUnit's own PrimaryContact", { "ClientOrganization-Manager#": [ORG_A] }, false],
+            ["a Member of the OrgUnit", { "ClientOrganization-User#": [ORG_A] }, false],
+            ["the Owner of another OrgUnit", { "ClientOrganization-Owner": [ORG_B] }, false],
+            ["a tenant admin by expansion only", { "Customer-Manager": [TENANT, ORG_A] }, false],
+        ])("reads %s as %s", (_who, grants, expected) => {
+            expect(isTenantPrimaryContactOrOrgUnitOwner(readerFor(grants), TENANT, ORG_A)).toBe(expected);
+        });
+    });
+
+    describe("isAnyOrgUnitOwner", () => {
+        it.each([
+            ["the Owner of an OrgUnit", { "ClientOrganization-Owner": [ORG_B] }, true],
+            ["a bare Owner row, which is not the owner signal", { Owner: [ORG_A] }, false],
+            [
+                "a Member and the OrgUnit's own PrimaryContact",
+                { "ClientOrganization-User#": [ORG_A], "ClientOrganization-Manager#": [ORG_A] },
+                false,
+            ],
+            ["the tenant's PrimaryContact who owns nothing", { "Customer-Manager#": [TENANT] }, false],
+        ])("reads %s as %s", (_who, grants, expected) => {
+            expect(isAnyOrgUnitOwner(readerFor(grants), TENANT)).toBe(expected);
+        });
+
+        it("reads the Owner role's own list, in the tenant it was given", () => {
+            const { reader, asked } = recordingReader();
+
+            isAnyOrgUnitOwner(reader, TENANT);
+
+            expect(asked).toEqual([[TENANT, "ClientOrganization-Owner", "<its instances>"]]);
         });
     });
 

@@ -26,6 +26,7 @@ import SpaceStore from "../spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../spaces";
 import { VerjiGateReader } from "./verjiGates";
 import { isOrgUnitMemberOrOwner, isOrgUnitPrimaryContact, isTenantPrimaryContact } from "./verjiRoles";
+import { setSignedInUser } from "./verjiOrgUnitRooms";
 
 /**
  * VERJI: the bridge between `sdk.permissions` (the framework-agnostic access-context cache in
@@ -106,6 +107,16 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
     }
 
     /**
+     * Whether bringing existing org units and rooms into Hierarchy V2 is switched on for a tenant and this user
+     * (`hierarchy-v2.join-existing-org-units-and-rooms`, a flag of its own on top of the rollout switch). The options that
+     * do it are offered only where it is. False wherever {@link isCanonicalSpaceSyncEnabled} is false, and when the tenant has
+     * no cached record yet.
+     */
+    public isJoinExistingOrgUnitsAndRoomsEnabled(tenantId: string): boolean {
+        return this.permissions?.isJoinExistingOrgUnitsAndRoomsEnabled(tenantId) ?? false;
+    }
+
+    /**
      * Mirrors the backend's `AcContext.HasRole`. Default-deny — false for an unknown tenant, an
      * unknown role, or a context that has not loaded. Ask through the predicates in `verjiRoles`,
      * never with a role name spelled at the call site.
@@ -127,6 +138,15 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         const roles = this.permissions?.peekContext(tenantId).record?.roles;
         if (!roles) return false;
         return Object.values(roles).some((instances) => Array.isArray(instances) && instances.includes(instanceId));
+    }
+
+    /**
+     * The instances one role is held on in the tenant's cached context; empty when the tenant has
+     * no cached context or the role is not in it. Ask through `isAnyOrgUnitOwner` in `verjiRoles`.
+     */
+    public getRoleInstances(tenantId: string, roleName: string): readonly string[] {
+        const instances = this.permissions?.peekContext(tenantId).record?.roles?.[roleName];
+        return Array.isArray(instances) ? instances : [];
     }
 
     /** See `VerjiGateReader.isOrgUnitRefreshExhausted`. */
@@ -319,6 +339,9 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         const client = this.matrixClient;
         const userId = client?.getUserId();
         if (!client || !userId) return;
+        // The answers on what the user may bring in are this user's from here on (verji/verji-src#2117).
+        // Before the access context is set below: a menu it re-renders reads them as this user's.
+        setSignedInUser(userId);
 
         // `IConfigOptions` does not declare the Verji URLs; the Verji runtime modules cast the same
         // way (see verji-roomsublist-module's `VerjiConfig`).
@@ -397,6 +420,11 @@ export class VerjiPermissionsStore extends ReadyWatchingStore implements VerjiGa
         this.primedForUserId = undefined;
         // The re-fetch budget and the throttle belong to the user who spent them.
         this.resetFreshnessRequests();
+        // Nobody is signed in now (verji/verji-src#2117): an answer on what the user may bring in, to a
+        // question asked before this, is not kept. Their answers and their bring-ins still settling
+        // are not forgotten here: the same user signing in again, as after a soft logout, keeps them,
+        // and they are forgotten once another user has signed in (`onReady`).
+        setSignedInUser(undefined);
         this.bumpVersion();
 
         if (!permissions) return;

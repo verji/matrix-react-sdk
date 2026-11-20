@@ -30,6 +30,13 @@ import { Action } from "../../../src/dispatcher/actions";
 import SdkConfig from "../../../src/SdkConfig";
 import SpaceStore from "../../../src/stores/spaces/SpaceStore";
 import { UPDATE_TOP_LEVEL_SPACES } from "../../../src/stores/spaces";
+import {
+    askHasOrgUnitWithoutCategory,
+    currentSignedInUser,
+    forgetHasOrgUnitWithoutCategory,
+    knownHasOrgUnitWithoutCategory,
+    markBringingIn,
+} from "../../../src/stores/verji/verjiOrgUnitRooms";
 import { flushPromises, getMockClientWithEventEmitter, mockClientMethodsUser } from "../../test-utils";
 
 jest.mock("@verji/verji-api-sdk/lib/asyncInit", () => ({
@@ -57,6 +64,7 @@ const makePermissions = () => {
     return {
         init: jest.fn().mockResolvedValue(undefined),
         isCanonicalSpaceSyncEnabled: jest.fn((tenantId: string) => tenantId === TENANT),
+        isJoinExistingOrgUnitsAndRoomsEnabled: jest.fn((tenantId: string) => tenantId === TENANT),
         hasRole: jest.fn(
             (tenantId: string, roleName: string, instanceId: string) =>
                 tenantId === TENANT && (context.roles[roleName] ?? []).includes(instanceId),
@@ -159,9 +167,11 @@ describe("VerjiPermissionsStore", () => {
     describe("with no SDK store to ask", () => {
         const expectOutsideTheBeta = (store: VerjiPermissionsStore): void => {
             expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(false);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled(TENANT)).toBe(false);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(false);
             expect(store.peekContext(TENANT)).toEqual({ status: "uninitialized" });
             expect(store.isInstanceReferenced(TENANT, TENANT)).toBe(false);
+            expect(store.getRoleInstances(TENANT, "Customer-User#")).toEqual([]);
             expect(store.isOrgUnitRefreshExhausted(TENANT, ORG_A)).toBe(false);
         };
 
@@ -198,6 +208,9 @@ describe("VerjiPermissionsStore", () => {
 
             expect(store.isCanonicalSpaceSyncEnabled(TENANT)).toBe(true);
             expect(store.isCanonicalSpaceSyncEnabled("tenant-2")).toBe(false);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled(TENANT)).toBe(true);
+            expect(store.isJoinExistingOrgUnitsAndRoomsEnabled("tenant-2")).toBe(false);
+            expect(permissions.isJoinExistingOrgUnitsAndRoomsEnabled).toHaveBeenCalledWith(TENANT);
             expect(store.hasRole(TENANT, "Customer-User#", TENANT)).toBe(true);
             expect(permissions.hasRole).toHaveBeenCalledWith(TENANT, "Customer-User#", TENANT);
             expect(store.peekContext(TENANT).status).toBe("fresh");
@@ -210,6 +223,16 @@ describe("VerjiPermissionsStore", () => {
             expect(store.isInstanceReferenced(TENANT, ORG_A)).toBe(true);
             expect(store.isInstanceReferenced(TENANT, ORG_B)).toBe(false);
             expect(store.isInstanceReferenced("tenant-2", ORG_A)).toBe(false);
+        });
+
+        // VERJI: verji/verji-src#2117 — the Owner's org units, read from the Owner role's own list.
+        it("reads one role's instances, in the tenant asked about only", async () => {
+            permissions.context.roles["ClientOrganization-Owner"] = [ORG_A, ORG_B];
+            const store = await startedStore();
+
+            expect(store.getRoleInstances(TENANT, "ClientOrganization-Owner")).toEqual([ORG_A, ORG_B]);
+            expect(store.getRoleInstances(TENANT, "ClientOrganization-User#")).toEqual([]);
+            expect(store.getRoleInstances("tenant-2", "ClientOrganization-Owner")).toEqual([]);
         });
 
         it("initialises the SDK store for the signed-in user", async () => {
@@ -289,6 +312,101 @@ describe("VerjiPermissionsStore", () => {
             await dispatchAndSettle({ action: Action.OnLoggedOut });
 
             expect(listener).toHaveBeenCalled();
+        });
+
+        // VERJI: verji/verji-src#2117 — what the user may bring in is theirs, and so are their bring-ins.
+        describe("the answers on what the user may bring in", () => {
+            afterEach(() => forgetHasOrgUnitWithoutCategory());
+
+            it("does not let a bring-in of the previous user hold back the next user's answers", async () => {
+                const store = await startedStore();
+                // The first user's menu offers the option, and she brings a guest org in.
+                await askHasOrgUnitWithoutCategory(TENANT, store.getVersion(), async () => true);
+                const sentBy = currentSignedInUser();
+
+                // She logs out, and the 202 lands while nobody is signed in: it is still hers.
+                await dispatchAndSettle({ action: Action.OnLoggedOut });
+                markBringingIn(TENANT, ORG_A, sentBy);
+
+                // The next user signs in, in the same tab: their answer is kept.
+                await dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser("@bob:domain.org"),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
+            });
+
+            it("forgets the previous user's bring-ins once another user signs in", async () => {
+                const store = await startedStore();
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
+
+                await dispatchAndSettle({ action: Action.OnLoggedOut });
+                await dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser("@bob:domain.org"),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
+
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => false);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBe(false);
+            });
+
+            /** The same user signs in again after a soft logout, in the same tab, seconds later. */
+            const signInAgain = (): Promise<void> =>
+                dispatchAndSettle({
+                    action: "MatrixActions.sync",
+                    prevState: null,
+                    state: SyncState.Prepared,
+                    matrixClient: getMockClientWithEventEmitter({
+                        ...mockClientMethodsUser(USER),
+                        getAccessToken: jest.fn().mockReturnValue("macaroon-2"),
+                    }),
+                });
+
+            it("keeps the same user's bring-in that is still settling over a soft logout", async () => {
+                const store = await startedStore();
+                // Alice brings a guest org in: 202, and the Organization API still lists it without a category.
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
+
+                // Her session is soft-logged-out, and she signs in again in the same tab, seconds later.
+                await dispatchAndSettle({ action: "on_client_not_viable" });
+                await signInAgain();
+
+                // Her menu asks; the Organization API still lists ORG_A without a category.
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => true);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBeUndefined();
+            });
+
+            it("keeps it too for a menu that re-renders as her access context loads again", async () => {
+                const store = await startedStore();
+                markBringingIn(TENANT, ORG_A, currentSignedInUser());
+                // A mounted menu re-renders on every change of the store, and reads the answers once
+                // there is an access context to offer the option on.
+                store.subscribe(() => {
+                    if (store.peekContext(TENANT).status === "uninitialized") return;
+                    knownHasOrgUnitWithoutCategory(TENANT, store.getVersion());
+                });
+
+                await dispatchAndSettle({ action: "on_client_not_viable" });
+                await signInAgain();
+
+                const version = store.getVersion();
+                await askHasOrgUnitWithoutCategory(TENANT, version, async () => true);
+                expect(knownHasOrgUnitWithoutCategory(TENANT, version)).toBeUndefined();
+            });
         });
     });
 
