@@ -97,6 +97,11 @@ const checking = (): VerjiGateDecision => ({ verdict: VerjiGateVerdict.Checking,
 export interface VerjiGateReader extends VerjiRoleReader {
     isCanonicalSpaceSyncEnabled(tenantId: string): boolean;
     /**
+     * Is bringing existing org units and rooms into Hierarchy V2 switched on for the tenant? Its own flag, on top of the
+     * rollout switch; only the add-existing gates read it, and hide their option where it is off.
+     */
+    isJoinExistingOrgUnitsAndRoomsEnabled(tenantId: string): boolean;
+    /**
      * Is the store's one bounded re-fetch for this OrgUnit used up — out of attempts, or ended
      * early because the user turned out to be its Member or Owner, or the tenant's PrimaryContact?
      * Once it is, an OrgUnit the context does not mention reads as denied, so a wrong staleness
@@ -263,6 +268,84 @@ export function getSpaceSettingsGate(ctx: VerjiSpaceContext | null, reader: Verj
         if (isTenantPrimaryContact(reader, c.tenantId)) return ALLOWED;
         return denied(_t("verji|gate|settings_denied_not_primary_contact", { tenant: c.tenantName }));
     });
+}
+
+/**
+ * Bringing a guest org from before Hierarchy V2 in, behind the "Add existing Guest Organization"
+ * option of an OrgUnitCategory space's menu and of the tenant root's (verji/verji-src#2117).
+ *
+ * Unlike the gates above, this one guards an affordance that does not exist outside the beta, so
+ * its NotGated must hide it rather than keep today's behaviour: render it on
+ * {@link isGateOffered}, never on {@link isGateVisible}. Offered at an OrgUnitCategory and at the
+ * TenantRoot to the tenant's PrimaryContact, who may bring in any guest org of the tenant, and to
+ * every StandardUser of the tenant, any of whom may be the Owner of a guest org and bring in their
+ * own; hidden from a Guest, the OrgUnit's own PrimaryContact who is one included, and at an OrgUnit.
+ * The Organization API admits the same people, and decides who owns a guest org from the tenant's
+ * records, not from the access context. The TenantRoot carries it because an Owner of a guest org
+ * from before Hierarchy V2 usually has no category space yet: it appears once they belong to a
+ * guest org that is in. There is no one to show it disabled to.
+ *
+ * For a StandardUser this is the half the access context can answer. Whether they own a guest org
+ * that still has no category it cannot, so the menu asks the Organization API before it offers the
+ * option to a StandardUser who is not the PrimaryContact (`useHasOrgUnitWithoutCategory`).
+ *
+ * The client cannot tell the tenant's default category from another one, and the backend gives
+ * the org unit the default category whichever space the option is chosen on.
+ *
+ * Only on a space whose `tenant_info` vsys sent ({@link VerjiSpaceContext.sentByVsys}): a space
+ * anyone made and stamped with a tenant's id is not that tenant's, and the option would call the
+ * Organization API for the tenant it names.
+ *
+ * Only where bringing existing org units and rooms into Hierarchy V2 is switched on for the tenant as
+ * well ({@link VerjiGateReader.isJoinExistingOrgUnitsAndRoomsEnabled}), a flag of its own on top of the
+ * rollout switch, which the Organization API's routes for it require too: hidden elsewhere.
+ */
+export function getAddExistingGuestOrgGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) =>
+        reader.isJoinExistingOrgUnitsAndRoomsEnabled(c.tenantId) &&
+        c.sentByVsys === true &&
+        (c.kind === VerjiSpaceKind.OrgUnitCategory || c.kind === VerjiSpaceKind.TenantRoot) &&
+        (isTenantPrimaryContact(reader, c.tenantId) || isStandardUser(reader, c.tenantId))
+            ? ALLOWED
+            : HIDDEN,
+    );
+}
+
+/**
+ * Assigning a room from before Hierarchy V2 to a guest org, behind the "Add existing room" option
+ * of an OrgUnit space's menu (verji/verji-src#2117).
+ *
+ * Like {@link getAddExistingGuestOrgGate}, an affordance of the beta only: render it on
+ * {@link isGateOffered}. Offered at an OrgUnit that carries its org unit id to the tenant's
+ * PrimaryContact, in every guest org of the tenant — whether the context has heard of the OrgUnit
+ * or not, since their standing is tenant-wide — and to the Owner of that OrgUnit while they are a
+ * StandardUser of the tenant: the Organization API admits the tenant's StandardUsers and its
+ * PrimaryContact to these routes, so an Owner who is no person of the tenant would only be refused.
+ * Hidden for everyone else, the OrgUnit's own PrimaryContact included, and at every other kind of space.
+ * Only on a space whose `tenant_info` and `org_unit_info` vsys sent
+ * ({@link VerjiSpaceContext.sentByVsys}), and only where bringing existing org units and rooms into
+ * Hierarchy V2 is switched on for the tenant, as for {@link getAddExistingGuestOrgGate}.
+ */
+export function getAddExistingRoomGate(ctx: VerjiSpaceContext | null, reader: VerjiGateReader): VerjiGateDecision {
+    return evaluateGate(ctx, reader, (c) =>
+        reader.isJoinExistingOrgUnitsAndRoomsEnabled(c.tenantId) &&
+        c.sentByVsys === true &&
+        c.kind === VerjiSpaceKind.OrgUnit &&
+        !!c.orgUnitId &&
+        (isTenantPrimaryContact(reader, c.tenantId) ||
+            (isStandardUser(reader, c.tenantId) && isOrgUnitOwner(reader, c.tenantId, c.orgUnitId)))
+            ? ALLOWED
+            : HIDDEN,
+    );
+}
+
+/**
+ * Should an affordance that exists only in the beta render? True only for
+ * {@link VerjiGateVerdict.Allowed}: outside the beta (NotGated) there is no such affordance today,
+ * so "today's behaviour" is to leave it out.
+ */
+export function isGateOffered(decision: VerjiGateDecision): boolean {
+    return decision.verdict === VerjiGateVerdict.Allowed;
 }
 
 /** Should the affordance render at all? False only for {@link VerjiGateVerdict.Hidden}. */

@@ -1,0 +1,60 @@
+/*
+Copyright 2026 Verji Tech AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* VERJI: "Add existing Guest Organization" and "Add existing room" (verji/verji-src#2117). They
+   reuse the AddExistingToSpace layout; these are only what it lacks: a description, a hint under a
+   room's name, a button per row in place of a checkbox, and a message state. */
+.mx_VerjiAddExistingToOrgUnitDialog {
+    .mx_VerjiAddExistingToOrgUnit_description {
+        color: $secondary-content;
+        font-size: $font-12px;
+        line-height: $font-15px;
+        margin: 0 0 12px 0;
+    }
+
+    .mx_VerjiAddExistingToOrgUnit_entry {
+        align-items: center;
+
+        .mx_AddExistingToSpace_entry_name {
+            white-space: normal;
+        }
+    }
+
+    .mx_VerjiAddExistingToOrgUnit_hint {
+        color: $secondary-content;
+        font-size: $font-12px;
+        line-height: $font-15px;
+    }
+
+    .mx_VerjiAddExistingToOrgUnit_add {
+        flex-shrink: 0;
+    }
+
+    .mx_VerjiAddExistingToOrgUnit_message {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 12px;
+    }
+
+    .mx_VerjiAddExistingToOrgUnit_error {
+        color: $alert;
+    }
+
+    .mx_AddExistingToSpace_footer .mx_AccessibleButton + .mx_AccessibleButton {
+        margin-left: 8px;
+    }
+}
