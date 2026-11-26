@@ -96,9 +96,11 @@ describe("roomListSpaceContextDetails", () => {
         mocked(client.getRoom).mockImplementation(
             (roomId) => [root, category, orgUnit, elsewhere].find((r) => r.roomId === roomId) ?? null,
         );
-        jest.spyOn(SpaceStore.instance, "getKnownParents").mockImplementation(
-            (roomId) => new Set(roomId === room.roomId ? parentsOfRoom : ancestorsOf[roomId]),
-        );
+        // a space's direct parent comes first in ancestorsOf
+        jest.spyOn(SpaceStore.instance, "getKnownParents").mockImplementation((roomId, includeAncestors) => {
+            if (roomId === room.roomId) return new Set(parentsOfRoom);
+            return new Set(includeAncestors ? ancestorsOf[roomId] : ancestorsOf[roomId].slice(0, 1));
+        });
         jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue(undefined);
         jest.spyOn(room, "isSpaceRoom").mockReturnValue(false);
     });
@@ -139,9 +141,10 @@ describe("roomListSpaceContextDetails", () => {
         });
     });
 
-    it("names all the room's spaces when none of them is inside the active space", () => {
+    it("names no space when none of the room's spaces is inside the active space", () => {
+        // e.g. a room listed in the active space only through its own m.space.parent event
         parentsOfRoom = [elsewhere.roomId];
-        expect(roomListSpaceContextDetails(room, root.roomId)?.details).toBe("Elsewhere");
+        expect(roomListSpaceContextDetails(room, root.roomId)).toBeNull();
     });
 
     it("names the room's space in a meta space", () => {

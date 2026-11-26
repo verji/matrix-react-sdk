@@ -49,6 +49,10 @@ export function roomContextDetails(room: Room): RoomContextDetails | null {
  *
  * Null for a room directly in the active space, a DM, a space, and a room in no known space. In a meta space (Home,
  * Favourites, ...) no room sits directly in the space being viewed, so every room in a space shows its space.
+ *
+ * Known parents come from the spaces' m.space.child events. A room listed in a space only through its own
+ * m.space.parent event has none inside the active space, and shows no space name rather than a space it is not
+ * listed under.
  */
 export function roomListSpaceContextDetails(room: Room, activeSpace: SpaceKey): RoomContextDetails | null {
     if (room.isSpaceRoom() || DMRoomMap.shared().getUserIdForRoomId(room.roomId)) return null;
@@ -57,11 +61,11 @@ export function roomListSpaceContextDetails(room: Room, activeSpace: SpaceKey): 
     if (isMetaSpace(activeSpace)) return spacesContextDetails(room, parents);
     if (parents.includes(activeSpace)) return null;
 
-    // Name the spaces that place the room inside the active space: its other spaces are not why it is listed here.
+    // Name only the spaces that place the room inside the active space: its other spaces are not why it is listed here.
     const parentsInActiveSpace = parents.filter((parentId) =>
         SpaceStore.instance.getKnownParents(parentId, true).has(activeSpace),
     );
-    return spacesContextDetails(room, parentsInActiveSpace.length > 0 ? parentsInActiveSpace : parents);
+    return spacesContextDetails(room, parentsInActiveSpace);
 }
 
 function spacesContextDetails(

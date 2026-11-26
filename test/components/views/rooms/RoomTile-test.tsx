@@ -60,7 +60,7 @@ import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { ConnectionState } from "../../../../src/models/Call";
 import SpaceStore from "../../../../src/stores/spaces/SpaceStore";
-import { SpaceKey, UPDATE_SELECTED_SPACE } from "../../../../src/stores/spaces";
+import { MetaSpace, SpaceKey, UPDATE_KNOWN_PARENTS, UPDATE_SELECTED_SPACE } from "../../../../src/stores/spaces";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -458,6 +458,10 @@ describe("RoomTile", () => {
                 container.querySelector(".mx_RoomTile_spaceContext") as HTMLElement,
             );
             expect(screen.getByRole("treeitem").getAttribute("aria-label")).toMatch(/ In Org unit\.$/);
+            // a long room name must not push the space name out of sight, and hovering shows both in full
+            const title = container.querySelector(".mx_RoomTile_title")!;
+            expect(title).toHaveClass("mx_RoomTile_titleWithSpaceContext");
+            expect(title.getAttribute("title")).toMatch(/ In Org unit\.$/);
         });
 
         it("shows no space name for a room directly in the active space", () => {
@@ -465,6 +469,9 @@ describe("RoomTile", () => {
             const { container } = renderRoomTile();
             expect(spaceName(container)).toBeNull();
             expect(screen.getByRole("treeitem").getAttribute("aria-label")).not.toMatch(/Org unit/);
+            const title = container.querySelector(".mx_RoomTile_title")!;
+            expect(title).not.toHaveClass("mx_RoomTile_titleWithSpaceContext");
+            expect(title.getAttribute("title")).not.toMatch(/Org unit/);
         });
 
         it("follows a switch of space", () => {
@@ -490,40 +497,22 @@ describe("RoomTile", () => {
 
             parentsOfRoom = [rootId];
             act(() => {
-                SpaceStore.instance.emit(rootId);
+                SpaceStore.instance.emit(UPDATE_KNOWN_PARENTS);
             });
             expect(spaceName(container)).toBeNull();
         });
 
-        it("listens to the newly selected space after a switch, not the old one", () => {
+        it("follows the room being added to a space while a meta space is viewed", () => {
+            activeSpace = MetaSpace.Favourites;
+            parentsOfRoom = [];
             const { container } = renderRoomTile();
-            activeSpace = orgUnit.roomId;
-            act(() => {
-                SpaceStore.instance.emit(UPDATE_SELECTED_SPACE, activeSpace);
-            });
-            expect(SpaceStore.instance.listenerCount(rootId)).toBe(0);
+            expect(spaceName(container)).toBeNull();
 
-            // the room moves from Org unit into a space nested in it
-            parentsOfRoom = ["!nested:example.org"];
-            mocked(SpaceStore.instance.getKnownParents).mockImplementation(
-                (roomId) =>
-                    new Set(
-                        roomId === room.roomId
-                            ? parentsOfRoom
-                            : roomId === "!nested:example.org"
-                              ? [orgUnit.roomId, rootId]
-                              : [rootId],
-                    ),
-            );
-            const nested = new Room("!nested:example.org", client, client.getSafeUserId());
-            nested.name = "Nested";
-            client.getRoom.mockImplementation(
-                (roomId) => [room, orgUnit, nested].find((r) => r.roomId === roomId) ?? null,
-            );
+            parentsOfRoom = [orgUnit.roomId];
             act(() => {
-                SpaceStore.instance.emit(orgUnit.roomId);
+                SpaceStore.instance.emit(UPDATE_KNOWN_PARENTS);
             });
-            expect(spaceName(container)).toBe("Nested");
+            expect(spaceName(container)).toBe("Org unit");
         });
 
         it("follows a rename of the space", () => {
@@ -537,15 +526,19 @@ describe("RoomTile", () => {
 
         it("stops listening when unmounted", () => {
             const selectedBefore = SpaceStore.instance.listenerCount(UPDATE_SELECTED_SPACE);
+            const parentsBefore = SpaceStore.instance.listenerCount(UPDATE_KNOWN_PARENTS);
+            const onSpy = jest.spyOn(client, "on");
             const offSpy = jest.spyOn(client, "off");
             const { unmount } = renderRoomTile();
             expect(SpaceStore.instance.listenerCount(UPDATE_SELECTED_SPACE)).toBe(selectedBefore + 1);
-            expect(SpaceStore.instance.listenerCount(rootId)).toBe(1);
+            expect(SpaceStore.instance.listenerCount(UPDATE_KNOWN_PARENTS)).toBe(parentsBefore + 1);
+            const nameListeners = onSpy.mock.calls.filter(([event]) => event === RoomEvent.Name).map(([, fn]) => fn);
+            expect(nameListeners).toHaveLength(1);
 
             unmount();
             expect(SpaceStore.instance.listenerCount(UPDATE_SELECTED_SPACE)).toBe(selectedBefore);
-            expect(SpaceStore.instance.listenerCount(rootId)).toBe(0);
-            expect(offSpy).toHaveBeenCalledWith(RoomEvent.Name, expect.any(Function));
+            expect(SpaceStore.instance.listenerCount(UPDATE_KNOWN_PARENTS)).toBe(parentsBefore);
+            expect(offSpy).toHaveBeenCalledWith(RoomEvent.Name, nameListeners[0]);
         });
     });
 });

@@ -52,6 +52,7 @@ import {
     SpaceKey,
     UPDATE_HOME_BEHAVIOUR,
     UPDATE_INVITED_SPACES,
+    UPDATE_KNOWN_PARENTS,
     UPDATE_SELECTED_SPACE,
     UPDATE_SUGGESTED_ROOMS,
     UPDATE_TOP_LEVEL_SPACES,
@@ -125,6 +126,16 @@ const getRoomFn: FetchRoomFn = (room: Room) => {
     return RoomNotificationStateStore.instance.getRoomState(room);
 };
 
+// VERJI: whether any room's known parent spaces differ between two parent maps (room id -> parent space ids)
+const knownParentsChanged = (prev: Map<string, Set<string>>, next: Map<string, Set<string>>): boolean => {
+    if (prev.size !== next.size) return true;
+    for (const [roomId, parents] of next) {
+        const prevParents = prev.get(roomId);
+        if (!prevParents || setHasDiff(prevParents, parents)) return true;
+    }
+    return false;
+};
+
 type SpaceStoreActions =
     | SettingUpdatedPayload
     | ViewRoomPayload
@@ -167,8 +178,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
     public constructor() {
         super(defaultDispatcher, {});
-        // VERJI: every RoomTile listens for the selected space and for the active space's updates, to keep the space
-        // name it shows after the room name current. A sublist can show all its rooms, so there is no fixed ceiling.
+        // VERJI: every RoomTile listens for the selected space and for known-parent updates, to keep the space name it
+        // shows after the room name current. CallStore raises its ceiling to 100 for the same reason; a sublist can
+        // show all its rooms, so there is no fixed number to raise it to here.
         this.setMaxListeners(0);
 
         SettingsStore.monitorSetting("Spaces.allRoomsInHome", null);
@@ -801,6 +813,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         this.userIdsBySpace = new Map();
         this.childSpacesBySpace = new Map();
 
+        const prevParentMap = this.parentMap;
         this.rebuildParentMap();
         // mutates this.roomIdsBySpace
         this.rebuildMetaSpaces();
@@ -909,6 +922,13 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         changeSet.forEach((k) => {
             this.emit(k);
         });
+
+        // VERJI: a room's known parents can change without the room sets above changing, e.g. a room already listed
+        // in a space through its own m.space.parent gets the space's m.space.child. Room tiles name the space a room
+        // sits in from its known parents, so they listen for this.
+        if (knownParentsChanged(prevParentMap, this.parentMap)) {
+            this.emit(UPDATE_KNOWN_PARENTS);
+        }
 
         if (changeSet.has(this.activeSpace)) {
             this.switchSpaceIfNeeded();
