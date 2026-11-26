@@ -515,6 +515,17 @@ describe("RoomTile", () => {
             expect(spaceName(container)).toBe("Org unit");
         });
 
+        it("keeps the space name of the last of several switches handled in one batch", () => {
+            const { container } = renderRoomTile();
+            act(() => {
+                activeSpace = orgUnit.roomId;
+                SpaceStore.instance.emit(UPDATE_SELECTED_SPACE, activeSpace);
+                activeSpace = rootId;
+                SpaceStore.instance.emit(UPDATE_SELECTED_SPACE, activeSpace);
+            });
+            expect(spaceName(container)).toBe("Org unit");
+        });
+
         it("follows a rename of the space", () => {
             const { container } = renderRoomTile();
             orgUnit.name = "Renamed unit";

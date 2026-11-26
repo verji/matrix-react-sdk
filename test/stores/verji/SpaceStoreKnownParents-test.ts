@@ -182,6 +182,37 @@ describe("SpaceStore known parents (VERJI)", () => {
         expect(emitted).toContain(UPDATE_KNOWN_PARENTS);
     });
 
+    it("announces a room in a nested space being added directly to the active space too", async () => {
+        // the room keeps an entry in the parent map; only its set of parents changes
+        const room = mkRoom("!both:server");
+        mkSpace("!nested:server", [room.roomId]);
+        mkSpace("!root:server", ["!nested:server"]);
+        await run();
+        store.setActiveSpace("!root:server", false);
+        expect(roomListSpaceContextDetails(room, store.activeSpace)?.details).toBe("!nested:server");
+
+        const emitted = emittedDuring(() => setChildren("!root:server", ["!nested:server", room.roomId]));
+
+        expect(roomListSpaceContextDetails(room, store.activeSpace)).toBeNull();
+        expect(emitted).toContain(UPDATE_KNOWN_PARENTS);
+    });
+
+    it("announces a room's other space being nested into the active space", async () => {
+        const room = mkRoom("!two:server");
+        mkSpace("!elsewhere:server", [room.roomId]);
+        mkSpace("!x:server", ["!elsewhere:server"]);
+        mkSpace("!orgunit:server", [room.roomId]);
+        mkSpace("!root:server", ["!orgunit:server"]);
+        await run();
+        store.setActiveSpace("!root:server", false);
+        expect(roomListSpaceContextDetails(room, store.activeSpace)?.details).toBe("!orgunit:server");
+
+        const emitted = emittedDuring(() => setChildren("!root:server", ["!orgunit:server", "!elsewhere:server"]));
+
+        expect(roomListSpaceContextDetails(room, store.activeSpace)?.details).toMatch(/!elsewhere:server/);
+        expect(emitted).toContain(UPDATE_KNOWN_PARENTS);
+    });
+
     it("announces nothing when a space's children are re-sent unchanged", async () => {
         const room = mkRoom("!steady:server");
         const space = mkSpace("!space:server", [room.roomId]);
