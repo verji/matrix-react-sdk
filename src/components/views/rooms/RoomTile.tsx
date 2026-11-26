@@ -53,6 +53,9 @@ import { shouldShowComponent } from "../../../customisations/helpers/UIComponent
 import { UIComponent } from "../../../settings/UIFeature";
 import { isKnockDenied } from "../../../utils/membership";
 import SettingsStore from "../../../settings/SettingsStore";
+import SpaceStore from "../../../stores/spaces/SpaceStore";
+import { SpaceKey, UPDATE_SELECTED_SPACE } from "../../../stores/spaces";
+import { RoomContextDetails, roomListSpaceContextDetails } from "../../../utils/i18n-helpers";
 
 interface Props {
     room: Room;
@@ -73,6 +76,8 @@ interface State {
     generalMenuPosition: PartialDOMRect | null;
     call: Call | null;
     messagePreview: MessagePreview | null;
+    // VERJI: the space(s) the room sits in, shown after its name when that is not the space being viewed
+    spaceContext: RoomContextDetails | null;
 }
 
 const messagePreviewId = (roomId: string): string => `mx_RoomTile_messagePreview_${roomId}`;
@@ -90,6 +95,8 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
     private roomTileRef = createRef<HTMLDivElement>();
     private notificationState: NotificationState;
     private roomProps: RoomEchoChamber;
+    // VERJI: the space whose updates this tile listens to for its space name - the active space
+    private watchedSpace: SpaceKey | null = null;
 
     public constructor(props: ClassProps) {
         super(props);
@@ -101,6 +108,7 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             call: CallStore.instance.getCall(this.props.room.roomId),
             // generatePreview() will return nothing if the user has previews disabled
             messagePreview: null,
+            spaceContext: roomListSpaceContextDetails(this.props.room, SpaceStore.instance.activeSpace),
         };
         this.generatePreview();
 
@@ -151,6 +159,9 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             );
             prevProps.room?.off(RoomEvent.Name, this.onRoomNameUpdate);
             this.props.room?.on(RoomEvent.Name, this.onRoomNameUpdate);
+            prevProps.room?.client.off(RoomEvent.Name, this.onAnyRoomNameUpdate);
+            this.props.room?.client.on(RoomEvent.Name, this.onAnyRoomNameUpdate);
+            this.updateSpaceContext();
         }
     }
 
@@ -170,10 +181,15 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
         this.roomProps.on(PROPERTY_UPDATED, this.onRoomPropertyUpdate);
         this.props.room.on(RoomEvent.Name, this.onRoomNameUpdate);
         CallStore.instance.on(CallStoreEvent.Call, this.onCallChanged);
+        SpaceStore.instance.on(UPDATE_SELECTED_SPACE, this.onSelectedSpaceUpdate);
+        this.watchSpace(SpaceStore.instance.activeSpace);
+        this.props.room.client.on(RoomEvent.Name, this.onAnyRoomNameUpdate);
 
         // Recalculate the call for this room, since it could've changed between
         // construction and mounting
         this.setState({ call: CallStore.instance.getCall(this.props.room.roomId) });
+        // ...and the space name, as the active space or the hierarchy could have changed too
+        this.updateSpaceContext();
     }
 
     public componentWillUnmount(): void {
@@ -187,7 +203,38 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
         this.notificationState.off(NotificationStateEvents.Update, this.onNotificationUpdate);
         this.roomProps.off(PROPERTY_UPDATED, this.onRoomPropertyUpdate);
         CallStore.instance.off(CallStoreEvent.Call, this.onCallChanged);
+        SpaceStore.instance.off(UPDATE_SELECTED_SPACE, this.onSelectedSpaceUpdate);
+        this.watchSpace(null);
+        this.props.room.client.off(RoomEvent.Name, this.onAnyRoomNameUpdate);
     }
+
+    // VERJI: SpaceStore emits a space's key when the rooms in it or in a space nested in it change, which is when a
+    // room can move between being directly in the active space and being in a nested space.
+    private watchSpace(space: SpaceKey | null): void {
+        if (this.watchedSpace !== null) SpaceStore.instance.off(this.watchedSpace, this.updateSpaceContext);
+        this.watchedSpace = space;
+        if (space !== null) SpaceStore.instance.on(space, this.updateSpaceContext);
+    }
+
+    private onSelectedSpaceUpdate = (space: SpaceKey): void => {
+        this.watchSpace(space);
+        this.updateSpaceContext();
+    };
+
+    // VERJI: a renamed space renames the space name its rooms show
+    private onAnyRoomNameUpdate = (room: Room): void => {
+        if (SpaceStore.instance.getKnownParents(this.props.room.roomId).has(room.roomId)) {
+            this.updateSpaceContext();
+        }
+    };
+
+    private updateSpaceContext = (): void => {
+        const spaceContext = roomListSpaceContextDetails(this.props.room, SpaceStore.instance.activeSpace);
+        const current = this.state.spaceContext;
+        if (spaceContext?.details !== current?.details || spaceContext?.ariaLabel !== current?.ariaLabel) {
+            this.setState({ spaceContext });
+        }
+    };
 
     private onAction = (payload: ActionPayload): void => {
         if (
@@ -429,16 +476,25 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             mx_RoomTile_titleHasUnreadEvents: this.notificationState.isUnread,
         });
 
+        const spaceContext = this.state.spaceContext;
         const titleContainer = this.props.isMinimized ? null : (
             <div className="mx_RoomTile_titleContainer">
                 <div title={name} className={titleClasses} tabIndex={-1}>
                     <span dir="auto">{name}</span>
+                    {spaceContext?.details ? (
+                        <span className="mx_RoomTile_spaceContext" dir="auto">
+                            {spaceContext.details}
+                        </span>
+                    ) : null}
                 </div>
                 {subtitle}
             </div>
         );
 
         let ariaLabel = name;
+        if (spaceContext?.details && spaceContext.ariaLabel) {
+            ariaLabel += " " + spaceContext.ariaLabel;
+        }
         // The following labels are written in such a fashion to increase screen reader efficiency (speed).
         if (this.props.tag === DefaultTagID.Invite) {
             // append nothing

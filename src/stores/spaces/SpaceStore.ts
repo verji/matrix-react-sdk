@@ -167,6 +167,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
     public constructor() {
         super(defaultDispatcher, {});
+        // VERJI: every RoomTile listens for the selected space and for the active space's updates, to keep the space
+        // name it shows after the room name current. A sublist can show all its rooms, so there is no fixed ceiling.
+        this.setMaxListeners(0);
 
         SettingsStore.monitorSetting("Spaces.allRoomsInHome", null);
         SettingsStore.monitorSetting("Spaces.enabledMetaSpaces", null);

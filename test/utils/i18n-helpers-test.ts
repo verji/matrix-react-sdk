@@ -19,8 +19,9 @@ import { mocked } from "jest-mock";
 
 import SpaceStore from "../../src/stores/spaces/SpaceStore";
 import { stubClient } from "../test-utils";
-import { roomContextDetails } from "../../src/utils/i18n-helpers";
+import { roomContextDetails, roomListSpaceContextDetails } from "../../src/utils/i18n-helpers";
 import DMRoomMap from "../../src/utils/DMRoomMap";
+import { MetaSpace } from "../../src/stores/spaces";
 
 describe("roomContextDetails", () => {
     const client = stubClient();
@@ -58,5 +59,112 @@ describe("roomContextDetails", () => {
         const res = roomContextDetails(room);
         expect(res!.details).toMatchInlineSnapshot(`"Alpha and one other"`);
         expect(res!.ariaLabel).toMatchInlineSnapshot(`"In Alpha and one other space."`);
+    });
+
+    it("should fall back to the canonical alias for a room in no space", () => {
+        jest.spyOn(SpaceStore.instance, "getKnownParents").mockReturnValue(new Set());
+        jest.spyOn(room, "getCanonicalAlias").mockReturnValue("#room:server");
+        expect(roomContextDetails(room)).toEqual({ details: "#room:server" });
+    });
+});
+
+describe("roomListSpaceContextDetails", () => {
+    const client = stubClient();
+    DMRoomMap.makeShared(client);
+
+    const mkSpace = (roomId: string, name: string): Room => {
+        const space = new Room(roomId, client, client.getSafeUserId());
+        space.name = name;
+        return space;
+    };
+    const room = new Room("!room:server", client, client.getSafeUserId());
+    // Root > Category > Org unit, and Elsewhere, a top-level space of its own
+    const root = mkSpace("!root:server", "Root");
+    const category = mkSpace("!category:server", "Category");
+    const orgUnit = mkSpace("!orgunit:server", "Org unit");
+    const elsewhere = mkSpace("!elsewhere:server", "Elsewhere");
+    const ancestorsOf: Record<string, string[]> = {
+        [root.roomId]: [],
+        [category.roomId]: [root.roomId],
+        [orgUnit.roomId]: [category.roomId, root.roomId],
+        [elsewhere.roomId]: [],
+    };
+    let parentsOfRoom: string[];
+
+    beforeEach(() => {
+        parentsOfRoom = [];
+        mocked(client.getRoom).mockImplementation(
+            (roomId) => [root, category, orgUnit, elsewhere].find((r) => r.roomId === roomId) ?? null,
+        );
+        jest.spyOn(SpaceStore.instance, "getKnownParents").mockImplementation(
+            (roomId) => new Set(roomId === room.roomId ? parentsOfRoom : ancestorsOf[roomId]),
+        );
+        jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue(undefined);
+        jest.spyOn(room, "isSpaceRoom").mockReturnValue(false);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it("names nothing for a room directly in the active space", () => {
+        parentsOfRoom = [orgUnit.roomId];
+        expect(roomListSpaceContextDetails(room, orgUnit.roomId)).toBeNull();
+    });
+
+    it("names the space a room sits in when that space is nested in the active space", () => {
+        parentsOfRoom = [orgUnit.roomId];
+        expect(roomListSpaceContextDetails(room, root.roomId)).toEqual({
+            details: "Org unit",
+            ariaLabel: "In Org unit.",
+        });
+        expect(roomListSpaceContextDetails(room, category.roomId)?.details).toBe("Org unit");
+    });
+
+    it("names nothing for a room directly in the active space that is in another space as well", () => {
+        parentsOfRoom = [orgUnit.roomId, root.roomId];
+        expect(roomListSpaceContextDetails(room, root.roomId)).toBeNull();
+    });
+
+    it("names only the spaces that place the room inside the active space", () => {
+        parentsOfRoom = [elsewhere.roomId, orgUnit.roomId];
+        expect(roomListSpaceContextDetails(room, root.roomId)?.details).toBe("Org unit");
+    });
+
+    it("names two spaces inside the active space as search does", () => {
+        parentsOfRoom = [orgUnit.roomId, category.roomId];
+        expect(roomListSpaceContextDetails(room, root.roomId)).toEqual({
+            details: "Org unit and Category",
+            ariaLabel: "In spaces Org unit and Category.",
+        });
+    });
+
+    it("names all the room's spaces when none of them is inside the active space", () => {
+        parentsOfRoom = [elsewhere.roomId];
+        expect(roomListSpaceContextDetails(room, root.roomId)?.details).toBe("Elsewhere");
+    });
+
+    it("names the room's space in a meta space", () => {
+        parentsOfRoom = [orgUnit.roomId];
+        expect(roomListSpaceContextDetails(room, MetaSpace.Home)?.details).toBe("Org unit");
+        expect(roomListSpaceContextDetails(room, MetaSpace.Favourites)?.details).toBe("Org unit");
+    });
+
+    it("names nothing for a room in no space", () => {
+        expect(roomListSpaceContextDetails(room, root.roomId)).toBeNull();
+        expect(roomListSpaceContextDetails(room, MetaSpace.Home)).toBeNull();
+    });
+
+    it("names nothing for a DM, even one placed in a space", () => {
+        parentsOfRoom = [orgUnit.roomId];
+        jest.spyOn(DMRoomMap.shared(), "getUserIdForRoomId").mockReturnValue("@bob:server");
+        expect(roomListSpaceContextDetails(room, root.roomId)).toBeNull();
+        expect(roomListSpaceContextDetails(room, MetaSpace.Home)).toBeNull();
+    });
+
+    it("names nothing for a space", () => {
+        parentsOfRoom = [orgUnit.roomId];
+        jest.spyOn(room, "isSpaceRoom").mockReturnValue(true);
+        expect(roomListSpaceContextDetails(room, root.roomId)).toBeNull();
     });
 });
