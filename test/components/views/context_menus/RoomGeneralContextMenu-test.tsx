@@ -36,6 +36,7 @@ import { shouldShowComponent } from "../../../../src/customisations/helpers/UICo
 import { UIComponent } from "../../../../src/settings/UIFeature";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import Modal from "../../../../src/Modal";
+import RoomListActions from "../../../../src/actions/RoomListActions";
 
 jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
     shouldShowComponent: jest.fn(),
@@ -125,6 +126,22 @@ describe("RoomGeneralContextMenu", () => {
 
         expect(shouldShowComponent).toHaveBeenCalledWith(UIComponent.InviteUsers);
         expect(screen.getByRole("menuitem", { name: "Invite" })).toBeInTheDocument();
+    });
+
+    // VERJI: the menu sends what utils/room/tagRoom decides - no removal of a tag the room does not have
+    it("favourites a room without tags with a single tag request", () => {
+        mocked(RoomListStore.instance.getTagsForRoom).mockReset().mockReturnValue([]);
+        const tagRoomSpy = jest
+            .spyOn(RoomListActions, "tagRoom")
+            .mockReturnValue({ action: "mocked_tag_room_action", fn: () => {} } as unknown as ReturnType<
+                typeof RoomListActions.tagRoom
+            >);
+
+        const { container } = getComponent({});
+        fireEvent.click(getByLabelText(container, "Favourite"));
+
+        expect(tagRoomSpy).toHaveBeenCalledWith(room.client, room, null, DefaultTagID.Favourite, 0);
+        tagRoomSpy.mockRestore();
     });
 
     it("marks the room as read", async () => {

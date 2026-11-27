@@ -75,7 +75,6 @@ export default class RoomListActions {
         return asyncAction(
             "RoomListActions.tagRoom",
             () => {
-                const promises: Promise<any>[] = [];
                 const roomId = room.roomId;
 
                 // Evil hack to get DMs behaving
@@ -98,34 +97,36 @@ export default class RoomListActions {
                 // but we avoid ever doing a request with TAG_DM.
                 //
                 // if we moved lists, remove the old tag
+                let removeOldTag: Promise<unknown> = Promise.resolve();
                 if (oldTag && oldTag !== DefaultTagID.DM && hasChangedSubLists) {
-                    const promiseToDelete = matrixClient.deleteRoomTag(roomId, oldTag).catch(function (err) {
+                    removeOldTag = matrixClient.deleteRoomTag(roomId, oldTag).catch(function (err) {
                         logger.error("Failed to remove tag " + oldTag + " from room: " + err);
                         Modal.createDialog(ErrorDialog, {
                             title: _t("room_list|failed_remove_tag", { tagName: oldTag }),
                             description: err && err.message ? err.message : _t("invite|failed_generic"),
                         });
                     });
-
-                    promises.push(promiseToDelete);
                 }
 
                 // if we moved lists or the ordering changed, add the new tag
+                // VERJI: only once the old tag is removed, never alongside it. Each write is its own change of the
+                // room's tags on the server, and a sync taken between two writes in flight has left the client
+                // without the new tag.
                 if (newTag && newTag !== DefaultTagID.DM && (hasChangedSubLists || metaData)) {
-                    const promiseToAdd = matrixClient.setRoomTag(roomId, newTag, metaData).catch(function (err) {
-                        logger.error("Failed to add tag " + newTag + " to room: " + err);
-                        Modal.createDialog(ErrorDialog, {
-                            title: _t("room_list|failed_add_tag", { tagName: newTag }),
-                            description: err && err.message ? err.message : _t("invite|failed_generic"),
-                        });
+                    return removeOldTag.then(() =>
+                        matrixClient.setRoomTag(roomId, newTag, metaData).catch(function (err) {
+                            logger.error("Failed to add tag " + newTag + " to room: " + err);
+                            Modal.createDialog(ErrorDialog, {
+                                title: _t("room_list|failed_add_tag", { tagName: newTag }),
+                                description: err && err.message ? err.message : _t("invite|failed_generic"),
+                            });
 
-                        throw err;
-                    });
-
-                    promises.push(promiseToAdd);
+                            throw err;
+                        }),
+                    );
                 }
 
-                return Promise.all(promises);
+                return removeOldTag;
             },
             () => {
                 // For an optimistic update
