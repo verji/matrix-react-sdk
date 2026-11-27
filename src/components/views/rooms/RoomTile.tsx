@@ -53,6 +53,9 @@ import { shouldShowComponent } from "../../../customisations/helpers/UIComponent
 import { UIComponent } from "../../../settings/UIFeature";
 import { isKnockDenied } from "../../../utils/membership";
 import SettingsStore from "../../../settings/SettingsStore";
+import SpaceStore from "../../../stores/spaces/SpaceStore";
+import { UPDATE_KNOWN_PARENTS, UPDATE_SELECTED_SPACE } from "../../../stores/spaces";
+import { RoomContextDetails, roomListSpaceContextDetails } from "../../../utils/i18n-helpers";
 
 interface Props {
     room: Room;
@@ -73,6 +76,8 @@ interface State {
     generalMenuPosition: PartialDOMRect | null;
     call: Call | null;
     messagePreview: MessagePreview | null;
+    // VERJI: the space(s) the room sits in, shown after its name when that is not the space being viewed
+    spaceContext: RoomContextDetails | null;
 }
 
 const messagePreviewId = (roomId: string): string => `mx_RoomTile_messagePreview_${roomId}`;
@@ -101,6 +106,7 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             call: CallStore.instance.getCall(this.props.room.roomId),
             // generatePreview() will return nothing if the user has previews disabled
             messagePreview: null,
+            spaceContext: roomListSpaceContextDetails(this.props.room, SpaceStore.instance.activeSpace),
         };
         this.generatePreview();
 
@@ -151,6 +157,9 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             );
             prevProps.room?.off(RoomEvent.Name, this.onRoomNameUpdate);
             this.props.room?.on(RoomEvent.Name, this.onRoomNameUpdate);
+            prevProps.room?.client.off(RoomEvent.Name, this.onAnyRoomNameUpdate);
+            this.props.room?.client.on(RoomEvent.Name, this.onAnyRoomNameUpdate);
+            this.updateSpaceContext();
         }
     }
 
@@ -170,10 +179,15 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
         this.roomProps.on(PROPERTY_UPDATED, this.onRoomPropertyUpdate);
         this.props.room.on(RoomEvent.Name, this.onRoomNameUpdate);
         CallStore.instance.on(CallStoreEvent.Call, this.onCallChanged);
+        SpaceStore.instance.on(UPDATE_SELECTED_SPACE, this.updateSpaceContext);
+        SpaceStore.instance.on(UPDATE_KNOWN_PARENTS, this.updateSpaceContext);
+        this.props.room.client.on(RoomEvent.Name, this.onAnyRoomNameUpdate);
 
         // Recalculate the call for this room, since it could've changed between
         // construction and mounting
         this.setState({ call: CallStore.instance.getCall(this.props.room.roomId) });
+        // ...and the space name, as the active space or the hierarchy could have changed too
+        this.updateSpaceContext();
     }
 
     public componentWillUnmount(): void {
@@ -187,7 +201,29 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
         this.notificationState.off(NotificationStateEvents.Update, this.onNotificationUpdate);
         this.roomProps.off(PROPERTY_UPDATED, this.onRoomPropertyUpdate);
         CallStore.instance.off(CallStoreEvent.Call, this.onCallChanged);
+        SpaceStore.instance.off(UPDATE_SELECTED_SPACE, this.updateSpaceContext);
+        SpaceStore.instance.off(UPDATE_KNOWN_PARENTS, this.updateSpaceContext);
+        this.props.room.client.off(RoomEvent.Name, this.onAnyRoomNameUpdate);
     }
+
+    // VERJI: a renamed space renames the space name its rooms show
+    private onAnyRoomNameUpdate = (room: Room): void => {
+        if (SpaceStore.instance.getKnownParents(this.props.room.roomId).has(room.roomId)) {
+            this.updateSpaceContext();
+        }
+    };
+
+    // VERJI: the space name depends on the active space, the room's known parents and their ancestors, and the
+    // parents' names - SpaceStore's selected-space and known-parents events and the client's name events
+    private updateSpaceContext = (): void => {
+        const spaceContext = roomListSpaceContextDetails(this.props.room, SpaceStore.instance.activeSpace);
+        this.setState((state) =>
+            spaceContext?.details === state.spaceContext?.details &&
+            spaceContext?.ariaLabel === state.spaceContext?.ariaLabel
+                ? null
+                : { spaceContext },
+        );
+    };
 
     private onAction = (payload: ActionPayload): void => {
         if (
@@ -429,16 +465,28 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
             mx_RoomTile_titleHasUnreadEvents: this.notificationState.isUnread,
         });
 
+        // VERJI: the space the room sits in, after its name, when that is not the space being viewed
+        const spaceContext = this.state.spaceContext?.details ? this.state.spaceContext : null;
+        const nameWithSpace = spaceContext?.ariaLabel ? `${name} ${spaceContext.ariaLabel}` : name;
         const titleContainer = this.props.isMinimized ? null : (
             <div className="mx_RoomTile_titleContainer">
-                <div title={name} className={titleClasses} tabIndex={-1}>
+                <div
+                    title={nameWithSpace}
+                    className={classNames(titleClasses, { mx_RoomTile_titleWithSpaceContext: !!spaceContext })}
+                    tabIndex={-1}
+                >
                     <span dir="auto">{name}</span>
+                    {spaceContext ? (
+                        <span className="mx_RoomTile_spaceContext" dir="auto">
+                            {spaceContext.details}
+                        </span>
+                    ) : null}
                 </div>
                 {subtitle}
             </div>
         );
 
-        let ariaLabel = name;
+        let ariaLabel = nameWithSpace;
         // The following labels are written in such a fashion to increase screen reader efficiency (speed).
         if (this.props.tag === DefaultTagID.Invite) {
             // append nothing

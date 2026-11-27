@@ -17,6 +17,7 @@ limitations under the License.
 import { Room } from "matrix-js-sdk/src/matrix";
 
 import SpaceStore from "../stores/spaces/SpaceStore";
+import { isMetaSpace, SpaceKey } from "../stores/spaces";
 import { _t } from "../languageHandler";
 import DMRoomMap from "./DMRoomMap";
 import { formatList } from "./FormattingUtils";
@@ -34,7 +35,43 @@ export function roomContextDetails(room: Room): RoomContextDetails | null {
         return { details: dmPartner };
     }
 
-    const [parent, secondParent, ...otherParents] = SpaceStore.instance.getKnownParents(room.roomId);
+    return (
+        spacesContextDetails(room, [...SpaceStore.instance.getKnownParents(room.roomId)]) ?? {
+            details: room.getCanonicalAlias(),
+        }
+    );
+}
+
+/**
+ * VERJI: the space name a room-list tile shows after the room's name, in grey, as search does: the space(s) the
+ * room sits in directly, when that is not the space being viewed. A space's room list also holds the rooms of every
+ * space nested in it, so without this two rooms with the same name in different nested spaces look the same.
+ *
+ * Null for a room directly in the active space, a DM, a space, and a room in no known space. In a meta space (Home,
+ * Favourites, ...) no room sits directly in the space being viewed, so every room in a space shows its space.
+ *
+ * Known parents come from the spaces' m.space.child events. A room listed in a space only through its own
+ * m.space.parent event has none inside the active space, and shows no space name rather than a space it is not
+ * listed under.
+ */
+export function roomListSpaceContextDetails(room: Room, activeSpace: SpaceKey): RoomContextDetails | null {
+    if (room.isSpaceRoom() || DMRoomMap.shared().getUserIdForRoomId(room.roomId)) return null;
+
+    const parents = [...SpaceStore.instance.getKnownParents(room.roomId)];
+    if (isMetaSpace(activeSpace)) return spacesContextDetails(room, parents);
+    if (parents.includes(activeSpace)) return null;
+
+    // Name only the spaces that place the room inside the active space: its other spaces are not why it is listed here.
+    const parentsInActiveSpace = parents.filter((parentId) =>
+        SpaceStore.instance.getKnownParents(parentId, true).has(activeSpace),
+    );
+    return spacesContextDetails(room, parentsInActiveSpace);
+}
+
+function spacesContextDetails(
+    room: Room,
+    [parent, secondParent, ...otherParents]: string[],
+): RoomContextDetails | null {
     if (secondParent && !otherParents?.length) {
         // exactly 2 edge case for improved i18n
         const space1Name = room.client.getRoom(parent)?.name;
@@ -58,5 +95,5 @@ export function roomContextDetails(room: Room): RoomContextDetails | null {
         };
     }
 
-    return { details: room.getCanonicalAlias() };
+    return null;
 }
