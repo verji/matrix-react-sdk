@@ -24,8 +24,8 @@ import { DefaultTagID, TagID } from "../../src/stores/room-list/models";
 import RoomListStore from "../../src/stores/room-list/RoomListStore";
 import { flushPromises, getMockClientWithEventEmitter } from "../test-utils";
 
-// VERJI: a tag move writes the room's tags one change at a time - each write is its own change on the server, and a
-// sync taken between two writes in flight has left the client without the new tag.
+// VERJI: a tag change writes the room's tags one change at a time, the new tag first - each write is its own change on
+// the server, and a sync taken between two writes in flight has left the client without the new tag.
 describe("RoomListActions.tagRoom", () => {
     const roomId = "!room:server.org";
     let client: MatrixClient;
@@ -36,6 +36,8 @@ describe("RoomListActions.tagRoom", () => {
         RoomListActions.tagRoom(client, room, oldTag, newTag, 0).fn(dispatch);
         return dispatch;
     };
+
+    const neverSettles = (): Promise<{}> => new Promise(() => {});
 
     beforeEach(() => {
         client = getMockClientWithEventEmitter({
@@ -54,49 +56,50 @@ describe("RoomListActions.tagRoom", () => {
         jest.restoreAllMocks();
     });
 
-    it("adds a tag with a single request when there is no old tag to remove", async () => {
-        const dispatch = runTagRoom(null, DefaultTagID.Favourite);
-        await flushPromises();
-
-        expect(client.deleteRoomTag).not.toHaveBeenCalled();
-        expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, undefined);
-        expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.success" }));
-    });
-
-    it("adds the new tag only once the old one is removed", async () => {
-        let finishRemoval!: () => void;
-        mocked(client.deleteRoomTag).mockReturnValue(new Promise((resolve) => (finishRemoval = () => resolve({}))));
+    it("adds the new tag first and removes the old one only once it is added", async () => {
+        let finishAdding!: () => void;
+        mocked(client.setRoomTag).mockReturnValue(new Promise((resolve) => (finishAdding = () => resolve({}))));
 
         const dispatch = runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
+        await flushPromises();
+        expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, undefined);
+        expect(client.deleteRoomTag).not.toHaveBeenCalled();
+
+        finishAdding();
         await flushPromises();
         expect(client.deleteRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.LowPriority);
-        expect(client.setRoomTag).not.toHaveBeenCalled();
-
-        finishRemoval();
-        await flushPromises();
-        expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, undefined);
         expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.success" }));
     });
 
-    it("still adds the new tag when removing the old one fails, and says so", async () => {
-        mocked(client.deleteRoomTag).mockRejectedValue(new Error("remove failed"));
+    it("does not let a removal that never settles hold back the new tag", async () => {
+        mocked(client.deleteRoomTag).mockReturnValue(neverSettles());
 
-        const dispatch = runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
+        runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
         await flushPromises();
 
-        expect(Modal.createDialog).toHaveBeenCalledTimes(1);
         expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, undefined);
-        expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.success" }));
     });
 
-    it("fails the action when adding the new tag fails", async () => {
+    it("keeps the old tag, says so and fails the action when adding the new tag fails", async () => {
         mocked(client.setRoomTag).mockRejectedValue(new Error("add failed"));
 
         const dispatch = runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
         await flushPromises();
 
         expect(Modal.createDialog).toHaveBeenCalledTimes(1);
+        expect(client.deleteRoomTag).not.toHaveBeenCalled();
         expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.failure" }));
+    });
+
+    it("says so but still succeeds when removing the old tag fails, as before", async () => {
+        mocked(client.deleteRoomTag).mockRejectedValue(new Error("remove failed"));
+
+        const dispatch = runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
+        await flushPromises();
+
+        expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, undefined);
+        expect(Modal.createDialog).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.success" }));
     });
 
     it("only removes the tag when there is no new one", async () => {
@@ -106,5 +109,31 @@ describe("RoomListActions.tagRoom", () => {
         expect(client.deleteRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite);
         expect(client.setRoomTag).not.toHaveBeenCalled();
         expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ action: "RoomListActions.tagRoom.success" }));
+    });
+
+    it("only re-adds the tag, with its new order, when a room is reordered within a manually sorted list", async () => {
+        mocked(RoomListStore.instance.getTagSorting).mockReturnValue(SortAlgorithm.Manual);
+        jest.spyOn(RoomListStore.instance, "orderedLists", "get").mockReturnValue({ [DefaultTagID.Favourite]: [] });
+
+        runTagRoom(DefaultTagID.Favourite, DefaultTagID.Favourite);
+        await flushPromises();
+
+        expect(client.setRoomTag).toHaveBeenCalledWith(roomId, DefaultTagID.Favourite, { order: 0.5 });
+        expect(client.deleteRoomTag).not.toHaveBeenCalled();
+    });
+
+    // verji-roomsublist-module echoes a tag change in its space lists from this payload before the sync arrives
+    it("dispatches the room, the old and the new tag as pending before writing", () => {
+        const dispatch = runTagRoom(DefaultTagID.LowPriority, DefaultTagID.Favourite);
+        expect(dispatch).toHaveBeenNthCalledWith(1, {
+            action: "RoomListActions.tagRoom.pending",
+            request: { room, oldTag: DefaultTagID.LowPriority, newTag: DefaultTagID.Favourite, metaData: undefined },
+        });
+
+        const untagDispatch = runTagRoom(DefaultTagID.Favourite, null);
+        expect(untagDispatch).toHaveBeenNthCalledWith(1, {
+            action: "RoomListActions.tagRoom.pending",
+            request: { room, oldTag: DefaultTagID.Favourite, newTag: null, metaData: undefined },
+        });
     });
 });

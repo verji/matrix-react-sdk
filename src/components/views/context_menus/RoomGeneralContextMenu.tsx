@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { logger } from "matrix-js-sdk/src/logger";
 import { Room } from "matrix-js-sdk/src/matrix";
 import React, { useContext } from "react";
 
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
+import RoomListActions from "../../../actions/RoomListActions";
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
 import dis from "../../../dispatcher/dispatcher";
 import { useEventEmitterState } from "../../../hooks/useEventEmitter";
@@ -28,7 +30,6 @@ import { NotificationLevel } from "../../../stores/notifications/NotificationLev
 import { DefaultTagID, TagID } from "../../../stores/room-list/models";
 import RoomListStore, { LISTS_UPDATE_EVENT } from "../../../stores/room-list/RoomListStore";
 import DMRoomMap from "../../../utils/DMRoomMap";
-import { tagRoom } from "../../../utils/room/tagRoom";
 import { clearRoomNotification, setMarkedUnreadState } from "../../../utils/notifications";
 import { IProps as IContextMenuProps } from "../../structures/ContextMenu";
 import IconizedContextMenu, {
@@ -143,8 +144,15 @@ export const RoomGeneralContextMenu: React.FC<RoomGeneralContextMenuProps> = ({
 
     const onTagRoom = (ev: ButtonEvent, tagId: TagID): void => {
         if (!cli) return;
-        // VERJI: one place decides which tag requests a favourite or low-priority toggle sends
-        tagRoom(room, tagId);
+        if (tagId === DefaultTagID.Favourite || tagId === DefaultTagID.LowPriority) {
+            const inverseTag = tagId === DefaultTagID.Favourite ? DefaultTagID.LowPriority : DefaultTagID.Favourite;
+            const isApplied = RoomListStore.instance.getTagsForRoom(room).includes(tagId);
+            const removeTag = isApplied ? tagId : inverseTag;
+            const addTag = isApplied ? null : tagId;
+            dis.dispatch(RoomListActions.tagRoom(cli, room, removeTag, addTag, 0));
+        } else {
+            logger.warn(`Unexpected tag ${tagId} applied to ${room.roomId}`);
+        }
     };
 
     const isFavorite = roomTags.includes(DefaultTagID.Favourite);

@@ -58,8 +58,7 @@ describe("tagRoom()", () => {
     });
 
     describe("when a room has no tags", () => {
-        // VERJI: no removal of a tag the room does not have - it is a separate write that can race the new tag
-        it("should tag a room as favourite, removing nothing", () => {
+        it("should tag a room as favourite", () => {
             const room = makeRoom();
 
             tagRoom(room, DefaultTagID.Favourite);
@@ -68,13 +67,13 @@ describe("tagRoom()", () => {
             expect(RoomListActions.tagRoom).toHaveBeenCalledWith(
                 room.client,
                 room,
-                null, // remove
+                DefaultTagID.LowPriority, // remove
                 DefaultTagID.Favourite, // add
                 0,
             );
         });
 
-        it("should tag a room low priority, removing nothing", () => {
+        it("should tag a room low priority", () => {
             const room = makeRoom();
 
             tagRoom(room, DefaultTagID.LowPriority);
@@ -83,7 +82,7 @@ describe("tagRoom()", () => {
             expect(RoomListActions.tagRoom).toHaveBeenCalledWith(
                 room.client,
                 room,
-                null, // remove
+                DefaultTagID.Favourite, // remove
                 DefaultTagID.LowPriority, // add
                 0,
             );

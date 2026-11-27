@@ -30,12 +30,8 @@ import dis from "../../dispatcher/dispatcher";
 export function tagRoom(room: Room, tagId: TagID): void {
     if (tagId === DefaultTagID.Favourite || tagId === DefaultTagID.LowPriority) {
         const inverseTag = tagId === DefaultTagID.Favourite ? DefaultTagID.LowPriority : DefaultTagID.Favourite;
-        const tags = RoomListStore.instance.getTagsForRoom(room);
-        const isApplied = tags.includes(tagId);
-        // VERJI: remove the opposite tag only when the room has it. Removing a tag the room does not have is a change
-        // of its own on the server, sent alongside the new tag, and a sync taken between the two has left the client
-        // without the new tag - a favourite that only took on the second click.
-        const removeTag = isApplied ? tagId : tags.includes(inverseTag) ? inverseTag : null;
+        const isApplied = RoomListStore.instance.getTagsForRoom(room).includes(tagId);
+        const removeTag = isApplied ? tagId : inverseTag;
         const addTag = isApplied ? null : tagId;
         dis.dispatch(RoomListActions.tagRoom(room.client, room, removeTag, addTag, 0));
     } else {
